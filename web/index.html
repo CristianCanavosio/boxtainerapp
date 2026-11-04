@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#E8761A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="BoxTainer">
+<link rel="apple-touch-icon" href="logo.png">
+<link rel="shortcut icon" href="logo.png">
+<title>BoxTainer — Gestión Pro</title>
+<style>
+/* PWA EXTRAS */
+#pwa-splash{
+  position:fixed;inset:0;background:#E8761A;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;z-index:9999;transition:opacity .6s ease;
+}
+#pwa-splash img{width:150px;height:150px;object-fit:contain;background:white;
+  border-radius:28px;padding:14px;box-shadow:0 8px 32px rgba(0,0,0,.25)}
+#pwa-splash h1{color:white;font-size:28px;font-weight:800;margin-top:18px;
+  font-family:-apple-system,sans-serif;letter-spacing:-0.5px}
+#pwa-splash p{color:rgba(255,255,255,.8);font-size:13px;margin-top:5px;
+  font-family:-apple-system,sans-serif}
+#pwa-splash .loader{width:40px;height:4px;background:rgba(255,255,255,.3);
+  border-radius:2px;margin-top:30px;overflow:hidden}
+#pwa-splash .loader-fill{height:100%;background:white;border-radius:2px;
+  animation:load 1.5s ease forwards}
+@keyframes load{from{width:0}to{width:100%}}
+#pwa-splash.hide{opacity:0;pointer-events:none}
+
+#install-banner{
+  display:none;position:fixed;bottom:0;left:0;right:0;background:white;
+  padding:20px;z-index:500;box-shadow:0 -4px 24px rgba(0,0,0,.15);
+  border-radius:20px 20px 0 0;
+}
+#install-banner.show{display:block}
+#install-banner h3{font-size:17px;font-weight:800;margin-bottom:4px}
+#install-banner p{font-size:13px;color:#777;margin-bottom:12px}
+#install-banner .ib-steps{background:#FFF3E8;border-radius:12px;padding:13px;margin-bottom:14px;border-left:4px solid #E8761A}
+#install-banner .ib-steps div{font-size:13px;padding:5px 0;color:#444}
+#install-banner .ib-btn{width:100%;padding:14px;background:#E8761A;color:white;
+  border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer}
+#install-banner .ib-close{position:absolute;top:14px;right:16px;background:none;
+  border:none;font-size:22px;cursor:pointer;color:#aaa}
+
+
+.toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%) translateY(20px);background:#333;color:#fff;
+  padding:11px 18px;border-radius:12px;font-size:14px;font-weight:600;opacity:0;transition:all .25s;z-index:9000;pointer-events:none;max-width:90%;text-align:center}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.kanban-item{cursor:pointer}
+.alerta{cursor:pointer}
+@media(min-width:760px){
+  .stats-4{grid-template-columns:repeat(4,1fr)}
+  .view{max-width:1100px;margin:0 auto}
+  .overlay{align-items:center;justify-content:center}
+  .modal{max-width:560px;border-radius:20px}
+}
+:root {
+  --nar:#E8761A; --nar-d:#C45E0A; --nar-l:#FFF3E8; --nar-m:#F5A05A;
+  --gris:#444; --gris-m:#777; --gris-l:#F3F3F3; --borde:#E2E2E2;
+  --blanco:#fff; --verde:#27ae60; --rojo:#e74c3c; --azul:#2980b9;
+  --amarillo:#f39c12; --morado:#8e44ad;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--gris-l);color:var(--gris);min-height:100vh}
+
+/* ── LOGIN ── */
+#screen-login{min-height:100vh;background:linear-gradient(160deg,var(--nar) 0%,var(--nar-d) 100%);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px}
+.login-logo{background:white;border-radius:20px;padding:18px 28px;margin-bottom:24px;text-align:center}
+.login-logo .logo-emoji{font-size:48px}
+.login-logo h1{font-size:22px;font-weight:800;color:var(--nar);margin-top:4px}
+.login-logo p{font-size:12px;color:var(--gris-m)}
+.login-card{background:white;border-radius:20px;padding:24px;width:100%;max-width:380px}
+.login-card h2{font-size:20px;font-weight:800;margin-bottom:4px}
+.login-card p{font-size:13px;color:var(--gris-m);margin-bottom:20px}
+.login-input{width:100%;padding:14px;border:1.5px solid var(--borde);border-radius:12px;
+  font-size:16px;margin-bottom:12px;-webkit-appearance:none}
+.login-input:focus{outline:none;border-color:var(--nar);box-shadow:0 0 0 3px var(--nar-l)}
+.login-btn{width:100%;padding:15px;background:var(--nar);color:white;border:none;
+  border-radius:12px;font-size:17px;font-weight:700;cursor:pointer;margin-top:4px}
+.login-error{color:var(--rojo);font-size:13px;text-align:center;margin-top:8px;display:none}
+
+/* ── MAIN APP ── */
+#screen-app{display:none;padding-bottom:80px}
+.header{background:var(--nar);color:white;padding:12px 16px;display:flex;align-items:center;gap:10px;
+  position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.header-logo{width:36px;height:36px;background:white;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:20px}
+.header-info{flex:1}
+.header-info h1{font-size:17px;font-weight:800}
+.header-info p{font-size:11px;opacity:.85}
+.header-user{background:rgba(255,255,255,.2);border:none;color:white;padding:7px 11px;border-radius:8px;font-size:12px;cursor:pointer}
+.nav{display:flex;background:white;border-bottom:2px solid var(--nar);overflow-x:auto;position:sticky;top:60px;z-index:99}
+.nav::-webkit-scrollbar{display:none}
+.nav-btn{flex:none;padding:10px 13px;border:none;background:none;font-size:11px;color:var(--gris-m);
+  cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap;font-weight:600}
+.nav-btn.active{color:var(--nar);border-bottom-color:var(--nar)}
+
+/* ── VIEWS ── */
+.view{display:none;padding:12px}
+.view.active{display:block}
+
+/* ── CARDS ── */
+.card{background:white;border-radius:14px;padding:16px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,.07)}
+.card-title{font-size:16px;font-weight:800;margin-bottom:4px}
+.sec-title{font-size:17px;font-weight:800;margin-bottom:12px;display:flex;align-items:center;gap:6px}
+
+/* ── STATS GRID ── */
+.stats-4{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px}
+.stat-box{background:white;border-radius:13px;padding:14px;text-align:center;box-shadow:0 1px 5px rgba(0,0,0,.07)}
+.stat-box.nar{background:var(--nar);color:white}
+.stat-box.verde{background:var(--verde);color:white}
+.stat-box.rojo{background:var(--rojo);color:white}
+.stat-box.azul{background:var(--azul);color:white}
+.stat-box.amarillo{background:var(--amarillo);color:white}
+.stat-num{font-size:30px;font-weight:800}
+.stat-lbl{font-size:11px;opacity:.85;margin-top:2px}
+.stat-box:not(.nar):not(.verde):not(.rojo):not(.azul):not(.amarillo) .stat-num{color:var(--nar)}
+.stat-box:not(.nar):not(.verde):not(.rojo):not(.azul):not(.amarillo) .stat-lbl{color:var(--gris-m)}
+
+/* ── PROGRESS ── */
+.prog-bar{background:var(--gris-l);border-radius:10px;height:10px;overflow:hidden;margin:5px 0}
+.prog-fill{height:100%;border-radius:10px;transition:width .3s}
+.prog-verde{background:var(--verde)}
+.prog-nar{background:var(--nar)}
+.prog-rojo{background:var(--rojo)}
+.prog-amar{background:var(--amarillo)}
+
+/* ── BADGES ── */
+.badge{display:inline-flex;align-items:center;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700}
+.b-nar{background:var(--nar-l);color:var(--nar)}
+.b-verde{background:#e8f8f0;color:var(--verde)}
+.b-rojo{background:#fdf0ef;color:var(--rojo)}
+.b-azul{background:#eaf4fc;color:var(--azul)}
+.b-amar{background:#fef9e7;color:var(--amarillo)}
+.b-gris{background:var(--gris-l);color:var(--gris-m)}
+.b-morado{background:#f5eef8;color:var(--morado)}
+
+/* ── PROYECTO CARD ── */
+.proy-card{background:white;border-radius:14px;padding:14px;margin-bottom:10px;
+  box-shadow:0 1px 5px rgba(0,0,0,.07);border-left:5px solid var(--nar);cursor:pointer;transition:transform .1s}
+.proy-card:active{transform:scale(.98)}
+.proy-card.desviado{border-left-color:var(--rojo)}
+.proy-card.ok{border-left-color:var(--verde)}
+.proy-card.pausado{border-left-color:var(--amarillo)}
+.proy-nombre{font-size:15px;font-weight:800}
+.proy-cliente{font-size:12px;color:var(--gris-m);margin-top:2px}
+.proy-meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.proy-row{display:flex;justify-content:space-between;align-items:center;margin-top:4px}
+
+/* ── ALERTA ── */
+.alerta{background:white;border-radius:12px;padding:12px 14px;margin-bottom:8px;
+  border-left:5px solid var(--rojo);display:flex;gap:10px;align-items:flex-start}
+.alerta.warn{border-left-color:var(--amarillo)}
+.alerta-icon{font-size:22px;flex-shrink:0}
+.alerta-texto h4{font-size:14px;font-weight:700}
+.alerta-texto p{font-size:12px;color:var(--gris-m);margin-top:2px}
+
+/* ── FORM ── */
+.fg{margin-bottom:13px}
+.fg label{display:block;font-size:13px;font-weight:700;color:var(--gris);margin-bottom:5px}
+.fg input,.fg select,.fg textarea{width:100%;padding:12px;border:1.5px solid var(--borde);
+  border-radius:10px;font-size:15px;background:white;-webkit-appearance:none;appearance:none}
+.fg input:focus,.fg select:focus,.fg textarea:focus{outline:none;border-color:var(--nar);box-shadow:0 0 0 3px var(--nar-l)}
+.fg textarea{resize:vertical;min-height:70px}
+.form-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:13px 18px;
+  border-radius:12px;font-size:15px;font-weight:700;border:none;cursor:pointer;width:100%;transition:opacity .15s}
+.btn:active{opacity:.8}
+.btn-nar{background:var(--nar);color:white}
+.btn-sec{background:var(--gris-l);color:var(--gris)}
+.btn-rojo{background:var(--rojo);color:white}
+.btn-verde{background:var(--verde);color:white}
+.btn-sm{padding:7px 13px;font-size:12px;width:auto;border-radius:8px}
+.flex-btns{display:flex;gap:8px}
+.flex-btns .btn{flex:1}
+
+/* ── MODAL ── */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:flex-end}
+.overlay.active{display:flex}
+.modal{background:white;border-radius:20px 20px 0 0;width:100%;max-height:93vh;overflow-y:auto;padding:20px}
+.modal-handle{width:40px;height:4px;background:var(--borde);border-radius:2px;margin:0 auto 16px}
+.modal-title{font-size:20px;font-weight:800;margin-bottom:18px}
+
+/* ── TABLE ── */
+.tabla{width:100%;border-collapse:collapse;font-size:13px}
+.tabla th{background:var(--nar);color:white;padding:10px 8px;text-align:left;font-weight:700}
+.tabla td{padding:9px 8px;border-bottom:1px solid var(--borde)}
+.tabla tr:nth-child(even) td{background:var(--gris-l)}
+
+/* ── DETAIL ROWS ── */
+.drow{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(232,118,26,.12);font-size:14px}
+.drow:last-child{border:none}
+.drow .lbl{color:var(--gris-m);font-weight:500}
+.drow .val{font-weight:700;text-align:right;max-width:58%}
+.dsec{background:var(--nar-l);border-radius:12px;padding:13px;margin-bottom:12px}
+.dsec h3{font-size:13px;font-weight:800;color:var(--nar);margin-bottom:10px}
+
+/* ── PERSONA ── */
+.persona-item{display:flex;align-items:center;gap:11px;padding:10px 0;border-bottom:1px solid var(--borde)}
+.persona-item:last-child{border:none}
+.avatar{width:40px;height:40px;border-radius:50%;background:var(--nar);display:flex;
+  align-items:center;justify-content:center;color:white;font-weight:800;font-size:16px;flex-shrink:0}
+.persona-info{flex:1}
+.persona-nombre{font-size:14px;font-weight:700}
+.persona-rol{font-size:12px;color:var(--gris-m)}
+
+/* ── MATERIAL ── */
+.mat-item{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--borde)}
+.mat-item:last-child{border:none}
+.mat-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.dot-p{background:var(--rojo)} .dot-c{background:var(--verde)} .dot-t{background:var(--amarillo)}
+.mat-info{flex:1}
+.mat-nom{font-size:14px;font-weight:600}
+.mat-det{font-size:12px;color:var(--gris-m)}
+
+/* ── CONT ITEM ── */
+.cont-item{background:var(--gris-l);border-radius:10px;padding:11px;margin-bottom:8px;display:flex;align-items:center;gap:11px}
+.cont-icon{font-size:26px}
+.cont-info{flex:1}
+.cont-cod{font-size:15px;font-weight:700}
+.cont-det{font-size:12px;color:var(--gris-m)}
+
+/* ── UPDATE CARD ── */
+.update-item{background:var(--gris-l);border-radius:10px;padding:11px 13px;margin-bottom:8px}
+.update-fecha{font-size:11px;color:var(--gris-m);margin-bottom:4px}
+.update-texto{font-size:14px}
+.update-autor{font-size:12px;color:var(--nar);margin-top:3px;font-weight:600}
+
+/* ── FAB ── */
+.fab{position:fixed;bottom:20px;right:16px;width:58px;height:58px;border-radius:50%;
+  background:var(--nar);color:white;border:none;font-size:28px;
+  box-shadow:0 4px 16px rgba(232,118,26,.4);cursor:pointer;z-index:150;
+  display:flex;align-items:center;justify-content:center}
+
+/* ── SEARCH ── */
+.search-wrap{position:relative;margin-bottom:12px}
+.search-wrap input{width:100%;padding:12px 12px 12px 38px;border:1.5px solid var(--borde);border-radius:12px;font-size:15px;background:white}
+.search-wrap::before{content:'🔍';position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:15px}
+
+/* ── STATUS CHIPS ── */
+.chips{display:flex;gap:7px;overflow-x:auto;padding-bottom:4px;margin-bottom:12px}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;padding:7px 14px;border-radius:20px;font-size:12px;font-weight:700;
+  border:2px solid var(--borde);background:white;cursor:pointer}
+.chip.active{background:var(--nar);color:white;border-color:var(--nar)}
+
+/* ── EMPTY ── */
+.empty{text-align:center;padding:36px 20px}
+.empty .em{font-size:46px;margin-bottom:10px}
+.empty h3{font-size:17px;font-weight:800;margin-bottom:5px}
+.empty p{font-size:13px;color:var(--gris-m);margin-bottom:18px}
+
+/* ── ADD ROW ── */
+.add-row{display:flex;gap:8px;margin-bottom:10px}
+.add-row input,.add-row select{flex:1;padding:10px;border:1.5px solid var(--borde);border-radius:10px;font-size:14px}
+.add-row button{padding:10px 16px;border:none;background:var(--nar);color:white;border-radius:10px;font-size:18px;cursor:pointer}
+
+/* ── TABLERO KANBAN ── */
+.kanban{display:flex;gap:10px;overflow-x:auto;padding-bottom:8px}
+.kanban::-webkit-scrollbar{height:4px}
+.kanban::-webkit-scrollbar-thumb{background:var(--nar);border-radius:2px}
+.kanban-col{flex:none;width:220px;background:white;border-radius:14px;padding:12px;box-shadow:0 1px 5px rgba(0,0,0,.07)}
+.kanban-col h3{font-size:13px;font-weight:800;margin-bottom:10px;padding-bottom:8px;border-bottom:2px solid var(--borde)}
+.kanban-item{background:var(--gris-l);border-radius:9px;padding:10px;margin-bottom:8px;font-size:13px}
+.kanban-item .ki-nom{font-weight:700;margin-bottom:3px}
+.kanban-item .ki-cli{font-size:11px;color:var(--gris-m)}
+.kanban-item .ki-av{margin-top:6px}
+
+/* ── USER CHIP ── */
+.user-role-admin{color:var(--morado);font-weight:700}
+.user-role-supervisor{color:var(--azul);font-weight:700}
+/* ── ROLES Y FLUJO ── */
+.proy-card.previo{border-left-color:var(--morado)}
+.fila-click{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--borde);cursor:pointer}
+.flujo{display:flex;gap:4px;margin-bottom:12px}
+.flujo-paso{flex:1;text-align:center;font-size:16px;padding:6px 2px;border-radius:10px;background:var(--gris-l);opacity:.5}
+.flujo-paso span{display:block;font-size:10px;font-weight:700;color:var(--gris-m)}
+.flujo-paso.hecho{opacity:.85;background:#e8f8f0}
+.flujo-paso.actual{opacity:1;background:var(--nar-l);box-shadow:inset 0 0 0 2px var(--nar)}
+.accion{background:#f8f4fb;border:1.5px solid #e3d3ec;border-radius:12px;padding:12px;margin-bottom:12px}
+.accion p{font-size:13px;margin-bottom:8px;color:var(--gris)}
+.accion textarea,.accion input,.accion select{width:100%;padding:10px;border:1.5px solid var(--borde);border-radius:10px;font-size:14px;font-family:inherit;background:white}
+.tcost{width:100%;border-collapse:collapse;font-size:12px;margin:4px 0 8px}
+.tcost th{text-align:left;color:var(--gris-m);font-weight:700;padding:5px 4px;border-bottom:1px solid var(--borde)}
+.tcost td{padding:6px 4px;border-bottom:1px solid var(--borde)}
+.tcost tr.tot td{font-weight:800}
+.tcost td.rojo{color:var(--rojo);font-weight:700}.tcost td.amar{color:var(--amarillo);font-weight:700}.tcost td.verde{color:var(--verde);font-weight:700}
+.loader-mini{width:60px;height:4px;background:var(--gris-l);border-radius:2px;overflow:hidden;margin:10px auto 0;position:relative}
+.loader-mini::after{content:"";position:absolute;left:-40%;width:40%;height:100%;background:var(--nar);animation:lm 1s infinite}
+@keyframes lm{to{left:100%}}
+#login-box p{font-size:13px;color:var(--gris-m);margin-bottom:16px;line-height:1.45}
+#ep-supid{width:100%}
+.ficha-box{background:#f4f8fc;border:1.5px solid #d6e6f3;border-radius:12px;padding:12px;margin-bottom:12px}
+.ficha-tit{font-size:15px;font-weight:800;margin-bottom:10px}.ficha-tit span{font-size:11px;font-weight:600;color:var(--gris-m)}
+.form-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.check{display:flex;gap:8px;align-items:flex-start;font-size:13px;font-weight:600;margin-top:4px}
+.check input{width:18px;height:18px;flex:none;margin-top:1px}
+.consulta{border:1px solid var(--borde);border-radius:10px;padding:9px;margin-bottom:8px;background:white}
+.consulta .cq{font-size:13px;font-weight:700}
+.consulta .cm{font-size:11px;color:var(--gris-m);margin-top:2px}
+.consulta .cr{font-size:13px;margin-top:6px;padding-top:6px;border-top:1px dashed var(--borde)}
+.consulta.abierta{border-left:4px solid var(--amarillo)}.consulta.tarde{border-left:4px solid var(--rojo)}
+.consulta textarea,.dsec textarea,.dsec select{width:100%;padding:9px;border:1.5px solid var(--borde);border-radius:9px;font-size:13px;font-family:inherit;margin-top:6px}
+.sla{font-weight:800}.sla.rojo{color:var(--rojo)}.sla.amar{color:var(--amarillo)}.sla.verde{color:var(--verde)}
+</style>
+</head>
+<body>
+<!-- SPLASH -->
+<div id="pwa-splash">
+  <img src="logo.png" alt="BoxTainer Logo">
+  <h1>BoxTainer</h1>
+  <p>Argentina SAS — Gestión de Proyectos</p>
+  <div class="loader"><div class="loader-fill"></div></div>
+</div>
+
+<!-- INSTALL BANNER -->
+<div id="install-banner">
+  <button class="ib-close" onclick="hideBanner()">✕</button>
+  <h3>📲 Instalá la app en tu iPhone</h3>
+  <p>Para abrirla como una app desde tu pantalla de inicio:</p>
+  <div class="ib-steps">
+    <div>1️⃣ Tocá <b>compartir</b> ↑ (el botón de abajo al centro)</div>
+    <div>2️⃣ Tocá <b>"Añadir a pantalla de inicio"</b></div>
+    <div>3️⃣ Tocá <b>"Añadir"</b> arriba a la derecha ✅</div>
+  </div>
+  <button class="ib-btn" onclick="hideBanner()">✅ Ya lo instalé</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- ══════════════════════════════════════════
+     LOGIN
+══════════════════════════════════════════ -->
+<div id="screen-login">
+  <div class="login-logo">
+    <img src="logo.png" style="width:120px;height:80px;object-fit:contain;margin-bottom:4px">
+    <h1>BoxTainer</h1>
+    <p>Argentina SAS — Gestión Pro</p>
+  </div>
+  <div class="login-card" id="login-box"><h2>Conectando…</h2></div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     APP
+══════════════════════════════════════════ -->
+<div id="screen-app">
+  <div class="header">
+    <div class="header-logo"><img src="logo.png" style="width:34px;height:34px;object-fit:contain;border-radius:6px"></div>
+    <div class="header-info">
+      <h1>BoxTainer Argentina SAS</h1>
+      <p id="header-user-info">Gestión de Proyectos</p>
+    </div>
+    <button class="header-user" id="btn-salir" onclick="doLogout()">🚪 Salir</button>
+  </div>
+  <div class="nav">
+    <button class="nav-btn active" data-view="dashboard" onclick="showView('dashboard')">🏠 Tablero</button>
+    <button class="nav-btn" data-view="proyectos" onclick="showView('proyectos')">📋 Proyectos</button>
+    <button class="nav-btn" data-view="kanban" onclick="showView('kanban')">📊 Kanban</button>
+    <button class="nav-btn" data-view="alertas" onclick="showView('alertas')">🚨 Alertas</button>
+    <button class="nav-btn" data-view="personal" onclick="showView('personal')">👷 Personal</button>
+    <button class="nav-btn" data-view="contenedores" onclick="showView('contenedores')">📦 Contenedores</button>
+    <button class="nav-btn" data-view="materiales" onclick="showView('materiales')">🔧 Materiales</button>
+    <button class="nav-btn" data-view="usuarios" onclick="showView('usuarios')">👤 Usuarios</button>
+    <button class="nav-btn" data-view="reportes" onclick="showView('reportes')">📈 Reportes</button>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="view active" id="view-dashboard">
+    <div style="margin-top:12px" id="dash-content"></div>
+  </div>
+
+  <!-- PROYECTOS -->
+  <div class="view" id="view-proyectos">
+    <div style="margin-top:12px">
+      <div class="search-wrap"><input type="text" placeholder="Buscar proyecto o cliente..." id="search-p" oninput="renderProyectos()"></div>
+      <div class="chips">
+        <div class="chip active" onclick="setFiltro('todos',this)">Todos</div>
+        <div class="chip solo-nube" onclick="setFiltro('ventas',this)">💼 Ventas</div>
+        <div class="chip solo-nube" onclick="setFiltro('arquitectura',this)">📐 Arquitectura</div>
+        <div class="chip solo-nube" onclick="setFiltro('asignacion',this)">🧭 Por asignar</div>
+        <div class="chip solo-local" onclick="setFiltro('presupuesto',this)">Presupuesto</div>
+        <div class="chip" onclick="setFiltro('en-curso',this)">En curso</div>
+        <div class="chip" onclick="setFiltro('finalizado',this)">Finalizados</div>
+        <div class="chip" onclick="setFiltro('pausado',this)">Pausados</div>
+        <div class="chip" onclick="setFiltro('desviado',this)">⚠️ Desviados</div>
+      </div>
+      <div id="lista-proyectos"></div>
+    </div>
+    <button class="fab" id="fab-proy" onclick="abrirNuevoProy()">+</button>
+  </div>
+
+  <!-- KANBAN -->
+  <div class="view" id="view-kanban">
+    <div style="margin-top:12px">
+      <div class="sec-title">📊 Tablero Kanban</div>
+      <div class="kanban" id="kanban-board"></div>
+    </div>
+  </div>
+
+  <!-- ALERTAS -->
+  <div class="view" id="view-alertas">
+    <div style="margin-top:12px">
+      <div class="sec-title">🚨 Alertas y Desviaciones</div>
+      <div id="lista-alertas"></div>
+    </div>
+  </div>
+
+  <!-- PERSONAL -->
+  <div class="view" id="view-personal">
+    <div style="margin-top:12px">
+      <div class="sec-title">👷 Equipo BoxTainer</div>
+      <div class="card">
+        <div style="font-size:14px;font-weight:800;margin-bottom:10px">+ Agregar persona</div>
+        <div class="add-row">
+          <input type="text" id="np-nombre" placeholder="Nombre completo">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+          <select id="np-rol">
+            <option value="">Rol...</option>
+            <option>Operario</option><option>Soldador</option><option>Electricista</option>
+            <option>Carpintero</option><option>Pintor</option><option>Supervisor</option>
+            <option>Vendedor</option><option>Administrativo</option><option>Chofer</option>
+            <option>Gerente</option><option>Técnico</option>
+          </select>
+          <input type="tel" id="np-tel" placeholder="Teléfono">
+        </div>
+        <button class="btn btn-nar" onclick="agregarPersona()">+ Agregar</button>
+      </div>
+      <div id="lista-personal"></div>
+    </div>
+  </div>
+
+  <!-- CONTENEDORES -->
+  <div class="view" id="view-contenedores">
+    <div style="margin-top:12px">
+      <div class="sec-title">📦 Contenedores</div>
+      <div class="card">
+        <div style="font-size:14px;font-weight:800;margin-bottom:10px">+ Agregar contenedor</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+          <input type="text" id="nc-cod" placeholder="Código / Nro.">
+          <select id="nc-tipo">
+            <option value="">Tipo...</option>
+            <option>20 pies Dry</option><option>40 pies Dry</option><option>40 pies HC</option>
+            <option>20 pies Reefer</option><option>40 pies Reefer</option>
+            <option>Módulo Habitable</option><option>Construcción Modular</option>
+          </select>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+          <select id="nc-estado">
+            <option value="">Estado...</option>
+            <option>Disponible</option><option>En producción</option>
+            <option>Entregado</option><option>En alquiler</option><option>Mantenimiento</option>
+          </select>
+          <select id="nc-proy"></select>
+        </div>
+        <input type="text" id="nc-obs" placeholder="Observaciones"
+          style="width:100%;padding:10px;border:1.5px solid var(--borde);border-radius:10px;font-size:14px;margin-bottom:8px">
+        <button class="btn btn-nar" onclick="agregarContenedor()">+ Agregar</button>
+      </div>
+      <div id="lista-contenedores"></div>
+    </div>
+  </div>
+
+  <!-- MATERIALES -->
+  <div class="view" id="view-materiales">
+    <div style="margin-top:12px">
+      <div class="sec-title">🔧 Materiales</div>
+      <div class="card">
+        <div style="font-size:14px;font-weight:800;margin-bottom:10px">+ Agregar material</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+          <input type="text" id="nm-nom" placeholder="Material / Insumo">
+          <input type="text" id="nm-cant" placeholder="Cantidad">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+          <select id="nm-proy"></select>
+          <select id="nm-est">
+            <option value="pendiente">Pendiente</option>
+            <option value="comprado">Comprado</option>
+            <option value="transito">En tránsito</option>
+          </select>
+        </div>
+        <button class="btn btn-nar" onclick="agregarMaterial()">+ Agregar</button>
+      </div>
+      <div id="lista-materiales"></div>
+    </div>
+  </div>
+
+  <!-- USUARIOS (solo admin) -->
+  <div class="view" id="view-usuarios">
+    <div style="margin-top:12px">
+      <div class="sec-title">👤 Gestión de Usuarios</div>
+      <div id="lista-usuarios"></div>
+    </div>
+  </div>
+
+  <!-- REPORTES -->
+  <div class="view" id="view-reportes">
+    <div style="margin-top:12px">
+      <div class="sec-title">📈 Reportes</div>
+      <div id="reporte-content"></div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
+        <button class="btn btn-nar" onclick="exportCSV()">📤 Exportar proyectos CSV</button>
+        <button class="btn btn-sec" onclick="exportPersonalCSV()">📤 Exportar personal CSV</button>
+        <button class="btn btn-verde admin-only" onclick="exportBackup()">💾 Descargar respaldo completo</button>
+        <label class="btn btn-sec admin-only" style="cursor:pointer">📥 Importar respaldo (app anterior)
+          <input type="file" accept=".json,application/json" onchange="importBackup(event)" style="display:none"></label>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: NUEVO / EDITAR PROYECTO ══ -->
+<div class="overlay" id="m-proy">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="m-proy-title">📋 Nuevo Proyecto</div>
+    <input type="hidden" id="ep-id">
+    <div class="fg"><label>Nombre del proyecto *</label>
+      <input type="text" id="ep-nom" placeholder="Ej: Módulo oficina 40p — YPF Mendoza"></div>
+    <div class="fg"><label>Cliente *</label>
+      <input type="text" id="ep-cli" placeholder="Nombre del cliente"></div>
+    <div class="fg"><label>Tipo de trabajo</label>
+      <select id="ep-tipo">
+        <option>Módulo habitable</option><option>Oficina modular</option><option>Obrador</option>
+        <option>Companyman</option><option>Construcción modular</option><option>Reefer</option>
+        <option>Contenedor 20 pies</option><option>Contenedor 40 pies</option>
+        <option>Modificación contenedor</option><option>2 Niveles</option><option>Otro</option>
+      </select></div>
+    <div class="form-2">
+      <div class="fg campo-op"><label>Fecha inicio</label><input type="date" id="ep-ini"></div>
+      <div class="fg"><label>Fecha entrega</label><input type="date" id="ep-ent"></div>
+    </div>
+    <div class="fg campo-op"><label>Estado</label>
+      <select id="ep-est">
+        <option value="presupuesto">💬 Presupuesto</option>
+        <option value="en-curso">🔨 En curso</option>
+        <option value="finalizado">✅ Finalizado</option>
+        <option value="pausado">⏸️ Pausado</option>
+      </select></div>
+    <div class="form-2">
+      <div class="fg campo-op"><label>Avance %</label><input type="number" id="ep-av" placeholder="0" min="0" max="100"></div>
+      <div class="fg"><label>Valor de venta USD</label><input type="number" id="ep-val" placeholder="0"></div>
+    </div>
+    <div class="fg campo-op"><label>Supervisor</label><input type="text" id="ep-sup" placeholder="Nombre del supervisor"><select id="ep-supid"></select></div>
+    <div class="fg"><label>Vendedor</label><input type="text" id="ep-vend" placeholder="Nombre del vendedor"></div>
+    <div class="fg campo-op"><label>Cantidad de personas asignadas</label>
+      <input type="number" id="ep-pers" placeholder="0" min="0"></div>
+    <div class="fg"><label>Depósito / Ubicación</label>
+      <select id="ep-dep">
+        <option>Polo 52 — Córdoba Capital</option>
+        <option>Av. Circunvalación (AutoCity) — Córdoba Capital</option>
+        <option>Maipú — Mendoza</option>
+        <option>Godoy Cruz — Mendoza</option>
+        <option>Avellaneda 1 — Buenos Aires</option>
+        <option>Avellaneda 2 — Buenos Aires</option>
+        <option>Villa Regina — Río Negro</option>
+      </select></div>
+    <div class="fg"><label>Prioridad</label>
+      <select id="ep-pri">
+        <option value="normal">Normal</option>
+        <option value="alta">🔴 Alta</option>
+        <option value="urgente">🚨 Urgente</option>
+        <option value="baja">🟢 Baja</option>
+      </select></div>
+    <div class="fg"><label>Observaciones / Notas</label>
+      <textarea id="ep-obs" placeholder="Detalles especiales, requerimientos..."></textarea></div>
+    <div class="ficha-box">
+      <div class="ficha-tit">📏 Ficha técnica <span>(obligatoria para enviar a arquitectura)</span></div>
+      <div class="form-3">
+        <div class="fg"><label>Largo (m) *</label><input type="number" step="0.01" id="fx-largo" placeholder="12.19"></div>
+        <div class="fg"><label>Ancho (m) *</label><input type="number" step="0.01" id="fx-ancho" placeholder="2.44"></div>
+        <div class="fg"><label>Alto (m) *</label><input type="number" step="0.01" id="fx-alto" placeholder="2.59"></div>
+      </div>
+      <div class="form-2">
+        <div class="fg"><label>Tipo de puerta *</label><select id="fx-puerta"><option value="">Elegí…</option>
+          <option>De abrir</option><option>Corrediza</option><option>Doble hoja</option><option>Persiana / portón</option><option>Sin puerta</option><option>Otra (ver notas)</option></select></div>
+        <div class="fg"><label>Cantidad de puertas *</label><input type="number" min="0" id="fx-puertas" placeholder="1"></div>
+        <div class="fg"><label>Ventanas (cantidad) *</label><input type="number" min="0" id="fx-ventanas" placeholder="2"></div>
+        <div class="fg"><label>Medida ventanas</label><input type="text" id="fx-ventmed" placeholder="1.00 x 1.00 m"></div>
+        <div class="fg"><label>Instalación eléctrica *</label><select id="fx-elec"><option value="">Elegí…</option><option>Sí</option><option>No</option></select></div>
+        <div class="fg"><label>Instalación sanitaria *</label><select id="fx-sani"><option value="">Elegí…</option><option>Sí</option><option>No</option></select></div>
+      </div>
+      <div class="fg"><label>Aislación, piso, revestimiento y color</label><input type="text" id="fx-term" placeholder="Ej: lana de vidrio 50 mm, piso fenólico, blanco"></div>
+      <div class="fg"><label>Ubicación de puertas y ventanas / otros detalles</label><textarea id="fx-extra" placeholder="Ej: puerta en lateral largo a 1 m del extremo, ventanas enfrentadas…"></textarea></div>
+      <label class="check"><input type="checkbox" id="fx-conf"> Confirmé estas medidas y detalles con el cliente</label>
+    </div>
+    <div class="campo-op">
+      <div class="fg"><label>Presupuesto de costos (USD)</label></div>
+      <div class="form-2">
+        <div class="fg"><label>Materiales</label><input type="number" id="ep-pmat" placeholder="0"></div>
+        <div class="fg"><label>Mano de obra</label><input type="number" id="ep-pmo" placeholder="0"></div>
+        <div class="fg"><label>Terceros</label><input type="number" id="ep-pter" placeholder="0"></div>
+        <div class="fg"><label>Otros</label><input type="number" id="ep-potr" placeholder="0"></div>
+      </div>
+    </div>
+    <div class="flex-btns" style="margin-top:8px">
+      <button class="btn btn-sec" onclick="closeOverlay('m-proy')">Cancelar</button>
+      <button class="btn btn-nar" onclick="guardarProy()">💾 Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: ACTUALIZACIÓN DIARIA ══ -->
+<div class="overlay" id="m-update">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">📝 Actualización diaria</div>
+    <input type="hidden" id="upd-proy-id">
+    <div class="fg"><label>Avance actual %</label>
+      <input type="number" id="upd-av" placeholder="0" min="0" max="100"></div>
+    <div class="fg"><label>Comentario / Novedad</label>
+      <textarea id="upd-text" placeholder="¿Qué se hizo hoy? ¿Hay problemas?"></textarea></div>
+    <div class="fg"><label>Estado</label>
+      <select id="upd-est">
+        <option value="en-curso">🔨 En curso</option>
+        <option value="finalizado">✅ Finalizado</option>
+        <option value="pausado">⏸️ Pausado</option>
+        <option value="presupuesto">💬 Presupuesto</option>
+      </select></div>
+    <div class="flex-btns" style="margin-top:8px">
+      <button class="btn btn-sec" onclick="closeOverlay('m-update')">Cancelar</button>
+      <button class="btn btn-verde" onclick="guardarUpdate()">✅ Guardar actualización</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: GASTO REAL ══ -->
+<div class="overlay" id="m-costo">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">💲 Cargar gasto real</div>
+    <input type="hidden" id="co-proy">
+    <div class="form-2">
+      <div class="fg"><label>Rubro</label><select id="co-rubro">
+        <option value="mat">Materiales</option><option value="mo">Mano de obra</option>
+        <option value="ter">Terceros</option><option value="otr">Otros</option></select></div>
+      <div class="fg"><label>Importe USD</label><input type="number" id="co-imp" placeholder="0" min="0"></div>
+    </div>
+    <div class="fg"><label>Descripción</label><input type="text" id="co-desc" placeholder="Ej: chapas, 2 soldadores x 8 h, flete"></div>
+    <div class="fg"><label>Fecha</label><input type="date" id="co-fecha"></div>
+    <div class="flex-btns" style="margin-top:8px">
+      <button class="btn btn-sec" onclick="closeOverlay('m-costo')">Cancelar</button>
+      <button class="btn btn-verde" onclick="guardarCosto()">✅ Guardar gasto</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: REPORTAR ERROR ══ -->
+<div class="overlay" id="m-inc">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">⚠️ Reportar error en la información</div>
+    <input type="hidden" id="inc-proy">
+    <div class="form-2">
+      <div class="fg"><label>Tipo de error</label><select id="inc-tipo">
+        <option>Medida incorrecta</option><option>Plano mal hecho</option><option>Falta información</option><option>Plano no coincide con la ficha</option><option>Otro</option></select></div>
+      <div class="fg"><label>Viene de</label><select id="inc-origen"><option value="ventas">Ventas</option><option value="arquitectura">Arquitectura</option></select></div>
+    </div>
+    <div class="fg"><label>¿Qué está mal y cómo debería ser?</label><textarea id="inc-desc" placeholder="Ej: el plano dice 6 m pero el contenedor es de 12 m"></textarea></div>
+    <div class="fg"><label>¿Frena el trabajo?</label><select id="inc-frena"><option value="si">Sí, no puedo avanzar</option><option value="no">No, puedo seguir con otra cosa</option></select></div>
+    <p style="font-size:12px;color:var(--gris-m);margin-bottom:10px">Se envía también como consulta al área de origen para que responda.</p>
+    <div class="flex-btns">
+      <button class="btn btn-sec" onclick="closeOverlay('m-inc')">Cancelar</button>
+      <button class="btn btn-rojo" onclick="guardarIncidencia()">Reportar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: FALTA MATERIAL ══ -->
+<div class="overlay" id="m-falt">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">📦 Avisar falta de material</div>
+    <input type="hidden" id="fa-proy">
+    <div class="fg"><label>Material</label><input type="text" id="fa-mat" placeholder="Ej: chapa trapezoidal, perfil C 100"></div>
+    <div class="form-2">
+      <div class="fg"><label>Cantidad</label><input type="text" id="fa-cant" placeholder="Ej: 12 unidades"></div>
+      <div class="fg"><label>Lo necesito para</label><input type="date" id="fa-fecha"></div>
+    </div>
+    <div class="fg"><label>¿Frena el trabajo?</label><select id="fa-frena"><option value="si">Sí, estoy parado</option><option value="no">Todavía no, pero va a frenar</option></select></div>
+    <div class="flex-btns">
+      <button class="btn btn-sec" onclick="closeOverlay('m-falt')">Cancelar</button>
+      <button class="btn btn-nar" onclick="guardarFaltante()">Avisar al líder</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: REASIGNAR AL CAMBIAR ROL ══ -->
+<div class="overlay" id="m-reasig" style="z-index:310">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-handle"></div>
+    <div class="modal-title" style="font-size:18px">⚠️ Tiene proyectos a su cargo</div>
+    <p id="ra-msg" style="font-size:14px;margin-bottom:10px"></p>
+    <div id="ra-lista" style="margin-bottom:12px"></div>
+    <div class="fg"><label>Nuevo supervisor</label><select id="ra-sup"></select></div>
+    <button class="btn btn-verde" id="ra-si" style="width:100%;margin-bottom:8px">✅ Reasignar y continuar</button>
+    <div class="flex-btns">
+      <button class="btn btn-sec" id="ra-cancel">Cancelar</button>
+      <button class="btn btn-sec" id="ra-no">Seguir sin reasignar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: CONFIRMAR ══ -->
+<div class="overlay" id="m-confirm" style="z-index:300">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-handle"></div>
+    <div class="modal-title" style="font-size:18px">¿Confirmás?</div>
+    <p id="cf-msg" style="font-size:15px;margin-bottom:18px"></p>
+    <div class="flex-btns">
+      <button class="btn btn-sec" id="cf-no">Cancelar</button>
+      <button class="btn btn-rojo" id="cf-si">Sí, continuar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: DETALLE PROYECTO ══ -->
+<div class="overlay" id="m-det">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div id="det-content"></div>
+    <div class="flex-btns" style="margin-top:12px">
+      <button class="btn btn-sec" onclick="closeOverlay('m-det')">Cerrar</button>
+      <button class="btn btn-nar" id="btn-edit-det">✏️ Editar</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
