@@ -36,7 +36,7 @@ let vistaActual='dashboard';
 const ROLES={admin:'👑 Administrador',lider:'🧭 Líder de operaciones',supervisor:'🔨 Supervisor',
   ventas:'💼 Ventas',arquitectura:'📐 Arquitectura',lectura:'👁️ Solo lectura'};
 const TABS={
-  admin:['dashboard','proyectos','kanban','alertas','personal','contenedores','materiales','usuarios','reportes'],
+  admin:['dashboard','proyectos','kanban','alertas','personal','contenedores','materiales','costos','usuarios','reportes'],
   lider:['dashboard','proyectos','kanban','alertas','personal','contenedores','materiales','reportes'],
   supervisor:['dashboard','proyectos','kanban','alertas','materiales'],
   ventas:['dashboard','proyectos'],
@@ -151,6 +151,7 @@ async function cargarTodo(){
   rec.sort((a,b)=>a.id-b.id).forEach(r=>en(r.proyecto_id,p=>p.flujo.push({fecha:fechaDe(r.creado_en),a:r.a_etapa,
     autor:r.detalle||nombreDe(r.autor_id)})));
   todos=T; ORIG={}; for(const id in T) ORIG[id]=limpiar(T[id]);
+  await cargarCosteo();
   personal=pe.map(r=>({id:r.id,nom:r.nombre,rol:r.rol||'',tel:r.telefono||''}));
   contenedores=ct.map(r=>({id:r.id,cod:r.codigo,tipo:r.tipo||'',estado:r.estado||'',proyId:r.proyecto_id,obs:r.observaciones||''}));
   materiales=ma.map(r=>({id:r.id,nom:r.nombre,cant:r.cantidad||'',est:r.estado,proyId:r.proyecto_id}));
@@ -647,7 +648,7 @@ async function iniciarNube(){
 const RENDERS={
   dashboard:()=>renderDash(), proyectos:()=>renderProyectos(), kanban:()=>renderKanban(),
   alertas:()=>renderAlertas(), personal:()=>renderPersonal(), contenedores:()=>{updContSel();renderContenedores()},
-  materiales:()=>{updMatSel();renderMateriales()}, usuarios:()=>renderUsuarios(), reportes:()=>renderReportes()
+  materiales:()=>{updMatSel();renderMateriales()}, usuarios:()=>renderUsuarios(), costos:()=>renderCostos(), reportes:()=>renderReportes()
 };
 function showView(name){
   const t=tabsPermitidas();
@@ -1087,6 +1088,7 @@ function verDetalle(id){
       ${e==='ejecucion'&&esSupDe(p)&&r!=='lectura'?`<button class="btn btn-sec btn-sm" style="margin-top:8px" onclick="abrirCosto('${esc(id)}')">💲 Cargar gasto real</button>`:''}
     </div>`:''}
     ${seccionFicha(p)}
+    ${seccionCosteo(p)}
     ${seccionConsultas(p)}
     ${seccionIncidencias(p)}
     ${seccionFaltantes(p)}

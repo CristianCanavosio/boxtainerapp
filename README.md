@@ -27,6 +27,7 @@ Correr en orden, una sola vez cada uno:
 1. `supabase/migrations/0001_esquema_y_permisos.sql`
 2. `supabase/migrations/0002_tiempo_real_y_ajustes.sql`
 3. `supabase/migrations/0003_croquis_de_ventas.sql` (deja que ventas suba el croquis del cliente desde la nota de pedido)
+4. `supabase/migrations/0004_costeo_solo_admin.sql` (lista de costos y costeo del pedido, solo para el administrador)
 
 ### 2. Publicar la app (Vercel, gratis)
 
@@ -64,3 +65,9 @@ En la app anterior (artefacto), pestaña Reportes → **Descargar respaldo compl
 
 - Lo marcado "a confirmar" deja enviar a arquitectura, pero el líder no puede pasar el proyecto a ejecución hasta completarlo.
 - El PDF para el cliente se arma en el celular (html2canvas y jsPDF desde cdnjs).
+
+## Costeo del pedido (solo administrador)
+
+`web/costeo.js`. Cada nota de pedido se convierte en una lista de ítems con cantidades (contenedor, espacios, artefactos, m² de pintura, revestimientos y piso calculados con las medidas del contenedor, puertas, ventanas, eléctrica, etc.). El administrador carga el precio unitario de cada ítem en la pestaña **🔒 Costos** (o directo en el proyecto) y el pedido se costea solo, con margen contra el valor de venta. Puede corregir cantidades y agregar ítems a mano, y pasar los totales por rubro al presupuesto de obra que ve el líder.
+
+Las tablas `lista_costos` y `costeos` tienen Row Level Security que solo deja leer y escribir al rol `admin`: ninguna otra área puede verlas, ni siquiera usando la API de Supabase.
