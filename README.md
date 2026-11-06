@@ -1,6 +1,6 @@
 # BoxTainer Gestión Pro
 
-App móvil de gestión de proyectos de BoxTainer Argentina SAS: ventas carga el pedido con su ficha técnica, arquitectura sube el plano, el líder de operaciones asigna supervisor, fechas y presupuesto, y cada supervisor ve solo sus proyectos y carga avance, gastos, faltantes y consultas.
+App móvil de gestión de proyectos de BoxTainer Argentina SAS: ventas carga la nota de pedido (asistente de 7 pasos con dibujo del contenedor y PDF para el cliente), arquitectura sube el plano, el líder de operaciones asigna supervisor, fechas y presupuesto, y cada supervisor ve solo sus proyectos y carga avance, gastos, faltantes y consultas.
 
 ## Estructura
 
@@ -26,6 +26,7 @@ Correr en orden, una sola vez cada uno:
 
 1. `supabase/migrations/0001_esquema_y_permisos.sql`
 2. `supabase/migrations/0002_tiempo_real_y_ajustes.sql`
+3. `supabase/migrations/0003_croquis_de_ventas.sql` (deja que ventas suba el croquis del cliente desde la nota de pedido)
 
 ### 2. Publicar la app (Vercel, gratis)
 
@@ -56,3 +57,10 @@ En la app anterior (artefacto), pestaña Reportes → **Descargar respaldo compl
 - Planos: hasta 50 MB por archivo en el plan gratuito de Supabase (Storage → Settings permite más en el plan Pro). Para archivos más grandes, pegar un enlace de Drive/OneDrive.
 - Cada cambio hace que los celulares abiertos vuelvan a leer los datos que pueden ver. Con muchos miles de proyectos convendrá cargar por partes.
 - El valor de venta de un proyecto lo ve cualquiera que vea el proyecto (incluido el supervisor). Si hay que ocultarlo, se mueve a una tabla aparte como el presupuesto.
+
+## Nota de pedido
+
+`web/nota.js` y `web/nota.css` tienen el asistente de carga que usa ventas (cliente, producto, distribución, terminaciones, aberturas, instalaciones y confirmación). Se guarda en la columna `ficha` del proyecto con `v: 2`. Los proyectos viejos siguen mostrando la ficha técnica anterior y se pueden pasar a la nota nueva desde Editar.
+
+- Lo marcado "a confirmar" deja enviar a arquitectura, pero el líder no puede pasar el proyecto a ejecución hasta completarlo.
+- El PDF para el cliente se arma en el celular (html2canvas y jsPDF desde cdnjs).

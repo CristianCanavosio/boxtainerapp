@@ -879,18 +879,59 @@ function prepararModalProy(){
 }
 function abrirNuevoProy(){
   if(!puedeCrear()) return;
-  document.getElementById('ep-id').value='';
-  document.getElementById('m-proy-title').textContent='📋 Nuevo Proyecto';
-  ['ep-nom','ep-cli','ep-sup','ep-vend','ep-obs','ep-av','ep-val','ep-pers','ep-ini','ep-ent','ep-pmat','ep-pmo','ep-pter','ep-potr',...FICHA_IDS]
-    .forEach(id=>document.getElementById(id).value='');
-  if(rol()==='ventas') document.getElementById('ep-vend').value=currentUser.nombre;
-  document.getElementById('fx-conf').checked=false;
-  document.getElementById('ep-tipo').value='Módulo habitable';
-  document.getElementById('ep-est').value='presupuesto';
-  document.getElementById('ep-pri').value='normal';
-  document.getElementById('ep-supid').innerHTML=opcionesSupervisores('');
-  prepararModalProy();
-  openOverlay('m-proy');
+  const v=rol()==='ventas';
+  NotaPedido.abrir({titulo:'Nueva nota de pedido',enviar:v,
+    onGuardar:(f,o)=>crearDesdeNota(f,o)});
+}
+const esNota=p=>!!(p&&p.ficha&&p.ficha.v===2);
+// Crea el proyecto con lo que cargó ventas en la nota de pedido
+async function crearDesdeNota(f,{enviar,archivo}){
+  const p={id:nuevoId(),creadoTs:Date.now(),creadoPor:currentUser?.nombre||'',creadoPorId:myId,creadoEn:hoyISO(),
+    historial:[],costos:[],planos:[],flujo:[],consultas:[],incidencias:[],faltantes:[],estado:'presupuesto',avance:0,
+    vendId:rol()==='ventas'?myId:null,nombre:NotaPedido.nombreSugerido(f),cli:(f.cli||'').trim()||'Sin nombre',
+    tipo:NotaPedido.tipoTrabajo(f),entrega:f.fecha||'',val:'',vend:currentUser?.nombre||'',dep:'',pri:'normal',obs:'',
+    ficha:NotaPedido.compat(f)};
+  p.etapa=rol()==='ventas'?'ventas':'asignacion';
+  p.flujo.push({fecha:hoyISO(),a:p.etapa,autor:currentUser.nombre});
+  try{await guardarProyectoOError(p);}catch(e){return false;}
+  if(archivo) await subirCroquis(p.id,archivo);
+  if(enviar) await moverEtapa(p.id,'arquitectura');
+  else toast('✅ Nota de pedido guardada');
+  refrescar();
+  return true;
+}
+function editarNota(id){
+  const p=todos[id]; if(!p||!puedeEditar(p)) return;
+  const enviar=etapaDe(p)==='ventas';
+  NotaPedido.abrir({ficha:esNota(p)?p.ficha:null,cliente:p.cli,titulo:'Nota de pedido · '+p.nombre,enviar,
+    onGuardar:async(f,{enviar:env,archivo})=>{
+      const q=limpiar(todos[id]); if(!q) return false;
+      q.ficha=NotaPedido.compat(f);
+      if((!q.cli||q.cli==='Sin nombre')&&f.cli) q.cli=f.cli.trim();
+      if(!q.entrega&&f.fecha) q.entrega=f.fecha;
+      try{await guardarProyectoOError(q);}catch(e){return false;}
+      if(archivo) await subirCroquis(id,archivo);
+      if(env) await moverEtapa(id,'arquitectura'); else toast('✅ Nota de pedido guardada');
+      refrescar();
+      return true;
+    }});
+}
+async function pdfNota(id,btn){
+  const p=todos[id]; if(!p||!esNota(p)) return;
+  try{await NotaPedido.pdf(p.ficha,btn);}catch(e){toast('⚠️ No se pudo armar el PDF');}
+}
+// El croquis que carga ventas queda con los planos del proyecto
+async function subirCroquis(id,f){
+  if(f.size>MAX_PLANO_MB*1024*1024){toast(`⚠️ El croquis supera ${MAX_PLANO_MB} MB: pasáselo a arquitectura por una consulta`);return;}
+  const pid=nuevoId();
+  const seguro=f.name.normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^\w.\-]+/g,'_').slice(-80);
+  const ruta=`${id}/${pid}-${seguro}`;
+  try{
+    chk(await sb.storage.from('planos').upload(ruta,f,{contentType:f.type||'application/octet-stream',upsert:false}));
+    const p=limpiar(todos[id]);
+    p.planos=(p.planos||[]); p.planos.push({id:pid,archivo:ruta,url:'',nombre:'Croquis del cliente: '+f.name,fecha:hoyISO(),autorId:myId,ts:Date.now()});
+    await guardarProyectoOError(p);
+  }catch(e){console.error(e);toast('⚠️ No se pudo subir el croquis. Pasáselo a arquitectura por una consulta');}
 }
 function leerPresup(){
   return {mat:Number(document.getElementById('ep-pmat').value)||0,mo:Number(document.getElementById('ep-pmo').value)||0,
@@ -912,7 +953,7 @@ function guardarProy(){
   Object.assign(p,{nombre:nom,cli,tipo:document.getElementById('ep-tipo').value,entrega:document.getElementById('ep-ent').value,
     val:document.getElementById('ep-val').value,vend:document.getElementById('ep-vend').value,dep:document.getElementById('ep-dep').value,
     pri:document.getElementById('ep-pri').value,obs:document.getElementById('ep-obs').value});
-  p.ficha=leerFicha();
+  if(!esNota(prev)) p.ficha=leerFicha();
   if(esOp()){
     p.inicio=document.getElementById('ep-ini').value;
     p.estado=document.getElementById('ep-est').value;
@@ -1079,7 +1120,9 @@ async function moverEtapa(id,a){
   const p=limpiar(todos[id]); if(!p) return;
   if(a==='arquitectura'&&etapaDe(p)==='ventas'){
     const falta=fichaFaltantes(p);
-    if(falta.length){toast('⚠️ Completá la ficha técnica: '+falta.join(', '));closeOverlay('m-det');editarProy(id);return;}
+    if(falta.length){
+      if(esNota(p)){toast('⚠️ Completá la nota de pedido: '+falta[0]);closeOverlay('m-det');editarNota(id);return;}
+      toast('⚠️ Completá la ficha técnica: '+falta.join(', '));closeOverlay('m-det');editarProy(id);return;}
   }
   if(a==='asignacion'){
     const nota=document.getElementById('det-notaarq'); if(nota) p.notaArq=nota.value.trim();
@@ -1096,6 +1139,7 @@ async function moverEtapa(id,a){
 }
 async function asignar(id){
   const p=limpiar(todos[id]); if(!p) return;
+  if(esNota(p)){const pe=NotaPedido.pendientes(p.ficha); if(pe.length){toast('⚠️ Falta confirmar con el cliente: '+pe.join(', ')+'. Completalo en la nota antes de pasar a ejecución');return;}}
   const s=document.getElementById('as-sup').value;
   if(!s){toast('⚠️ Elegí un supervisor');return;}
   const ent=document.getElementById('as-ent').value;
@@ -1134,7 +1178,13 @@ function editarProy(id){
   v('ep-est',p.estado||'presupuesto');v('ep-av',p.avance||0);v('ep-val',p.val);v('ep-sup',p.sup);v('ep-vend',p.vend);
   v('ep-pers',p.pers||0);v('ep-dep',p.dep);v('ep-pri',p.pri||'normal');v('ep-obs',p.obs);
   const pr=p.presup||{}; v('ep-pmat',pr.mat||'');v('ep-pmo',pr.mo||'');v('ep-pter',pr.ter||'');v('ep-potr',pr.otr||'');
-  ponerFicha(p.ficha||{});
+  ponerFicha(esNota(p)?{}:(p.ficha||{}));
+  const nueva=esNota(p);
+  document.getElementById('ficha-vieja').style.display=nueva?'none':'';
+  document.getElementById('ficha-nueva-txt').textContent=nueva
+    ?(NotaPedido.faltantes(p.ficha).length?'Incompleta: abrila para terminarla.':'Completa.')
+    :'Este proyecto tiene la ficha anterior. Podés pasarla a la nota de pedido nueva.';
+  document.getElementById('ficha-nueva-btn').onclick=()=>{closeOverlay('m-proy');editarNota(id)};
   document.getElementById('ep-supid').innerHTML=opcionesSupervisores(p.supId||'');
   prepararModalProy();
   openOverlay('m-proy');
@@ -1187,6 +1237,7 @@ function ponerFicha(f){
   document.getElementById('fx-conf').checked=!!f.confirmada;
 }
 function fichaFaltantes(p){
+  if(esNota(p)) return NotaPedido.faltantes(p.ficha);
   const f=p.ficha||{}, falta=[];
   if(!(Number(f.largo)>0)||!(Number(f.ancho)>0)||!(Number(f.alto)>0)) falta.push('medidas');
   if(!f.puerta) falta.push('tipo de puerta');
@@ -1199,6 +1250,18 @@ function fichaFaltantes(p){
 }
 function seccionFicha(p){
   const f=p.ficha;
+  if(esNota(p)){
+    const falta=NotaPedido.faltantes(f), pend=NotaPedido.pendientes(f), id=esc(p.id);
+    return `<div class="dsec"><h3>📋 Nota de pedido</h3>
+      ${falta.length?`<div style="font-size:12px;color:var(--rojo);margin-bottom:6px">Falta: ${esc(falta.slice(0,3).join(' · '))}${falta.length>3?` y ${falta.length-3} más`:''}</div>`:''}
+      ${pend.length?`<div class="nota-pend">⚠️ A confirmar con el cliente: ${esc(pend.join(', '))}. No pasa a ejecución hasta completarlo.</div>`:''}
+      <div class="nota-vars nota-res">${NotaPedido.resumen(f)}</div>
+      <div class="nota-vars nota-dib">${NotaPedido.dibujos(f)}</div>
+      <div class="flex-btns" style="margin-top:8px"><button class="btn btn-sec btn-sm" onclick="pdfNota('${id}',this)">📄 PDF para el cliente</button>
+        ${puedeEditar(p)?`<button class="btn btn-nar btn-sm" onclick="closeOverlay('m-det');editarNota('${id}')">✏️ Editar nota</button>`:''}</div>
+      ${p.verifArq?`<div style="font-size:12px;color:var(--verde);margin-top:6px">✅ Plano verificado por ${esc(p.verifArq.autor)} (${esc(p.verifArq.fecha)})</div>`:''}
+    </div>`;
+  }
   if(!f) return MODO==='nube'?`<div class="dsec"><h3>📏 Ficha técnica</h3><div style="font-size:13px;color:var(--rojo)">Sin ficha técnica cargada</div></div>`:'';
   const falta=fichaFaltantes(p);
   const fila=(l,v)=>v?`<div class="drow"><span class="lbl">${l}</span><span class="val">${esc(v)}</span></div>`:'';
