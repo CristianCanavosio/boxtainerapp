@@ -373,7 +373,58 @@ function compat(f){return conD(f,()=>({v:2,...limpio(d),
     sani:d.espacios.some(x=>ITEMS[x.tipo])?'Sí':'No',confirmada:!!d.confirmado}))}
 function nombreSugerido(f){const M={oficina:'Oficina',vivienda:'Vivienda',sanitario:'Sanitario'};return [(M[f.modelo]||f.prod||'Pedido'),f.tam].filter(Boolean).join(' ')+(f.cli?' — '+f.cli:'')}
 function tipoTrabajo(f){if(f.prod==='Reefer')return 'Reefer';if(f.prod==='Contenedor cortado')return 'Modificación contenedor';return f.modelo==='oficina'?'Oficina modular':'Módulo habitable'}
+
+// ── Cómputo para el costeo (solo lo usa el administrador) ──
+// Devuelve una línea por cada cosa a costear: clave (nombre en la lista de costos), rubro, unidad y cantidad.
+// Las superficies son aproximadas a partir de las medidas del contenedor; el administrador puede corregirlas.
+function lineasCosteo(){
+  const out=[];const r2=x=>Math.round(x*100)/100;
+  const add=(clave,rubro,unidad,cant,det='',pend=false)=>{if(!(cant>0))return;const ya=out.find(x=>x.clave===clave&&x.det===det);if(ya)ya.cant=r2(ya.cant+cant);else out.push({clave,rubro,unidad,cant:r2(cant),det,pend})};
+  const L=largoTot()/100,A=(Number(d.ancho)||0)/100,H=(Number(d.alto)||0)/100;
+  const paredes=2*(L+A)*H, techo=L*A, piso=L*A;
+  if(d.tam)add('Contenedor '+d.tam+(d.prod==='Reefer'?' reefer '+(d.motor||'').toLowerCase():''),'mat','c/u',1);
+  if(d.prod==='Contenedor cortado')add('Corte de contenedor','mo','c/u',1,d.corte?d.corte+' cm':'');
+  // espacios
+  const esp=d.espacios, humedos=esp.filter(x=>ITEMS[x.tipo]);
+  esp.forEach(x=>{add('Armado de '+ESP[x.tipo].toLowerCase(),'mo','c/u',1);
+    (x.items||[]).forEach(it=>add((x.tipo==='bano'?'Sanitario · ':'Cocina · ')+it,'mat','c/u',1))});
+  if(esp.length>1)add('Tabique divisorio','mat','m²',(esp.length-1)*A*H);
+  if(humedos.length)add('Instalación sanitaria por ambiente','mo','c/u',humedos.length);
+  const enZona=u=>Math.max(1,esp.filter(x=>x.ubi===u).length);
+  let humedo=0;
+  humedos.forEach(x=>{const m=2*(L/3+A)*H/enZona(x.ubi);humedo+=m;if(x.rev)add('Revestimiento '+x.rev.toLowerCase()+' (baño/cocina)','mat','m²',m,etiqueta(x))});
+  // terminaciones
+  add('Pintura exterior','mat','m²',paredes+techo,d.pExtP?'color a confirmar':(d.pExt==='Otro'?d.pExtOtro:d.pExt),d.pExtP);
+  if(d.revExt&&d.revExt!=='Sin revestimiento')add('Revestimiento exterior · '+d.revExt,'mat','m²',paredes);
+  if(d.pInt&&d.pInt!=='Sin pintura')add('Pintura interior','mat','m²',paredes+techo,d.pInt==='Otro'?d.pIntOtro:d.pInt);
+  if(d.piso)add('Piso · '+d.piso,'mat','m²',piso);
+  const resto=Math.max(0,paredes-humedo), dest=revDestinos();
+  (d.rev||[]).filter(v=>v!=='Sin revestimiento'&&v!=='Solo pintura').forEach(v=>{
+    const n=d.rev.length>1?dest.filter(x=>d.revAsig[x.k]===v).length:dest.length;
+    if(n&&dest.length)add('Revestimiento interior · '+v,'mat','m²',resto*n/dest.length)});
+  if(esp.length>1&&d.pInterior)add('Puerta interior · '+d.pInterior,'mat','c/u',esp.length-1);
+  // aberturas
+  if(d.puertaP)add('Puerta exterior (a confirmar)','mat','c/u',d.puertas.length||1,'',true);
+  else d.puertas.forEach(p=>{if(!p.tipo)return;add('Puerta exterior · '+p.tipo+(p.tipo==='Original del contenedor'?'':' '+(p.med==='Otra'?'medida especial':(p.med||'90')+' cm')),'mat','c/u',1,p.med==='Otra'?p.ancho+' × '+p.alto+' cm':'');
+    if(p.prot==='Reja')add('Reja de puerta','mat','c/u',1);if(p.prot==='Postigón')add('Postigón','mat','c/u',1)});
+  d.ventanas.forEach(v=>{add('Ventana '+(d.linea||'')+' · '+(v.med==='Otra'?'medida especial':(v.med||'').replace(' (baño)','')),'mat','c/u',1,v.med==='Otra'?v.ancho+' × '+v.alto+' cm':'');
+    if(v.prot==='Reja')add('Reja de ventana','mat','c/u',1);if(v.prot==='Mosquitero')add('Mosquitero','mat','c/u',1)});
+  // instalaciones
+  const el=Object.values(d.elec||{});
+  add('Tablero y disyuntor','mat','c/u',1);
+  add('Toma','mat','c/u',el.reduce((s,x)=>s+(x.tomas||0),0));
+  ['Plafón','Tubo LED'].forEach(t=>add('Luz · '+t,'mat','c/u',el.filter(x=>x.tipo===t).reduce((s,x)=>s+(x.luces||0),0)));
+  if(d.aa==='Solo pre-instalación')add('Pre-instalación de aire','mo','c/u',1);
+  if(d.aa==='Sí, con equipo')add('Aire acondicionado '+(d.aaFrig||''),'mat','c/u',1);
+  if(d.termo==='Sí')add('Termotanque '+(d.termoTipo||'').toLowerCase(),'mat','c/u',1,d.termoL?d.termoL+' l':'');
+  if(d.tanque==='Sí')add('Tanque de agua','mat','c/u',1,d.tanqueL?d.tanqueL+' l':'');
+  // generales
+  add('Mano de obra general','mo','m²',piso);
+  add('Flete','ter','c/u',1,d.loc||'');
+  return out;
+}
 window.NotaPedido={abrir,cerrar,
+  lineasCosteo:f=>conD(f,()=>lineasCosteo()),
   resumen:f=>conD(f,()=>resumenCuerpo()),
   dibujos:f=>conD(f,()=>(d.espacios.length?planoSVG():'')+abertSVG()),
   pendientes:f=>conD(f,()=>pendientes()),
