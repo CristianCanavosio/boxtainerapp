@@ -753,7 +753,7 @@ function proyCard(p){
       <div class="prog-bar"><div class="prog-fill ${progColor(av,esperado)}" style="width:${av}%"></div></div>
     </div>`:''}
     <div class="proy-meta">
-      <span class="badge b-azul">📦 ${esc(p.tipo)}</span>
+      <span class="badge b-azul">📦 ${esc(p.tipo)}${unidadesDe(p)>1?' × '+unidadesDe(p):''}</span>
       ${sup?`<span class="badge b-gris">👷 ${esc(sup)}</span>`:''}
       ${(p.planos||[]).length?`<span class="badge b-morado">📐 ${p.planos.length} plano${p.planos.length>1?'s':''}</span>`:''}
       ${p.pri&&p.pri!=='normal'?`<span class="badge b-rojo">${PC[p.pri]}</span>`:''}
@@ -890,6 +890,7 @@ function abrirNuevoProy(){
     onGuardar:(f,o)=>crearDesdeNota(f,o)});
 }
 const esNota=p=>!!(p&&p.ficha&&p.ficha.v===2);
+const unidadesDe=p=>esNota(p)?Math.max(1,Math.floor(Number(p.ficha.unidades))||1):1;
 // Crea el proyecto con lo que cargó ventas en la nota de pedido
 async function crearDesdeNota(f,{enviar,archivo}){
   const p={id:nuevoId(),creadoTs:Date.now(),creadoPor:currentUser?.nombre||'',creadoPorId:myId,creadoEn:hoyISO(),
@@ -1073,6 +1074,7 @@ function verDetalle(id){
     </div>`:''}
     <div class="dsec"><h3>📋 Información</h3>
       <div class="drow"><span class="lbl">Tipo</span><span class="val">${esc(p.tipo)}</span></div>
+      ${unidadesDe(p)>1?`<div class="drow"><span class="lbl">Unidades</span><span class="val">${unidadesDe(p)} iguales</span></div>`:''}
       <div class="drow"><span class="lbl">Depósito</span><span class="val">${esc(p.dep)||'—'}</span></div>
       <div class="drow"><span class="lbl">Inicio</span><span class="val">${esc(p.inicio)||'—'}</span></div>
       <div class="drow"><span class="lbl">Entrega</span><span class="val">${esc(p.entrega)||'—'}${dr!==null&&e==='ejecucion'?' ('+(dr<0?'⚠️ '+Math.abs(dr)+'d vencido':dr+'d restantes')+')':''}</span></div>
