@@ -238,7 +238,7 @@ async function guardarProyectoOError(p){
       for(const k in fila) if(JSON.stringify(fila[k])!==JSON.stringify(antes[k])) cambios[k]=fila[k];
       if(Object.keys(cambios).length) chk(await sb.from('proyectos').update(cambios).eq('id',pid));
     }
-    if(esOp()&&p.presup&&JSON.stringify(p.presup)!==JSON.stringify(o&&o.presup||null)){
+    if(esAdmin()&&p.presup&&JSON.stringify(p.presup)!==JSON.stringify(o&&o.presup||null)){
       const x=p.presup;
       chk(await sb.from('presupuestos').upsert({proyecto_id:pid,materiales:Number(x.mat)||0,mano_obra:Number(x.mo)||0,
         terceros:Number(x.ter)||0,otros:Number(x.otr)||0}));
@@ -694,10 +694,12 @@ function calcAvanceEsperado(p){
   return Math.min(100,Math.max(0,Math.round((trans/total)*100)));
 }
 function costoInfo(p){
-  const pres=p.presup||{}, por={};
+  // la plata (presupuesto de obra y gastos reales) la ve solo el administrador
+  const soloAdmin=MODO==='nube'&&!esAdmin();
+  const pres=soloAdmin?{}:(p.presup||{}), por={};
   let presTot=0, realTot=0;
   for(const k in RUBROS){por[k]={pres:Number(pres[k])||0,real:0};presTot+=por[k].pres;}
-  (p.costos||[]).forEach(c=>{const k=por[c.rubro]?c.rubro:'otr';por[k].real+=Number(c.importe)||0;realTot+=Number(c.importe)||0;});
+  (soloAdmin?[]:(p.costos||[])).forEach(c=>{const k=por[c.rubro]?c.rubro:'otr';por[k].real+=Number(c.importe)||0;realTot+=Number(c.importe)||0;});
   const av=p.avance||0;
   const idx=(presTot>0&&av>0)?realTot/(presTot*av/100):null; // >1 = se gasta más rápido de lo que se avanza
   const proy=(av>0)?realTot/(av/100):null;                     // costo proyectado al cierre
@@ -877,6 +879,7 @@ function opcionesSupervisores(sel){
 function prepararModalProy(){
   const op=esOp();
   document.querySelectorAll('#m-proy .campo-op').forEach(el=>el.style.display=op?'':'none');
+  if(MODO==='nube'&&!esAdmin()) document.getElementById('ep-presup-box').style.display='none';
   document.getElementById('ep-sup').style.display=MODO==='local'?'':'none';
   document.getElementById('ep-supid').style.display=MODO==='nube'?'':'none';
 }
@@ -971,7 +974,7 @@ function guardarProy(){
     p.estado=document.getElementById('ep-est').value;
     p.avance=Math.min(100,Math.max(0,parseInt(document.getElementById('ep-av').value)||0));
     p.pers=parseInt(document.getElementById('ep-pers').value)||0;
-    p.presup=leerPresup();
+    if(esAdmin()) p.presup=leerPresup();
     if(MODO==='nube'){const s=document.getElementById('ep-supid').value||null; p.supId=s; p.sup=s?nombreDe(s):(p.sup||'');}
     else p.sup=document.getElementById('ep-sup').value;
   }
@@ -1024,11 +1027,11 @@ function verDetalle(id){
     }
     if(e==='asignacion'&&esOp()){
       const pr=p.presup||{}, conMat=mpListo&&esNota(p);
-      acciones+=`<div class="accion"><p><b>Líder de operaciones:</b> ${conMat?'validá el stock de los materiales (abajo), asigná un supervisor y las fechas. Con eso arranca la medición de avance y de desvíos de materiales.':'asigná un supervisor, las fechas y el presupuesto de costos. Con eso arranca la medición de avance y desvíos.'}</p>
+      acciones+=`<div class="accion"><p><b>Líder de operaciones:</b> ${conMat?'validá el stock de los materiales (abajo), asigná un supervisor y las fechas. Con eso arranca la medición de avance y de desvíos de materiales.':'asigná un supervisor y las fechas'+(esAdmin()?' y el presupuesto de costos':'')+'. Con eso arranca la medición de avance y desvíos.'}</p>
         <div class="fg"><label>Supervisor</label><select id="as-sup">${opcionesSupervisores(p.supId||'')}</select></div>
         <div class="form-2"><div class="fg"><label>Inicio</label><input type="date" id="as-ini" value="${esc(p.inicio||hoyISO())}"></div>
           <div class="fg"><label>Entrega</label><input type="date" id="as-ent" value="${esc(p.entrega||'')}"></div></div>
-        ${conMat?'':`<div class="fg"><label>Presupuesto de costos (USD)</label></div>
+        ${conMat||!esAdmin()?'':`<div class="fg"><label>Presupuesto de costos (USD)</label></div>
         <div class="form-2">
           <div class="fg"><label>Materiales</label><input type="number" id="as-pmat" value="${pr.mat||''}" placeholder="0"></div>
           <div class="fg"><label>Mano de obra</label><input type="number" id="as-pmo" value="${pr.mo||''}" placeholder="0"></div>
@@ -1087,7 +1090,7 @@ function verDetalle(id){
         :'<div style="font-size:13px;color:var(--gris-m)">Todavía sin plano</div>'}
       ${p.notaArq&&e!=='arquitectura'?`<div class="drow"><span class="lbl">Nota de arquitectura</span><span class="val">${esc(p.notaArq)}</span></div>`:''}
     </div>`:''}
-    ${e==='ejecucion'||c.presTot||c.realTot?`<div class="dsec"><h3>💰 Costos: presupuestado vs real</h3>
+    ${(MODO!=='nube'||esAdmin())&&(e==='ejecucion'||c.presTot||c.realTot)?`<div class="dsec"><h3>💰 Costos: presupuestado vs real${MODO==='nube'?' <span style="font-weight:400;color:var(--gris-m);font-size:11px">solo vos lo ves</span>':''}</h3>
       <table class="tcost"><tr><th>Rubro</th><th>Presup.</th><th>Real</th><th>Desvío</th></tr>
       ${Object.keys(RUBROS).map(k=>{const x=c.por[k];const d=x.pres?((x.real-x.pres)/x.pres*100):null;
         return `<tr><td>${RUBROS[k]}</td><td>${usd(x.pres)}</td><td>${usd(x.real)}</td><td class="${d===null?'':d>10?'rojo':d>5?'amar':'verde'}">${d===null?'—':pct(d)}</td></tr>`;}).join('')}
@@ -1166,7 +1169,7 @@ async function asignar(id){
   p.stockVerif={fecha:hoyISO(),autor:currentUser.nombre};
   p.supId=s; p.sup=nombreDe(s);
   p.inicio=document.getElementById('as-ini').value||hoyISO(); p.entrega=ent;
-  if(!conMat) p.presup={mat:Number(document.getElementById('as-pmat').value)||0,mo:Number(document.getElementById('as-pmo').value)||0,
+  if(!conMat&&esAdmin()) p.presup={mat:Number(document.getElementById('as-pmat').value)||0,mo:Number(document.getElementById('as-pmo').value)||0,
     ter:Number(document.getElementById('as-pter').value)||0,otr:Number(document.getElementById('as-potr').value)||0};
   if(conMat){try{await fijarPlanMateriales(todos[id]);p.mats=todos[id].mats;}catch(e){console.error(e);toast('⚠️ No se pudo guardar la lista de materiales: '+(e.message||'error'));return;}}
   p.etapa='ejecucion'; p.estado='en-curso';
@@ -1500,7 +1503,7 @@ function renderAlertas(){
       alertas.push({tipo:f.frena?'error':'warn',icon:'📦',titulo:`${f.frena?'TRABAJO FRENADO por falta de':'Falta'} ${esc(f.mat)}: ${esc(p.nombre)}`,
         texto:`Pedido por ${esc(f.autor)} hace ${fmtHoras(horasDesde(f.ts))}. Se necesita para ${esc(f.para)}.`,id:p.id});});
     if(e==='asignacion'&&esOp())
-      alertas.push({tipo:'warn',icon:'🧭',titulo:`Sin asignar: ${esc(p.nombre)}`,texto:`Esperando supervisor, fechas y presupuesto de costos.`,id:p.id});
+      alertas.push({tipo:'warn',icon:'🧭',titulo:`Sin asignar: ${esc(p.nombre)}`,texto:`Esperando validar materiales, supervisor y fechas.`,id:p.id});
     if(e!=='ejecucion') return;
     const dr=diasRestantes(p.entrega), esperado=calcAvanceEsperado(p), av=p.avance||0, c=costoInfo(p), sup=esc(supNombre(p))||'—';
     if(c.presTot&&c.realTot>c.presTot*1.05)
@@ -1672,14 +1675,14 @@ function renderReportes(){
           <span class="badge ${f.cls}">${f.lbl}</span><span>${f.n} (${pc}%)</span></div>
           <div class="prog-bar"><div class="prog-fill prog-nar" style="width:${pc}%"></div></div></div>`;}).join('')}
     </div>
-    <div class="card"><div class="card-title" style="margin-bottom:10px">💰 Costos: presupuestado vs real</div>
+    ${MODO==='nube'&&!esAdmin()?'':`<div class="card"><div class="card-title" style="margin-bottom:10px">💰 Costos: presupuestado vs real</div>
       ${conCosto.length?`<div class="drow"><span class="lbl">Presupuesto total</span><span class="val">${usd(presT)}</span></div>
         <div class="drow"><span class="lbl">Costo real cargado</span><span class="val">${usd(realT)}</span></div>
         <table class="tcost" style="margin-top:8px"><tr><th>Proyecto</th><th>Avance</th><th>Presup.</th><th>Real</th></tr>
         ${conCosto.map(p=>{const c=costoInfo(p);const mal=costoDesviado(p);
           return `<tr onclick="verDetalle('${esc(p.id)}')" style="cursor:pointer"><td>${esc((p.nombre||'').slice(0,20))}</td><td>${p.avance||0}%</td><td>${usd(c.presTot)}</td><td class="${mal?'rojo':''}">${usd(c.realTot)}</td></tr>`;}).join('')}</table>`
-        :'<div style="font-size:13px;color:var(--gris-m)">Todavía no hay presupuestos de costos ni gastos cargados. Se cargan al asignar el proyecto y desde cada proyecto en ejecución.</div>'}
-    </div>
+        :'<div style="font-size:13px;color:var(--gris-m)">Todavía no hay presupuestos de costos ni gastos cargados.</div>'}
+    </div>`}
     <div class="card"><div class="card-title" style="margin-bottom:10px">📦 Por tipo de trabajo</div>
       ${Object.entries(tiposCount).sort((a,b)=>b[1]-a[1]).map(([t,n])=>`<div class="drow"><span class="lbl">${esc(t)}</span><span class="val">${n} proyecto${n>1?'s':''}</span></div>`).join('')||'—'}
     </div>
