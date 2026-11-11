@@ -112,7 +112,7 @@ function render(){
     h=`<div class="paso-t">Distribución</div><div class="paso-s">Cada espacio se personaliza por separado. El dibujo muestra dónde va quedando cada uno.</div><div class="card">${planoSVG()}</div><div class="card">
     ${Object.keys(ESP).map(k=>`<div class="esp"><div class="esp-h"><b>${ESP[k]}</b><div class="cnt"><button data-menos="${k}">−</button><span>${cuenta(k)}</span><button data-mas="${k}">+</button></div></div>
       ${d.espacios.filter(x=>x.tipo===k).map(x=>`<div class="sub"><div class="lbl">${esc(etiqueta(x))}: ¿dónde va?</div>${ops('ubi.'+x.id,UBI,x.ubi||'')}
-      ${ITEMS[k]?`<div class="lbl" style="margin-top:10px">¿Qué lleva ${esc(etiqueta(x).toLowerCase())}? <small>tocá todo lo que aplique</small></div>${multi('it.'+x.id,ITEMS[k],x.items)}<div class="lbl" style="margin-top:10px">Revestimiento de paredes</div>${ops('rh.'+x.id,REV_HUM,x.rev||'')}`:''}</div>`).join('')}</div>`).join('')}
+      ${ITEMS[k]?`<div class="lbl" style="margin-top:10px">¿Qué lleva ${esc(etiqueta(x).toLowerCase())}? <small>tocá todo lo que aplique</small></div>${multi('it.'+x.id,ITEMS[k],x.items)}<div class="lbl" style="margin-top:10px">Revestimiento de paredes</div>${ops('rh.'+x.id,REV_HUM,x.rev||'')}<div class="lbl" style="margin-top:10px">Revestimiento de techo <small>opcional</small></div>${ops('rt.'+x.id,REV_HUM,x.revT||'')}`:''}</div>`).join('')}</div>`).join('')}
     </div><div class="card"><div class="lbl">Croquis o plano del cliente <small>recomendado · hasta ${MAX_CROQUIS} archivos</small></div>
       ${opts.croquisPrevios?`<div class="auto">Ya ${opts.croquisPrevios===1?'hay 1 archivo subido':'hay '+opts.croquisPrevios+' archivos subidos'} en este proyecto.</div>`:''}
       ${archivos.map((f,i)=>`<div class="auto">📎 ${esc(f.name)}: se sube al guardar <button class="x" data-quitaf="${i}">Quitar</button></div>`).join('')}
@@ -187,7 +187,7 @@ function render(){
   $('#np-app').innerHTML=(opts.aviso?`<div class="card pend" style="font-size:13px">${opts.aviso}</div>`:'')+errHTML+h;
 }
 function resumenCuerpo(){
-  const espTxt=d.espacios.map(x=>`${etiqueta(x)} (${(x.ubi||'?').toLowerCase()})${x.items&&x.items.length?' con '+x.items.join(', ').toLowerCase():''}${x.rev?', revestimiento '+x.rev.toLowerCase():''}`).join('; ')||'sin divisiones';
+  const espTxt=d.espacios.map(x=>`${etiqueta(x)} (${(x.ubi||'?').toLowerCase()})${x.items&&x.items.length?' con '+x.items.join(', ').toLowerCase():''}${x.rev?', revestimiento '+x.rev.toLowerCase():''}${x.revT?', techo '+x.revT.toLowerCase():''}`).join('; ')||'sin divisiones';
   return `      <h4>Pedido</h4><p><b>${esc(d.sol||'?')}</b> para <b>${esc(d.cli||'?')}</b>, entrega en ${esc(d.loc||'?')}${d.maps?' (<a href="'+esc(d.maps)+'" target="_blank" rel="noopener">ubicación</a>)':''} el ${esc(d.fecha?d.fecha.split('-').reverse().join('/'):'?')}.</p>
       <h4>Producto</h4><p>${unidades()>1?`<b>${unidades()} unidades iguales</b>, cada una: `:''}${esc(d.prod||'?')} ${esc(d.tam)}${d.prod==='Contenedor cortado'?`, cortado a ${esc(d.corte)} cm conservando ${esc(d.lado.toLowerCase())}`:''}${d.motor?', '+esc(d.motor.toLowerCase()):''}. Medidas exteriores ${esc(d.largo)} × ${esc(d.ancho)} × ${esc(d.alto)} cm.</p>
       <h4>Distribución</h4><p>${esc(espTxt)}.</p>
@@ -326,6 +326,8 @@ R0.addEventListener('click',e=>{
   if(k.startsWith('v.')){const [,i,c]=k.split('.');const w=d.ventanas[+i];w[c]=v;if(c==='med'&&v!=='Otra'){const m=v.match(/(\d+) × (\d+)/);w.ancho=m[1];w.alto=m[2]}if(c==='med'&&v==='Otra'){w.ancho='';w.alto=''}if(c==='esp'&&!w.pos){const x=d.espacios.find(y=>etiqueta(y)===v);if(x&&x.ubi)w.pos=x.ubi}render();return}
   if(k.startsWith('pu.')){const [,i,c]=k.split('.');const p=d.puertas[+i];p[c]=v;if(c==='med'&&v==='Otra'){p.ancho='';p.alto=''}render();return}
   if(k.startsWith('rh.')){d.espacios.find(y=>y.id===k.slice(3)).rev=v;render();return}
+  // techo: tocar de nuevo la opción elegida la saca (es opcional)
+  if(k.startsWith('rt.')){const y=d.espacios.find(z=>z.id===k.slice(3));y.revT=y.revT===v?'':v;render();return}
   if(k.startsWith('ra.')){d.revAsig[k.slice(3)]=v;render();return}
   if(k.startsWith('elec.')){const p=k.slice(5).split('.');const c=p.pop();d.elec[p.join('.')][c]=v;render();return}
   if(k.startsWith('ubi.')){d.espacios.find(y=>y.id===k.slice(4)).ubi=v;render();return}
@@ -415,7 +417,8 @@ function lineasCosteo(){
   if(humedos.length)add('Instalación sanitaria por ambiente','mo','c/u',humedos.length);
   const enZona=u=>Math.max(1,esp.filter(x=>x.ubi===u).length);
   let humedo=0;
-  humedos.forEach(x=>{const m=2*(L/3+A)*H/enZona(x.ubi);humedo+=m;if(x.rev)add('Revestimiento '+x.rev.toLowerCase()+' (baño/cocina)','mat','m²',m,etiqueta(x))});
+  humedos.forEach(x=>{const m=2*(L/3+A)*H/enZona(x.ubi);humedo+=m;if(x.rev)add('Revestimiento '+x.rev.toLowerCase()+' (baño/cocina)','mat','m²',m,etiqueta(x));
+    if(x.revT)add('Revestimiento de techo '+x.revT.toLowerCase()+' (baño/cocina)','mat','m²',L/3*A/enZona(x.ubi),etiqueta(x))});
   // terminaciones
   add('Pintura exterior','mat','m²',paredes+techo,d.pExtP?'color a confirmar':(d.pExt==='Otro'?d.pExtOtro:d.pExt),d.pExtP);
   if(d.revExt&&d.revExt!=='Sin revestimiento')add('Revestimiento exterior · '+d.revExt,'mat','m²',paredes);
