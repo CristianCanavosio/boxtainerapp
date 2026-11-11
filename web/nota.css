@@ -133,3 +133,26 @@
 .nota-vers summary{cursor:pointer;font-weight:700;color:var(--gris-m)}
 .nota-v{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid rgba(0,0,0,.06)}
 .nota-v small{display:block;color:var(--gris-m)}
+
+/* Materiales del proyecto */
+.mp-lista{display:flex;flex-direction:column;gap:6px}
+.mp-f{border:1px solid var(--borde);border-radius:8px;padding:8px;display:grid;grid-template-columns:1fr auto;gap:6px 8px;align-items:center}
+.mp-f.mp-fuera{opacity:.6}
+.mp-n{font-size:13px;font-weight:600;min-width:0}
+.mp-n small,.mp-r small{display:block;font-weight:400;color:var(--gris-m);font-size:11px}
+.mp-c{font-size:12px;white-space:nowrap}
+.mp-c input,.mp-r input{width:72px;padding:5px;border:1.5px solid var(--borde);border-radius:6px;font-size:13px}
+.mp-s{grid-column:1/-1;display:flex;gap:6px;flex-wrap:wrap}
+.mp-b{border:1.5px solid var(--borde);background:#fff;border-radius:16px;padding:4px 10px;font-size:12px;cursor:pointer;color:inherit}
+.mp-b.on.verde{background:#E6F6EE;border-color:#1E7A48;color:#1E7A48;font-weight:700}
+.mp-b.on.amar{background:#FFF6DB;border-color:#C98A00;color:#8A5F00;font-weight:700}
+.mp-b.on.rojo{background:#FDE8E8;border-color:#C0392B;color:#C0392B;font-weight:700}
+.mp-tabla{font-size:12px}
+.mp-h,.mp-r{display:grid;grid-template-columns:minmax(0,1.6fr) .8fr .9fr .9fr;gap:6px;align-items:center;padding:6px 0;border-bottom:1px solid rgba(0,0,0,.06)}
+.mp-h{font-weight:700;color:var(--gris-m)}
+.mp-r .rojo{color:#C0392B;font-weight:700}.mp-r .amar{color:#8A5F00;font-weight:700}.mp-r .verde{color:#1E7A48}
+.mp-usd{border-radius:8px;padding:8px 10px;margin-bottom:8px;font-size:13px}
+.mp-usd.rojo{background:#FDE8E8;color:#C0392B}.mp-usd.verde{background:#E6F6EE;color:#1E7A48}
+.mp-usd small{display:block;font-size:11px;opacity:.8}
+.mp-add{margin-top:10px;font-size:13px}
+.mp-add summary{cursor:pointer;font-weight:700;color:var(--nar)}
