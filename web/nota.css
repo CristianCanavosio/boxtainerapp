@@ -125,3 +125,11 @@
 .im-f select,.im-f input{width:100%;padding:6px;border:1.5px solid var(--borde);border-radius:7px;font-size:12px;margin-top:4px;min-width:0}
 .im-p{margin-top:0!important}
 .im-chk input{width:18px;height:18px;accent-color:var(--nar)}
+
+/* Versiones de la nota confirmada */
+.nota-vers{margin-top:10px}
+.nota-ok{background:#E6F6EE;color:#1E7A48;border-radius:8px;padding:8px 10px;font-size:12px;font-weight:700}
+.nota-vers details{margin-top:8px;font-size:12px}
+.nota-vers summary{cursor:pointer;font-weight:700;color:var(--gris-m)}
+.nota-v{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid rgba(0,0,0,.06)}
+.nota-v small{display:block;color:var(--gris-m)}
