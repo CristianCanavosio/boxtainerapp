@@ -31,6 +31,7 @@ Correr en orden, una sola vez cada uno:
 5. `supabase/migrations/0005_precios_de_proveedores.sql` (importar precios de proveedores desde Excel, PDF o a mano; depósito privado `costos`)
 6. `supabase/migrations/0006_cambios_en_nota_confirmada.sql` (cambios en la nota que ya confirmó el cliente: historial y reconfirmación de ventas)
 7. `supabase/migrations/0007_materiales_por_proyecto.sql` (materiales de cada proyecto: stock antes de asignar, consumo real y desvíos)
+8. `supabase/migrations/0008_plata_solo_admin.sql` (presupuesto de obra y gastos reales en USD: solo el administrador)
 
 ### 2. Publicar la app (Vercel, gratis)
 
@@ -82,7 +83,7 @@ En la app anterior (artefacto), pestaña Reportes → **Descargar respaldo compl
 - **Supervisor, en obra:** carga cuánto se usó de cada ítem (el total acumulado) y puede agregar materiales no previstos.
 - **Desvío en cantidad:** lo ven el líder y el supervisor. Mientras la obra sigue, marca solo lo que se pasó; al finalizar, compara todo.
 - **Desvío en USD:** lo ve solo el administrador. Se calcula como la diferencia de cantidad por el precio de la lista de costos.
-- Los proyectos con la ficha vieja siguen con el presupuesto en USD y la casilla de stock.
+- Toda la plata (presupuesto de obra, gastos reales en USD, desvíos en USD) la ve solo el administrador. El líder y el supervisor trabajan con cantidades.
 
 ## Costeo del pedido (solo administrador)
 
