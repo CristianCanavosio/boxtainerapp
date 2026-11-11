@@ -360,6 +360,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <button class="nav-btn" data-view="proyectos" onclick="showView('proyectos')">📋 Proyectos</button>
     <button class="nav-btn" data-view="kanban" onclick="showView('kanban')">📊 Kanban</button>
     <button class="nav-btn" data-view="alertas" onclick="showView('alertas')">🚨 Alertas</button>
+    <button class="nav-btn" data-view="pedidos" onclick="showView('pedidos')" id="nav-pedidos">🪚 Carpinterías</button>
     <button class="nav-btn" data-view="personal" onclick="showView('personal')">👷 Personal</button>
     <button class="nav-btn" data-view="contenedores" onclick="showView('contenedores')">📦 Contenedores</button>
     <button class="nav-btn" data-view="materiales" onclick="showView('materiales')">🔧 Materiales</button>
@@ -406,6 +407,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <div style="margin-top:12px">
       <div class="sec-title">🚨 Alertas y Desviaciones</div>
       <div id="lista-alertas"></div>
+    </div>
+  </div>
+
+  <!-- PEDIDOS A CARPINTERÍAS -->
+  <div class="view" id="view-pedidos">
+    <div style="margin-top:12px">
+      <div class="sec-title" id="pedcarp-titulo">🪚 Pedidos a carpinterías</div>
+      <div id="lista-pedcarp"></div>
     </div>
   </div>
 
@@ -732,6 +741,30 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 </div>
 
 <!-- ══ MODAL: DETALLE PROYECTO ══ -->
+<div class="overlay" id="m-pedcarp">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="m-pedcarp-title">🪚 Pedido</div>
+    <div id="pc-form"></div>
+    <div class="flex-btns" style="margin-top:12px">
+      <button class="btn btn-sec" onclick="closeOverlay('m-pedcarp')">Cancelar</button>
+      <button class="btn btn-nar" onclick="enviarPedidoCarp(this)">📨 Enviar pedido</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="m-pcresp" style="z-index:250">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="m-pcresp-title" style="font-size:18px">Responder</div>
+    <div id="pcresp-form"></div>
+    <div class="flex-btns">
+      <button class="btn btn-sec" onclick="closeOverlay('m-pcresp')">Volver</button>
+      <button class="btn btn-nar" onclick="pcGuardarResp()">Guardar</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="m-det">
   <div class="modal">
     <div class="modal-handle"></div>
@@ -750,6 +783,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <script src="costeo-import.js"></script>
 <script src="versiones.js"></script>
 <script src="materiales-proy.js"></script>
+<script src="pedidos-carp.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
