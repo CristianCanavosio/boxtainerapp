@@ -16,7 +16,9 @@ const REV_EXT=['Sin revestimiento','Megacold','Chapa prepintada negra','Chapa pr
 const nuevaPuerta=()=>({tipo:'',med:'',ancho:'',alto:'',pared:'',pos:'',mano:'',prot:''});
 const ITEMS={bano:['Inodoro','Mingitorio','Bidet','Lavamatic','Bacha','Ducha','Mueble','Espejo'],cocina:['Bacha monocomando','Bajo mesada','Alacena','Cocina eléctrica']};
 const COLORES=['Blanco','Gris claro','Gris grafito','Negro','Azul','Verde inglés','Otro'];
-let paso=0, intento=false, opts={}, archivo=null, ocupado=false;
+let paso=0, intento=false, opts={}, archivos=[], ocupado=false;
+const MAX_CROQUIS=3; // archivos del cliente por nota (croquis, planos, fotos)
+const cupoCroquis=()=>Math.max(0,MAX_CROQUIS-(opts.croquisPrevios||0));
 function nuevo(){return {sol:'',cli:'',tel:'',cuit:'',loc:'',maps:'',mapsOk:false,fecha:'',modelo:'',
   unidades:1,prod:'',tam:'',motor:'',corte:'',lado:'',largo:'',ancho:'',alto:'',
   espacios:[],
@@ -111,7 +113,11 @@ function render(){
     ${Object.keys(ESP).map(k=>`<div class="esp"><div class="esp-h"><b>${ESP[k]}</b><div class="cnt"><button data-menos="${k}">−</button><span>${cuenta(k)}</span><button data-mas="${k}">+</button></div></div>
       ${d.espacios.filter(x=>x.tipo===k).map(x=>`<div class="sub"><div class="lbl">${esc(etiqueta(x))}: ¿dónde va?</div>${ops('ubi.'+x.id,UBI,x.ubi||'')}
       ${ITEMS[k]?`<div class="lbl" style="margin-top:10px">¿Qué lleva ${esc(etiqueta(x).toLowerCase())}? <small>tocá todo lo que aplique</small></div>${multi('it.'+x.id,ITEMS[k],x.items)}<div class="lbl" style="margin-top:10px">Revestimiento de paredes</div>${ops('rh.'+x.id,REV_HUM,x.rev||'')}`:''}</div>`).join('')}</div>`).join('')}
-    </div><div class="card"><div class="lbl">Croquis o plano del cliente <small>recomendado</small></div><input type="file" accept="image/*,application/pdf" data-f="1">${archivo?`<div class="auto">📎 ${esc(archivo.name)}: se sube al guardar</div>`:''}<div class="aviso" style="text-align:left">Una foto de un dibujo a mano alcanza.</div></div>`;
+    </div><div class="card"><div class="lbl">Croquis o plano del cliente <small>recomendado · hasta ${MAX_CROQUIS} archivos</small></div>
+      ${opts.croquisPrevios?`<div class="auto">Ya ${opts.croquisPrevios===1?'hay 1 archivo subido':'hay '+opts.croquisPrevios+' archivos subidos'} en este proyecto.</div>`:''}
+      ${archivos.map((f,i)=>`<div class="auto">📎 ${esc(f.name)}: se sube al guardar <button class="x" data-quitaf="${i}">Quitar</button></div>`).join('')}
+      ${archivos.length<cupoCroquis()?`<input type="file" accept="image/*,application/pdf" multiple data-f="1">`:`<div class="aviso" style="text-align:left">Llegaste al máximo de ${MAX_CROQUIS} archivos.</div>`}
+      <div class="aviso" style="text-align:left">Una foto de un dibujo a mano alcanza.</div></div>`;
   }
   if(paso===3){
     h=`<div class="paso-t">Terminaciones</div><div class="paso-s">&nbsp;</div>
@@ -303,11 +309,12 @@ function limpio(o){return JSON.parse(JSON.stringify(o))}
 function toast(t){let el=document.getElementById('np-tt');if(!el){el=document.createElement('div');el.id='np-tt';document.body.appendChild(el)}el.textContent=t;el.style.opacity=1;clearTimeout(toast.t);toast.t=setTimeout(()=>el.style.opacity=0,2400)}
 function conectar(R0){
 R0.addEventListener('click',e=>{
-  const t=e.target.closest('[data-k],[data-m],[data-mas],[data-menos],[data-em],[data-ep],[data-quitar],[data-quitarp],[data-modelo],[data-up],[data-um],#np-add-v,#np-add-p');if(!t)return;
+  const t=e.target.closest('[data-k],[data-m],[data-mas],[data-menos],[data-em],[data-ep],[data-quitar],[data-quitarp],[data-quitaf],[data-modelo],[data-up],[data-um],#np-add-v,#np-add-p');if(!t)return;
   if(t.dataset.modelo){modelo(t.dataset.modelo);return}
   if(t.dataset.up||t.dataset.um){d.unidades=Math.min(MAX_U,Math.max(1,unidades()+(t.dataset.up?1:-1)));render();return}
   if(t.id==='np-add-v'){d.ventanas.push({esp:'',med:'',ancho:'',alto:'',tipo:'',pared:'',pos:'',prot:''});render();return}
   if(t.id==='np-add-p'){d.puertas.push(nuevaPuerta());render();return}
+  if(t.dataset.quitaf!=null){archivos.splice(+t.dataset.quitaf,1);render();return}
   if(t.dataset.quitarp!=null){d.puertas.splice(+t.dataset.quitarp,1);render();return}
   if(t.dataset.quitar!=null){d.ventanas.splice(+t.dataset.quitar,1);render();return}
   if(t.dataset.mas){d.espacios.push({id:nid(),tipo:t.dataset.mas,ubi:'',items:[]});render();return}
@@ -336,7 +343,9 @@ R0.addEventListener('change',e=>{const t=e.target;
   if(t.dataset.c){d[t.dataset.c]=t.checked;render()}
   if(t.dataset.i==='unidades'){if(t.value!=='')d.unidades=Math.min(MAX_U,Math.max(1,Math.floor(Number(t.value))||1));render()}
   if(t.id==='np-confirmado'){d.confirmado=t.checked}
-  if(t.dataset.f&&t.files[0]){archivo=t.files[0];toast('📎 '+archivo.name+' se sube al guardar')}
+  if(t.dataset.f&&t.files.length){const lugar=cupoCroquis()-archivos.length,nuevos=[...t.files];
+    archivos.push(...nuevos.slice(0,lugar));
+    toast(nuevos.length>lugar?`⚠️ Máximo ${MAX_CROQUIS} archivos: se agregaron ${Math.max(0,lugar)}`:'📎 '+(nuevos.length>1?nuevos.length+' archivos':nuevos[0].name)+' se sube'+(nuevos.length>1?'n':'')+' al guardar');render()}
 });
 $('#np-b-sig').onclick=siguiente;
 $('#np-b-atras').onclick=()=>{if(paso){paso--;intento=false;render();arriba()}else salir()};
@@ -355,7 +364,7 @@ async function siguiente(){
 async function guardar(enviar,borrador){
   if(ocupado||!opts.onGuardar)return;
   ocupado=true;['#np-b-sig','#np-borr'].forEach(s=>{const b=$(s);if(b)b.disabled=true});
-  try{const ok=await opts.onGuardar(limpio(d),{enviar,borrador,archivo});if(ok!==false)cerrar(true)}
+  try{const ok=await opts.onGuardar(limpio(d),{enviar,borrador,archivos:archivos.slice()});if(ok!==false)cerrar(true)}
   finally{ocupado=false;['#np-b-sig','#np-borr'].forEach(s=>{const b=$(s);if(b)b.disabled=false})}
 }
 function montar(){
@@ -370,7 +379,7 @@ let inicial='';
 async function salir(){if(JSON.stringify(d)!==inicial&&typeof window.confirmar==='function'&&!(await window.confirmar('¿Salir sin guardar la nota de pedido?')))return;cerrar()}
 function cerrar(guardado){const R0=document.getElementById('nota');if(R0)R0.classList.remove('on');document.body.style.overflow='';if(!guardado&&opts.onCerrar)opts.onCerrar()}
 function abrir(o){
-  opts=o||{};archivo=null;intento=false;paso=0;
+  opts=o||{};archivos=[];intento=false;paso=0;
   d=normProd(Object.assign(nuevo(),o&&o.ficha&&o.ficha.v===2?limpio(o.ficha):{}));
   if(!d.puertas||!d.puertas.length)d.puertas=[nuevaPuerta()];
   if(!d.cli&&o&&o.cliente)d.cli=o.cliente;
