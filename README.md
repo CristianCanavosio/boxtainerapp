@@ -34,6 +34,7 @@ Correr en orden, una sola vez cada uno:
 7. `supabase/migrations/0007_materiales_por_proyecto.sql` (materiales de cada proyecto: stock antes de asignar, consumo real y desvíos)
 8. `supabase/migrations/0008_plata_solo_admin.sql` (presupuesto de obra y gastos reales en USD: solo el administrador)
 9. `supabase/migrations/0009_pedidos_a_carpinterias.sql` (pedidos a la carpintería de aluminio y a la de madera, con sus propios usuarios)
+10. `supabase/migrations/0010_cerrar_aviso_de_cambio.sql` (cuando ventas marca que el cliente aprobó el cambio, el aviso automático queda respondido)
 
 ### 2. Publicar la app (Vercel, gratis)
 
