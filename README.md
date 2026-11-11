@@ -29,6 +29,7 @@ Correr en orden, una sola vez cada uno:
 3. `supabase/migrations/0003_croquis_de_ventas.sql` (deja que ventas suba el croquis del cliente desde la nota de pedido)
 4. `supabase/migrations/0004_costeo_solo_admin.sql` (lista de costos y costeo del pedido, solo para el administrador)
 5. `supabase/migrations/0005_precios_de_proveedores.sql` (importar precios de proveedores desde Excel, PDF o a mano; depósito privado `costos`)
+6. `supabase/migrations/0006_cambios_en_nota_confirmada.sql` (cambios en la nota que ya confirmó el cliente: historial y reconfirmación de ventas)
 
 ### 2. Publicar la app (Vercel, gratis)
 
@@ -66,6 +67,13 @@ En la app anterior (artefacto), pestaña Reportes → **Descargar respaldo compl
 
 - Lo marcado "a confirmar" deja enviar a arquitectura, pero el líder no puede pasar el proyecto a ejecución hasta completarlo.
 - El PDF para el cliente se arma en el celular (html2canvas y jsPDF desde cdnjs).
+
+### Cambios después de que el cliente confirmó
+- Cuando ventas envía la nota, queda guardada la versión que aprobó el cliente.
+- Desde ahí solo el líder o el administrador la corrigen (arquitectura y ventas no). Si cambian algo que el cliente ve, queda registrado quién y qué cambió, y a ventas le llega una consulta automática.
+- Ventas le manda el PDF nuevo al cliente y, cuando aprueba, toca **El cliente aprobó el cambio** en el proyecto.
+- Mientras tanto el proyecto **no pasa a ejecución** (lo frena también la base). Si ya estaba en ejecución, queda marcado.
+- En el detalle del proyecto está el historial con el PDF de cada versión.
 
 ## Costeo del pedido (solo administrador)
 

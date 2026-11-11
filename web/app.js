@@ -151,6 +151,7 @@ async function cargarTodo(){
   rec.sort((a,b)=>a.id-b.id).forEach(r=>en(r.proyecto_id,p=>p.flujo.push({fecha:fechaDe(r.creado_en),a:r.a_etapa,
     autor:r.detalle||nombreDe(r.autor_id)})));
   todos=T; ORIG={}; for(const id in T) ORIG[id]=limpiar(T[id]);
+  await cargarVersiones(T);
   await cargarCosteo();
   personal=pe.map(r=>({id:r.id,nom:r.nombre,rol:r.rol||'',tel:r.telefono||''}));
   contenedores=ct.map(r=>({id:r.id,cod:r.codigo,tipo:r.tipo||'',estado:r.estado||'',proyId:r.proyecto_id,obs:r.observaciones||''}));
@@ -903,16 +904,25 @@ async function crearDesdeNota(f,{enviar,archivo}){
 }
 function editarNota(id){
   const p=todos[id]; if(!p||!puedeEditar(p)) return;
-  const enviar=etapaDe(p)==='ventas';
-  NotaPedido.abrir({ficha:esNota(p)?p.ficha:null,cliente:p.cli,titulo:'Nota de pedido · '+p.nombre,enviar,
+  const enVentas=etapaDe(p)==='ventas';
+  if(!enVentas&&!esOp()){toast('🔒 La nota ya fue confirmada con el cliente: solo el líder la corrige');return;}
+  const confirmada=notaConfirmada(p);
+  NotaPedido.abrir({ficha:esNota(p)?p.ficha:null,cliente:p.cli,titulo:'Nota de pedido · '+p.nombre,enviar:enVentas,
+    aviso:confirmada?'⚠️ <b>Esta nota ya la confirmó el cliente.</b> Si la cambiás, queda registrado quién y qué cambió, le avisamos a ventas para que se la mande al cliente, y el proyecto no pasa a ejecución hasta que el cliente apruebe el cambio.':'',
     onGuardar:async(f,{enviar:env,archivo})=>{
       const q=limpiar(todos[id]); if(!q) return false;
+      const antes=q.ficha;
       q.ficha=NotaPedido.compat(f);
       if((!q.cli||q.cli==='Sin nombre')&&f.cli) q.cli=f.cli.trim();
       if(!q.entrega&&f.fecha) q.entrega=f.fecha;
+      const cambio=confirmada?cambiosEntre(antes,q.ficha):[];
+      // si no cambió nada que vea el cliente, la nota confirmada queda tal cual
+      if(confirmada&&!cambio.length) q.ficha=antes;
       try{await guardarProyectoOError(q);}catch(e){return false;}
+      if(cambio.length) await avisarCambioNota(id,cambio);
       if(archivo) await subirCroquis(id,archivo);
-      if(env) await moverEtapa(id,'arquitectura'); else toast('✅ Nota de pedido guardada');
+      if(env) await moverEtapa(id,'arquitectura');
+      else toast(cambio.length?'✏️ Nota cambiada: le avisamos a ventas para que la apruebe el cliente':'✅ Nota de pedido guardada');
       refrescar();
       return true;
     }});
@@ -1141,6 +1151,7 @@ async function moverEtapa(id,a){
 }
 async function asignar(id){
   const p=limpiar(todos[id]); if(!p) return;
+  if(notaPendiente(p)){toast('⚠️ La nota tuvo un cambio que el cliente todavía no aprobó: ventas tiene que reconfirmarlo antes de pasar a ejecución');return;}
   if(esNota(p)){const pe=NotaPedido.pendientes(p.ficha); if(pe.length){toast('⚠️ Falta confirmar con el cliente: '+pe.join(', ')+'. Completalo en la nota antes de pasar a ejecución');return;}}
   const s=document.getElementById('as-sup').value;
   if(!s){toast('⚠️ Elegí un supervisor');return;}
@@ -1181,12 +1192,16 @@ function editarProy(id){
   v('ep-pers',p.pers||0);v('ep-dep',p.dep);v('ep-pri',p.pri||'normal');v('ep-obs',p.obs);
   const pr=p.presup||{}; v('ep-pmat',pr.mat||'');v('ep-pmo',pr.mo||'');v('ep-pter',pr.ter||'');v('ep-potr',pr.otr||'');
   ponerFicha(esNota(p)?{}:(p.ficha||{}));
-  const nueva=esNota(p);
+  const nueva=esNota(p), editable=etapaDe(p)==='ventas'||esOp();
   document.getElementById('ficha-vieja').style.display=nueva?'none':'';
-  document.getElementById('ficha-nueva-txt').textContent=nueva
-    ?(NotaPedido.faltantes(p.ficha).length?'Incompleta: abrila para terminarla.':'Completa.')
+  document.getElementById('ficha-nueva-txt').textContent=!editable
+    ?'🔒 Confirmada con el cliente: solo el líder la corrige.'
+    :notaConfirmada(p)?'Confirmada con el cliente. Si la cambiás, el cliente tiene que aprobar el cambio antes de pasar a ejecución.'
+    :nueva?(NotaPedido.faltantes(p.ficha).length?'Incompleta: abrila para terminarla.':'Completa.')
     :'Este proyecto tiene la ficha anterior. Podés pasarla a la nota de pedido nueva.';
-  document.getElementById('ficha-nueva-btn').onclick=()=>{closeOverlay('m-proy');editarNota(id)};
+  const fb=document.getElementById('ficha-nueva-btn');
+  fb.style.display=editable?'':'none';
+  fb.onclick=()=>{closeOverlay('m-proy');editarNota(id)};
   document.getElementById('ep-supid').innerHTML=opcionesSupervisores(p.supId||'');
   prepararModalProy();
   openOverlay('m-proy');
@@ -1260,7 +1275,8 @@ function seccionFicha(p){
       <div class="nota-vars nota-res">${NotaPedido.resumen(f)}</div>
       <div class="nota-vars nota-dib">${NotaPedido.dibujos(f)}</div>
       <div class="flex-btns" style="margin-top:8px"><button class="btn btn-sec btn-sm" onclick="pdfNota('${id}',this)">📄 PDF para el cliente</button>
-        ${puedeEditar(p)?`<button class="btn btn-nar btn-sm" onclick="closeOverlay('m-det');editarNota('${id}')">✏️ Editar nota</button>`:''}</div>
+        ${puedeEditar(p)&&(etapaDe(p)==='ventas'||esOp())?`<button class="btn btn-nar btn-sm" onclick="closeOverlay('m-det');editarNota('${id}')">✏️ ${notaConfirmada(p)?'Corregir nota':'Editar nota'}</button>`:''}</div>
+      ${seccionVersiones(p)}
       ${p.verifArq?`<div style="font-size:12px;color:var(--verde);margin-top:6px">✅ Plano verificado por ${esc(p.verifArq.autor)} (${esc(p.verifArq.fecha)})</div>`:''}
     </div>`;
   }
