@@ -70,6 +70,7 @@ En la app anterior (artefacto), pestaña Reportes → **Descargar respaldo compl
 `web/nota.js` y `web/nota.css` tienen el asistente de carga que usa ventas (cliente, producto, distribución, terminaciones, aberturas, instalaciones y confirmación). Se guarda en la columna `ficha` del proyecto con `v: 2`. Los proyectos viejos siguen mostrando la ficha técnica anterior y se pueden pasar a la nota nueva desde Editar.
 
 - Lo marcado "a confirmar" deja enviar a arquitectura, pero el líder no puede pasar el proyecto a ejecución hasta completarlo.
+- Ventas puede subir hasta 3 archivos del cliente (croquis, planos o fotos) por proyecto; quedan junto a los planos.
 - El PDF para el cliente se arma en el celular (html2canvas y jsPDF desde cdnjs).
 
 ### Cambios después de que el cliente confirmó

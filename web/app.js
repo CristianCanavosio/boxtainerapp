@@ -898,7 +898,7 @@ function abrirNuevoProy(){
 const esNota=p=>!!(p&&p.ficha&&p.ficha.v===2);
 const unidadesDe=p=>esNota(p)?Math.max(1,Math.floor(Number(p.ficha.unidades))||1):1;
 // Crea el proyecto con lo que cargó ventas en la nota de pedido
-async function crearDesdeNota(f,{enviar,archivo}){
+async function crearDesdeNota(f,{enviar,archivos}){
   const p={id:nuevoId(),creadoTs:Date.now(),creadoPor:currentUser?.nombre||'',creadoPorId:myId,creadoEn:hoyISO(),
     historial:[],costos:[],planos:[],flujo:[],consultas:[],incidencias:[],faltantes:[],estado:'presupuesto',avance:0,
     vendId:rol()==='ventas'?myId:null,nombre:NotaPedido.nombreSugerido(f),cli:(f.cli||'').trim()||'Sin nombre',
@@ -907,7 +907,7 @@ async function crearDesdeNota(f,{enviar,archivo}){
   p.etapa=rol()==='ventas'?'ventas':'asignacion';
   p.flujo.push({fecha:hoyISO(),a:p.etapa,autor:currentUser.nombre});
   try{await guardarProyectoOError(p);}catch(e){return false;}
-  if(archivo) await subirCroquis(p.id,archivo);
+  for(const a of archivos||[]) await subirCroquis(p.id,a);
   if(enviar) await moverEtapa(p.id,'arquitectura');
   else toast('✅ Nota de pedido guardada');
   refrescar();
@@ -918,9 +918,9 @@ function editarNota(id){
   const enVentas=etapaDe(p)==='ventas';
   if(!enVentas&&!esOp()){toast('🔒 La nota ya fue confirmada con el cliente: solo el líder la corrige');return;}
   const confirmada=notaConfirmada(p);
-  NotaPedido.abrir({ficha:esNota(p)?p.ficha:null,cliente:p.cli,titulo:'Nota de pedido · '+p.nombre,enviar:enVentas,
+  NotaPedido.abrir({ficha:esNota(p)?p.ficha:null,cliente:p.cli,croquisPrevios:croquisDe(p),titulo:'Nota de pedido · '+p.nombre,enviar:enVentas,
     aviso:confirmada?'⚠️ <b>Esta nota ya la confirmó el cliente.</b> Si la cambiás, queda registrado quién y qué cambió, le avisamos a ventas para que se la mande al cliente, y el proyecto no pasa a ejecución hasta que el cliente apruebe el cambio.':'',
-    onGuardar:async(f,{enviar:env,archivo})=>{
+    onGuardar:async(f,{enviar:env,archivos})=>{
       const q=limpiar(todos[id]); if(!q) return false;
       const antes=q.ficha;
       q.ficha=NotaPedido.compat(f);
@@ -931,7 +931,7 @@ function editarNota(id){
       if(confirmada&&!cambio.length) q.ficha=antes;
       try{await guardarProyectoOError(q);}catch(e){return false;}
       if(cambio.length) await avisarCambioNota(id,cambio);
-      if(archivo) await subirCroquis(id,archivo);
+      for(const a of archivos||[]) await subirCroquis(id,a);
       if(env) await moverEtapa(id,'arquitectura');
       else toast(cambio.length?'✏️ Nota cambiada: le avisamos a ventas para que la apruebe el cliente':'✅ Nota de pedido guardada');
       refrescar();
@@ -943,6 +943,8 @@ async function pdfNota(id,btn){
   try{await NotaPedido.pdf(p.ficha,btn);}catch(e){toast('⚠️ No se pudo armar el PDF');}
 }
 // El croquis que carga ventas queda con los planos del proyecto
+const PREF_CROQUIS='Croquis del cliente: ';
+const croquisDe=p=>(p.planos||[]).filter(x=>(x.nombre||'').startsWith(PREF_CROQUIS)).length;
 async function subirCroquis(id,f){
   if(f.size>MAX_PLANO_MB*1024*1024){toast(`⚠️ El croquis supera ${MAX_PLANO_MB} MB: pasáselo a arquitectura por una consulta`);return;}
   const pid=nuevoId();
@@ -951,7 +953,7 @@ async function subirCroquis(id,f){
   try{
     chk(await sb.storage.from('planos').upload(ruta,f,{contentType:f.type||'application/octet-stream',upsert:false}));
     const p=limpiar(todos[id]);
-    p.planos=(p.planos||[]); p.planos.push({id:pid,archivo:ruta,url:'',nombre:'Croquis del cliente: '+f.name,fecha:hoyISO(),autorId:myId,ts:Date.now()});
+    p.planos=(p.planos||[]); p.planos.push({id:pid,archivo:ruta,url:'',nombre:PREF_CROQUIS+f.name,fecha:hoyISO(),autorId:myId,ts:Date.now()});
     await guardarProyectoOError(p);
   }catch(e){console.error(e);toast('⚠️ No se pudo subir el croquis. Pasáselo a arquitectura por una consulta');}
 }
