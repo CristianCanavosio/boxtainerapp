@@ -30,6 +30,7 @@ Correr en orden, una sola vez cada uno:
 4. `supabase/migrations/0004_costeo_solo_admin.sql` (lista de costos y costeo del pedido, solo para el administrador)
 5. `supabase/migrations/0005_precios_de_proveedores.sql` (importar precios de proveedores desde Excel, PDF o a mano; depósito privado `costos`)
 6. `supabase/migrations/0006_cambios_en_nota_confirmada.sql` (cambios en la nota que ya confirmó el cliente: historial y reconfirmación de ventas)
+7. `supabase/migrations/0007_materiales_por_proyecto.sql` (materiales de cada proyecto: stock antes de asignar, consumo real y desvíos)
 
 ### 2. Publicar la app (Vercel, gratis)
 
@@ -74,6 +75,14 @@ En la app anterior (artefacto), pestaña Reportes → **Descargar respaldo compl
 - Ventas le manda el PDF nuevo al cliente y, cuando aprueba, toca **El cliente aprobó el cambio** en el proyecto.
 - Mientras tanto el proyecto **no pasa a ejecución** (lo frena también la base). Si ya estaba en ejecución, queda marcado.
 - En el detalle del proyecto está el historial con el PDF de cada versión.
+
+## Materiales del proyecto
+- Los ítems de materiales salen de la nota de pedido (son los mismos del costeo).
+- **Líder, antes de asignar:** marca cada ítem como *Hay*, *Pedido* o *Falta*, y puede corregir la cantidad. No se asigna mientras haya ítems sin validar o en falta. Al asignar, lo planificado queda fijo.
+- **Supervisor, en obra:** carga cuánto se usó de cada ítem (el total acumulado) y puede agregar materiales no previstos.
+- **Desvío en cantidad:** lo ven el líder y el supervisor. Mientras la obra sigue, marca solo lo que se pasó; al finalizar, compara todo.
+- **Desvío en USD:** lo ve solo el administrador. Se calcula como la diferencia de cantidad por el precio de la lista de costos.
+- Los proyectos con la ficha vieja siguen con el presupuesto en USD y la casilla de stock.
 
 ## Costeo del pedido (solo administrador)
 

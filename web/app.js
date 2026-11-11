@@ -152,6 +152,7 @@ async function cargarTodo(){
     autor:r.detalle||nombreDe(r.autor_id)})));
   todos=T; ORIG={}; for(const id in T) ORIG[id]=limpiar(T[id]);
   await cargarVersiones(T);
+  await cargarMateriales(T);
   await cargarCosteo();
   personal=pe.map(r=>({id:r.id,nom:r.nombre,rol:r.rol||'',tel:r.telefono||''}));
   contenedores=ct.map(r=>({id:r.id,cod:r.codigo,tipo:r.tipo||'',estado:r.estado||'',proyId:r.proyecto_id,obs:r.observaciones||''}));
@@ -1022,21 +1023,22 @@ function verDetalle(id){
         </div></div>`;
     }
     if(e==='asignacion'&&esOp()){
-      const pr=p.presup||{};
-      acciones+=`<div class="accion"><p><b>Líder de operaciones:</b> asigná un supervisor, las fechas y el presupuesto de costos. Con eso arranca la medición de avance y desvíos.</p>
+      const pr=p.presup||{}, conMat=mpListo&&esNota(p);
+      acciones+=`<div class="accion"><p><b>Líder de operaciones:</b> ${conMat?'validá el stock de los materiales (abajo), asigná un supervisor y las fechas. Con eso arranca la medición de avance y de desvíos de materiales.':'asigná un supervisor, las fechas y el presupuesto de costos. Con eso arranca la medición de avance y desvíos.'}</p>
         <div class="fg"><label>Supervisor</label><select id="as-sup">${opcionesSupervisores(p.supId||'')}</select></div>
         <div class="form-2"><div class="fg"><label>Inicio</label><input type="date" id="as-ini" value="${esc(p.inicio||hoyISO())}"></div>
           <div class="fg"><label>Entrega</label><input type="date" id="as-ent" value="${esc(p.entrega||'')}"></div></div>
-        <div class="fg"><label>Presupuesto de costos (USD)</label></div>
+        ${conMat?'':`<div class="fg"><label>Presupuesto de costos (USD)</label></div>
         <div class="form-2">
           <div class="fg"><label>Materiales</label><input type="number" id="as-pmat" value="${pr.mat||''}" placeholder="0"></div>
           <div class="fg"><label>Mano de obra</label><input type="number" id="as-pmo" value="${pr.mo||''}" placeholder="0"></div>
           <div class="fg"><label>Terceros</label><input type="number" id="as-pter" value="${pr.ter||''}" placeholder="0"></div>
           <div class="fg"><label>Otros</label><input type="number" id="as-potr" value="${pr.otr||''}" placeholder="0"></div>
-        </div>
+        </div>`}
         ${(()=>{const pm=materiales.filter(m=>String(m.proyId)===String(id)&&m.est!=='comprado');
           return pm.length?`<p style="color:var(--rojo);font-size:12px;margin-bottom:6px">Materiales de este proyecto sin comprar: ${pm.map(m=>esc(m.nom)).join(', ')}</p>`:'';})()}
-        <label class="check" style="margin-bottom:10px"><input type="checkbox" id="as-stock"> Verifiqué que hay stock (o compra confirmada) de los materiales críticos para arrancar</label>
+        ${conMat?(()=>{const ps=problemaStock(p);return `<p style="font-size:12px;margin-bottom:8px;color:${ps?'var(--rojo)':'var(--verde)'}">${ps?'📦 '+esc(ps)+'. Validalo en la lista de materiales.':'📦 Stock validado de todos los materiales.'}</p>`})()
+          :`<label class="check" style="margin-bottom:10px"><input type="checkbox" id="as-stock"> Verifiqué que hay stock (o compra confirmada) de los materiales críticos para arrancar</label>`}
         <div class="flex-btns">
           <button class="btn btn-sec" onclick="moverEtapa('${esc(id)}','arquitectura')">↩️ Devolver a Arq.</button>
           <button class="btn btn-verde" onclick="asignar('${esc(id)}')">✅ Asignar y comenzar</button>
@@ -1097,6 +1099,7 @@ function verDetalle(id){
         ${(p.costos||[]).slice().reverse().slice(0,6).map(x=>`<div class="drow"><span class="lbl">${esc(x.fecha)} · ${RUBROS[x.rubro]||'Otros'} · ${esc(x.desc)}</span><span class="val">${usd(x.importe)}</span></div>`).join('')}`:''}
       ${e==='ejecucion'&&esSupDe(p)&&r!=='lectura'?`<button class="btn btn-sec btn-sm" style="margin-top:8px" onclick="abrirCosto('${esc(id)}')">💲 Cargar gasto real</button>`:''}
     </div>`:''}
+    ${seccionMateriales(p)}
     ${seccionFicha(p)}
     ${seccionCosteo(p)}
     ${seccionConsultas(p)}
@@ -1157,12 +1160,15 @@ async function asignar(id){
   if(!s){toast('⚠️ Elegí un supervisor');return;}
   const ent=document.getElementById('as-ent').value;
   if(!ent){toast('⚠️ Poné la fecha de entrega');return;}
-  if(!document.getElementById('as-stock').checked){toast('⚠️ Confirmá el stock de materiales críticos antes de arrancar');return;}
+  const conMat=mpListo&&esNota(p);
+  if(conMat){const ps=problemaStock(p); if(ps){toast('⚠️ '+ps+'. Validalo en la lista de materiales');return;}}
+  else if(!document.getElementById('as-stock').checked){toast('⚠️ Confirmá el stock de materiales críticos antes de arrancar');return;}
   p.stockVerif={fecha:hoyISO(),autor:currentUser.nombre};
   p.supId=s; p.sup=nombreDe(s);
   p.inicio=document.getElementById('as-ini').value||hoyISO(); p.entrega=ent;
-  p.presup={mat:Number(document.getElementById('as-pmat').value)||0,mo:Number(document.getElementById('as-pmo').value)||0,
+  if(!conMat) p.presup={mat:Number(document.getElementById('as-pmat').value)||0,mo:Number(document.getElementById('as-pmo').value)||0,
     ter:Number(document.getElementById('as-pter').value)||0,otr:Number(document.getElementById('as-potr').value)||0};
+  if(conMat){try{await fijarPlanMateriales(todos[id]);p.mats=todos[id].mats;}catch(e){console.error(e);toast('⚠️ No se pudo guardar la lista de materiales: '+(e.message||'error'));return;}}
   p.etapa='ejecucion'; p.estado='en-curso';
   p.flujo=(p.flujo||[]); p.flujo.push({fecha:hoyISO(),a:'ejecucion',autor:currentUser.nombre});
   await guardarProyecto(p); closeOverlay('m-det'); refrescar(); toast('✅ Asignado a '+p.sup);
