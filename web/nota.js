@@ -309,6 +309,7 @@ function limpio(o){return JSON.parse(JSON.stringify(o))}
 function toast(t){let el=document.getElementById('np-tt');if(!el){el=document.createElement('div');el.id='np-tt';document.body.appendChild(el)}el.textContent=t;el.style.opacity=1;clearTimeout(toast.t);toast.t=setTimeout(()=>el.style.opacity=0,2400)}
 function conectar(R0){
 R0.addEventListener('click',e=>{
+  const bp=e.target.closest('#np-b-pdf');if(bp){descargarPDF(bp);return}
   const t=e.target.closest('[data-k],[data-m],[data-mas],[data-menos],[data-em],[data-ep],[data-quitar],[data-quitarp],[data-quitaf],[data-modelo],[data-up],[data-um],#np-add-v,#np-add-p');if(!t)return;
   if(t.dataset.modelo){modelo(t.dataset.modelo);return}
   if(t.dataset.up||t.dataset.um){d.unidades=Math.min(MAX_U,Math.max(1,unidades()+(t.dataset.up?1:-1)));render();return}
