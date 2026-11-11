@@ -2,6 +2,11 @@
 (function(){
 const PASOS=['Cliente y pedido','Producto','Distribución','Terminaciones','Aberturas','Instalaciones','Confirmar'];
 const MED={'20 DV':[606,244,259],'40 ST':[1219,244,259],'40 HC':[1219,244,290]};
+// Productos que son un módulo armado sobre contenedor (llevan distribución de espacios).
+// 'Módulo habitacional' es el nombre viejo de 'Módulo habitable': las notas guardadas se pasan solas.
+const PROD_MOD=['Módulo habitable','Módulo habitable Company','Oficina','Oficina Company','Sanitario','Pañol','Showroom'];
+const esModulo=p=>PROD_MOD.includes(p)||p==='Módulo habitacional';
+const normProd=x=>{if(x.prod==='Módulo habitacional')x.prod='Módulo habitable';return x};
 const ESP={bano:'Baño',cocina:'Cocina',habitacion:'Habitación',oficina:'Oficina'};
 const UBI=['Extremo izquierdo','Centro','Extremo derecho'];
 const PAREDES=['Lateral A','Lateral B','Lado puertas','Lado opuesto'];
@@ -49,7 +54,7 @@ function errores(){
     if(d.prod==='Contenedor cortado'){const c=Number(d.corte);if(!c)e.push('Poné el largo final del corte');else if(c>=Number(d.largo))e.push(`El corte (${c} cm) tiene que ser menor que el largo del contenedor (${d.largo} cm)`);if(!d.lado)e.push('Elegí qué lado se conserva')}
     if(d.prod==='Reefer'&&!d.motor)e.push('Indicá si es con o sin motor');
     const u=Number(d.unidades);if(!Number.isInteger(u)||u<1)e.push('La cantidad de unidades tiene que ser un número entero, 1 o más');else if(u>MAX_U)e.push(`Máximo ${MAX_U} unidades por nota`)}
-  if(paso===2){if(d.prod==='Módulo habitacional'&&!total())e.push('Elegí al menos un espacio');d.espacios.forEach(x=>{if(!x.ubi)e.push(`Elegí dónde va ${etiqueta(x).toLowerCase()}`);if(ITEMS[x.tipo]&&!x.rev)e.push(`Elegí el revestimiento de ${etiqueta(x).toLowerCase()}`)})}
+  if(paso===2){if(esModulo(d.prod)&&!total())e.push('Elegí al menos un espacio');d.espacios.forEach(x=>{if(!x.ubi)e.push(`Elegí dónde va ${etiqueta(x).toLowerCase()}`);if(ITEMS[x.tipo]&&!x.rev)e.push(`Elegí el revestimiento de ${etiqueta(x).toLowerCase()}`)})}
   if(paso===3){if(!d.pExt&&!d.pExtP)e.push('Elegí la pintura exterior o marcala a confirmar');if(d.pExt==='Otro'&&!d.pExtOtro.trim()&&!d.pExtP)e.push('Escribí el color o código exterior');if(d.pInt==='Otro'&&!d.pIntOtro.trim())e.push('Escribí el color o código interior');if(!d.revExt)e.push('Elegí el revestimiento exterior');if(!d.piso)e.push('Elegí el piso');if(!d.rev.length)e.push('Elegí el revestimiento interior');if(d.rev.length>1)revDestinos().forEach(x=>{if(!d.rev.includes(d.revAsig[x.k]))e.push(`Elegí qué revestimiento va en ${x.n.toLowerCase()}`)});if(total()>1&&!d.pInterior)e.push('Elegí las puertas interiores')}
   if(paso===4){if(!d.linea)e.push('Elegí la línea de aberturas');
     if(!d.puertaP)d.puertas.forEach((p,i)=>{const n=d.puertas.length>1?' '+(i+1):'';if(!p.tipo||!p.pared||!p.mano)e.push(`Completá tipo, pared y apertura de la puerta${n} (o marcá las puertas a confirmar)`);else if(esLateral(p.pared)&&!p.pos)e.push(`Elegí en qué parte del ${p.pared.toLowerCase()} va la puerta${n}`);if(p.med==='Otra'&&(!p.ancho||!p.alto))e.push(`Poné ancho y alto de la puerta${n}`)});
@@ -90,7 +95,7 @@ function render(){
   }
   if(paso===1){
     h=`<div class="paso-t">Producto</div><div class="paso-s">Elegí el tipo y el tamaño: las medidas se completan solas.</div>
-    <div class="card"><div class="lbl">¿Qué se fabrica?</div>${ops('prod',['Módulo habitacional','Contenedor cortado','Reefer'],d.prod)}</div>
+    <div class="card"><div class="lbl">¿Qué se fabrica?</div>${ops('prod',[...PROD_MOD,'Contenedor cortado','Reefer'],d.prod)}</div>
     <div class="card"><div class="lbl">Tamaño de contenedor</div>${ops('tam',['20 DV','40 ST','40 HC'],d.tam)}
       ${d.tam?`<div class="auto">📏 Medidas exteriores: <b>${d.largo} × ${d.ancho} × ${d.alto} cm</b> (largo × ancho × alto)</div>`:''}</div>
     <div class="card"><div class="lbl">¿Cuántas unidades iguales? <small>si el cliente lleva varias idénticas, cargala una sola vez</small></div>
@@ -243,7 +248,7 @@ async function generarPDF(){
   const box=document.createElement('div');
   box.style.cssText='position:fixed;left:-10000px;top:0;width:720px;background:#fff;color:#1E2330;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:14px;line-height:1.45';
   const blq=(html,css='')=>`<div class="pb" style="padding:0 32px;background:#fff;${css}">${html}</div>`;
-  const pl=d.espacios.length||d.prod==='Módulo habitacional'?planoSVG():'';
+  const pl=d.espacios.length||esModulo(d.prod)?planoSVG():'';
   box.innerHTML=[
     blq(`<div style="background:#E8650A;color:#fff;padding:18px 20px;border-radius:0 0 10px 10px"><div style="font-size:20px;font-weight:800">Nota de pedido</div><div style="font-size:13px;opacity:.9">${esc(d.sol||'Pedido')}${unidades()>1?' · '+unidades()+' unidades iguales':''} · emitida el ${esc(hoy)}</div></div>`,'padding-top:0'),
     ...sinVars(resumenCuerpo()).split('<h4>').filter(x=>x.trim()).map(x=>blq('<h4 style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#5E6675;margin:14px 0 4px">'+x.replace('</h4>','</h4><div>').replace(/<p>/g,'<p style="margin:0 0 6px">')+'</div>')),
@@ -286,9 +291,9 @@ async function descargarPDF(btn){
 function mapsUrl(){return 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(d.loc||'')}
 function modelo(m){
   const E=(tipo,ubi,items)=>({id:nid(),tipo,ubi,items:items||[]});
-  const base={oficina:{prod:'Módulo habitacional',tam:'20 DV',espacios:[E('oficina','Extremo izquierdo'),E('bano','Extremo derecho',['Inodoro','Bacha'])],piso:'Flotante PVC',rev:['PVC'],pInterior:'Aluminio',linea:'Módena'},
-    sanitario:{prod:'Módulo habitacional',tam:'20 DV',espacios:[E('bano','Extremo izquierdo',['Inodoro','Mingitorio','Bacha']),E('bano','Centro',['Inodoro','Bacha']),E('bano','Extremo derecho',['Ducha','Bacha'])],piso:'Original epoxy alto tránsito',rev:['PVC'],pInterior:'Aluminio',linea:'Herrero'},
-    vivienda:{prod:'Módulo habitacional',tam:'40 HC',espacios:[E('habitacion','Extremo izquierdo'),E('habitacion','Extremo derecho'),E('cocina','Centro',['Bacha monocomando','Bajo mesada','Alacena']),E('bano','Centro',['Inodoro','Bidet','Bacha','Ducha','Espejo'])],piso:'Flotante madera',rev:['Durlock'],pInterior:'Madera',linea:'DVH'},
+  const base={oficina:{prod:'Oficina',tam:'20 DV',espacios:[E('oficina','Extremo izquierdo'),E('bano','Extremo derecho',['Inodoro','Bacha'])],piso:'Flotante PVC',rev:['PVC'],pInterior:'Aluminio',linea:'Módena'},
+    sanitario:{prod:'Sanitario',tam:'20 DV',espacios:[E('bano','Extremo izquierdo',['Inodoro','Mingitorio','Bacha']),E('bano','Centro',['Inodoro','Bacha']),E('bano','Extremo derecho',['Ducha','Bacha'])],piso:'Original epoxy alto tránsito',rev:['PVC'],pInterior:'Aluminio',linea:'Herrero'},
+    vivienda:{prod:'Módulo habitable',tam:'40 HC',espacios:[E('habitacion','Extremo izquierdo'),E('habitacion','Extremo derecho'),E('cocina','Centro',['Bacha monocomando','Bajo mesada','Alacena']),E('bano','Centro',['Inodoro','Bidet','Bacha','Ducha','Espejo'])],piso:'Flotante madera',rev:['Durlock'],pInterior:'Madera',linea:'DVH'},
     otro:{}}[m];
   d.modelo=m;if(m==='otro'){render();toast('Empezás de cero: cargá todo en los pasos siguientes');return}
   Object.assign(d,limpio(base));d.espacios=base.espacios;d.revAsig={};d.elec={};const [l,a,h]=MED[d.tam];d.largo=l;d.ancho=a;d.alto=h;
@@ -366,22 +371,22 @@ async function salir(){if(JSON.stringify(d)!==inicial&&typeof window.confirmar==
 function cerrar(guardado){const R0=document.getElementById('nota');if(R0)R0.classList.remove('on');document.body.style.overflow='';if(!guardado&&opts.onCerrar)opts.onCerrar()}
 function abrir(o){
   opts=o||{};archivo=null;intento=false;paso=0;
-  d=Object.assign(nuevo(),o&&o.ficha&&o.ficha.v===2?limpio(o.ficha):{});
+  d=normProd(Object.assign(nuevo(),o&&o.ficha&&o.ficha.v===2?limpio(o.ficha):{}));
   if(!d.puertas||!d.puertas.length)d.puertas=[nuevaPuerta()];
   if(!d.cli&&o&&o.cliente)d.cli=o.cliente;
   const R0=montar();$('#np-tit').textContent=opts.titulo||'Nueva nota de pedido';$('#np-borr').style.display=opts.borrador===false?'none':'';
   inicial=JSON.stringify(d);R0.classList.add('on');document.body.style.overflow='hidden';render();arriba();
 }
 // Funciones para mostrar una nota guardada fuera del asistente
-function conD(f,fn){const pd=d,pp=paso;d=Object.assign(nuevo(),limpio(f||{}));try{return fn()}finally{d=pd;paso=pp}}
+function conD(f,fn){const pd=d,pp=paso;d=normProd(Object.assign(nuevo(),limpio(f||{})));try{return fn()}finally{d=pd;paso=pp}}
 function faltantes(f){return conD(f,()=>{const out=[];for(paso=0;paso<6;paso++)out.push(...errores());if(!d.confirmado)out.push('Falta la confirmación del cliente');return out})}
 // Agrega las claves que la base ya exige para pasar a arquitectura (largo/ancho/alto, puerta, elec, sani, confirmada).
 // largo, ancho, alto y elec ya vienen de la nota (en cm y por espacio); solo se suman las que faltan.
 function compat(f){return conD(f,()=>({v:2,...limpio(d),
     puerta:d.puertaP?'A confirmar':(d.puertas.map(p=>p.tipo).filter(Boolean).join(' + ')||''),
     sani:d.espacios.some(x=>ITEMS[x.tipo])?'Sí':'No',confirmada:!!d.confirmado}))}
-function nombreSugerido(f){const M={oficina:'Oficina',vivienda:'Vivienda',sanitario:'Sanitario'};const u=Math.floor(Number(f.unidades))||1;return (u>1?u+' × ':'')+[(M[f.modelo]||f.prod||'Pedido'),f.tam].filter(Boolean).join(' ')+(f.cli?' — '+f.cli:'')}
-function tipoTrabajo(f){if(f.prod==='Reefer')return 'Reefer';if(f.prod==='Contenedor cortado')return 'Modificación contenedor';return f.modelo==='oficina'?'Oficina modular':'Módulo habitable'}
+function nombreSugerido(f){const M={oficina:'Oficina',vivienda:'Vivienda',sanitario:'Sanitario'};const u=Math.floor(Number(f.unidades))||1;const pr=normProd({prod:f.prod}).prod;return (u>1?u+' × ':'')+[(pr&&pr!=='Módulo habitable'?pr:(M[f.modelo]||pr||'Pedido')),f.tam].filter(Boolean).join(' ')+(f.cli?' — '+f.cli:'')}
+function tipoTrabajo(f){if(f.prod==='Reefer')return 'Reefer';if(f.prod==='Contenedor cortado')return 'Modificación contenedor';const pr=normProd({prod:f.prod}).prod;if(pr&&pr!=='Módulo habitable')return pr;return f.modelo==='oficina'?'Oficina':'Módulo habitable'}
 
 // ── Cómputo para el costeo (solo lo usa el administrador) ──
 // Devuelve una línea por cada cosa a costear: clave (nombre en la lista de costos), rubro, unidad y cantidad.
@@ -440,5 +445,5 @@ window.NotaPedido={abrir,cerrar,
   dibujos:f=>conD(f,()=>(d.espacios.length?planoSVG():'')+abertSVG()),
   pendientes:f=>conD(f,()=>pendientes()),
   faltantes,compat,nombreSugerido,tipoTrabajo,
-  pdf:(f,btn)=>{const pd=d;d=Object.assign(nuevo(),limpio(f));return descargarPDF(btn||{textContent:'',disabled:false}).finally(()=>{d=pd})}};
+  pdf:(f,btn)=>{const pd=d;d=normProd(Object.assign(nuevo(),limpio(f)));return descargarPDF(btn||{textContent:'',disabled:false}).finally(()=>{d=pd})}};
 })();
