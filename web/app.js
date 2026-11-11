@@ -34,14 +34,18 @@ let filtroEstado='todos';
 let vistaActual='dashboard';
 
 const ROLES={admin:'👑 Administrador',lider:'🧭 Líder de operaciones',supervisor:'🔨 Supervisor',
-  ventas:'💼 Ventas',arquitectura:'📐 Arquitectura',lectura:'👁️ Solo lectura'};
+  ventas:'💼 Ventas',arquitectura:'📐 Arquitectura',lectura:'👁️ Solo lectura',
+  carp_aluminio:'🪟 Carpintería de aluminio',carp_madera:'🪵 Carpintería de madera'};
 const TABS={
-  admin:['dashboard','proyectos','kanban','alertas','personal','contenedores','materiales','costos','usuarios','reportes'],
-  lider:['dashboard','proyectos','kanban','alertas','personal','contenedores','materiales','reportes'],
-  supervisor:['dashboard','proyectos','kanban','alertas','materiales'],
+  admin:['dashboard','proyectos','kanban','alertas','pedidos','personal','contenedores','materiales','costos','usuarios','reportes'],
+  lider:['dashboard','proyectos','kanban','alertas','pedidos','personal','contenedores','materiales','reportes'],
+  supervisor:['dashboard','proyectos','kanban','alertas','pedidos','materiales'],
   ventas:['dashboard','proyectos'],
   arquitectura:['dashboard','proyectos'],
-  lectura:['dashboard','proyectos','kanban','reportes'],
+  lectura:['dashboard','proyectos','kanban','pedidos','reportes'],
+  // las carpinterías ven solo sus pedidos (y los planos de esos proyectos)
+  carp_aluminio:['pedidos','alertas'],
+  carp_madera:['pedidos','alertas'],
 };
 const ETAPA={
   ventas:{label:'💼 En ventas',cls:'b-azul'},
@@ -153,6 +157,7 @@ async function cargarTodo(){
   todos=T; ORIG={}; for(const id in T) ORIG[id]=limpiar(T[id]);
   await cargarVersiones(T);
   await cargarMateriales(T);
+  await cargarPedidosCarp(T);
   await cargarCosteo();
   personal=pe.map(r=>({id:r.id,nom:r.nombre,rol:r.rol||'',tel:r.telefono||''}));
   contenedores=ct.map(r=>({id:r.id,cod:r.codigo,tipo:r.tipo||'',estado:r.estado||'',proyId:r.proyecto_id,obs:r.observaciones||''}));
@@ -355,7 +360,7 @@ function pantallaLogin(estado,msg){
       <button class="login-btn" onclick="pantallaLogin('login')">Ir a iniciar sesión</button>`;
   } else if(estado==='pendiente'){
     box.innerHTML=`<h2>Cuenta creada ✅</h2>
-      <p>Hola <b>${esc(miNombre||miEmail)}</b>. El administrador tiene que asignarte un rol (ventas, arquitectura, líder de operaciones o supervisor). Cuando lo haga, esta pantalla se actualiza sola.</p>
+      <p>Hola <b>${esc(miNombre||miEmail)}</b>. El administrador tiene que asignarte un rol (ventas, arquitectura, líder de operaciones, supervisor o carpintería). Cuando lo haga, esta pantalla se actualiza sola.</p>
       <button class="btn btn-sec" style="width:100%" onclick="programarRecarga(0)">🔄 Revisar de nuevo</button>
       <button class="btn btn-sec" style="width:100%;margin-top:8px" onclick="doLogout()">🚪 Salir</button>`;
   } else if(estado==='error'){
@@ -452,6 +457,7 @@ function entrarApp(u){
   const t=tabsPermitidas();
   document.querySelectorAll('.nav-btn').forEach(b=>b.style.display=t.includes(b.dataset.view)?'':'none');
   document.querySelectorAll('.admin-only').forEach(el=>el.style.display=rol()==='admin'?'':'none');
+  pintarTituloPC();
   document.querySelectorAll('.solo-local').forEach(el=>el.style.display='none');
   document.querySelectorAll('.solo-nube').forEach(el=>el.style.display='');
   document.getElementById('fab-proy').style.display=puedeCrear()?'':'none';
@@ -498,7 +504,7 @@ async function abrirPlano(ev,ruta){
 // ════════════════════════════════════════════════
 function selectRol(id,actual){
   return `<select id="${id}" style="padding:7px;border:1.5px solid var(--borde);border-radius:8px;font-size:12px">
-    ${['ventas','arquitectura','lider','supervisor','admin','lectura'].map(r=>`<option value="${r}" ${r===actual?'selected':''}>${ROLES[r]}</option>`).join('')}</select>`;
+    ${['ventas','arquitectura','lider','supervisor','carp_aluminio','carp_madera','admin','lectura'].map(r=>`<option value="${r}" ${r===actual?'selected':''}>${ROLES[r]}</option>`).join('')}</select>`;
 }
 function renderUsuarios(){
   const lista=document.getElementById('lista-usuarios');
@@ -650,7 +656,7 @@ async function iniciarNube(){
 const RENDERS={
   dashboard:()=>renderDash(), proyectos:()=>renderProyectos(), kanban:()=>renderKanban(),
   alertas:()=>renderAlertas(), personal:()=>renderPersonal(), contenedores:()=>{updContSel();renderContenedores()},
-  materiales:()=>{updMatSel();renderMateriales()}, usuarios:()=>renderUsuarios(), costos:()=>renderCostos(), reportes:()=>renderReportes()
+  materiales:()=>{updMatSel();renderMateriales()}, pedidos:()=>{pintarTituloPC();renderPedidosCarp()}, usuarios:()=>renderUsuarios(), costos:()=>renderCostos(), reportes:()=>renderReportes()
 };
 function showView(name){
   const t=tabsPermitidas();
@@ -1105,6 +1111,7 @@ function verDetalle(id){
       ${e==='ejecucion'&&esSupDe(p)&&r!=='lectura'?`<button class="btn btn-sec btn-sm" style="margin-top:8px" onclick="abrirCosto('${esc(id)}')">💲 Cargar gasto real</button>`:''}
     </div>`:''}
     ${seccionMateriales(p)}
+    ${seccionPedidosCarp(p)}
     ${seccionFicha(p)}
     ${seccionCosteo(p)}
     ${seccionConsultas(p)}
@@ -1521,9 +1528,10 @@ function renderAlertas(){
     if(esperado-av>25) alertas.push({tipo:'error',icon:'📉',titulo:`DESVÍO DE AVANCE: ${esc(p.nombre)}`,texto:`Avance real: ${av}% — esperado: ${esperado}%. Desvío: ${esperado-av}%. Supervisor: ${sup}`,id:p.id});
     if(p.pri==='urgente') alertas.push({tipo:'warn',icon:'🚨',titulo:`Prioridad urgente: ${esc(p.nombre)}`,texto:`Este proyecto tiene prioridad URGENTE. Cliente: ${esc(p.cli)}`,id:p.id});
   });
+  alertas.push(...alertasPedidosCarp());
   const lista=document.getElementById('lista-alertas');
   if(!alertas.length){lista.innerHTML=`<div class="empty"><div class="em">✅</div><h3>¡Todo en orden!</h3><p>No hay alertas ni desviaciones en este momento</p></div>`;return;}
-  lista.innerHTML=alertas.map(a=>`<div class="alerta ${a.tipo==='warn'?'warn':''}" onclick="verDetalle('${esc(a.id)}')">
+  lista.innerHTML=alertas.map(a=>`<div class="alerta ${a.tipo==='warn'?'warn':''}" onclick="${a.id?`verDetalle('${esc(a.id)}')`:`showView('pedidos')`}">
       <div class="alerta-icon">${a.icon}</div><div class="alerta-texto"><h4>${a.titulo}</h4><p>${a.texto}</p></div></div>`).join('');
 }
 

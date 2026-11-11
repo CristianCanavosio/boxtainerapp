@@ -17,6 +17,7 @@ App móvil de gestión de proyectos de BoxTainer Argentina SAS: ventas carga la 
 | Supervisor | Solo sus proyectos asignados | Avance, gastos reales, faltantes, reportar errores, consultas |
 | Administrador | Todo | Lo mismo que el líder y asignar roles |
 | Solo lectura | Todo | Nada |
+| Carpintería de aluminio / de madera | Solo los pedidos que le mandaron y los planos de esos proyectos (sin precios ni el resto del proyecto) | Aceptar con fecha, rechazar con motivo, correr la fecha, marcar en fabricación y listo |
 
 ## Puesta en marcha
 
@@ -32,6 +33,7 @@ Correr en orden, una sola vez cada uno:
 6. `supabase/migrations/0006_cambios_en_nota_confirmada.sql` (cambios en la nota que ya confirmó el cliente: historial y reconfirmación de ventas)
 7. `supabase/migrations/0007_materiales_por_proyecto.sql` (materiales de cada proyecto: stock antes de asignar, consumo real y desvíos)
 8. `supabase/migrations/0008_plata_solo_admin.sql` (presupuesto de obra y gastos reales en USD: solo el administrador)
+9. `supabase/migrations/0009_pedidos_a_carpinterias.sql` (pedidos a la carpintería de aluminio y a la de madera, con sus propios usuarios)
 
 ### 2. Publicar la app (Vercel, gratis)
 
@@ -84,6 +86,14 @@ En la app anterior (artefacto), pestaña Reportes → **Descargar respaldo compl
 - **Desvío en cantidad:** lo ven el líder y el supervisor. Mientras la obra sigue, marca solo lo que se pasó; al finalizar, compara todo.
 - **Desvío en USD:** lo ve solo el administrador. Se calcula como la diferencia de cantidad por el precio de la lista de costos.
 - Toda la plata (presupuesto de obra, gastos reales en USD, desvíos en USD) la ve solo el administrador. El líder y el supervisor trabajan con cantidades.
+
+## Pedidos a las carpinterías
+`web/pedidos-carp.js`. La carpintería de aluminio y la de madera son empresas del grupo con su propia gente, así que cada una entra con su usuario (el administrador le asigna el rol en **Usuarios**).
+- **Supervisor (o líder / admin):** desde el detalle del proyecto toca *Pedir a aluminio* o *Pedir a madera*. Las aberturas y muebles de la nota de pedido se cargan solos como sugerencia; se revisan, se pone para cuándo lo necesita la obra y dónde se entrega.
+- **Carpintería:** en **📥 Pedidos** ve lo nuevo, lo acepta con la fecha en que lo tiene listo (o lo rechaza con el motivo), marca *en fabricación* y *listo*, y puede correr la fecha explicando por qué. Ve los planos del proyecto, nada más.
+- **Supervisor:** cuando lo recibe en obra toca *Lo recibimos*. Si lo rechazaron, lo corrige y lo reenvía. Puede cancelarlo mientras no esté recibido.
+- **Avisos (semáforo):** sin respuesta de la carpintería más de 4 h (amarillo) o 24 h (rojo), fecha de la carpintería posterior a la que necesita la obra, fecha vencida, listo para retirar. Salen en **Alertas** y en la pestaña **🪚 Carpinterías**.
+- Cada cambio de estado o de fecha queda en el historial del pedido con quién y cuándo (lo escribe la base, no se puede editar). Los pedidos no se borran: se cancelan.
 
 ## Costeo del pedido (solo administrador)
 

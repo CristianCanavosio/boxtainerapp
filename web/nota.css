@@ -156,3 +156,26 @@
 .mp-usd small{display:block;font-size:11px;opacity:.8}
 .mp-add{margin-top:10px;font-size:13px}
 .mp-add summary{cursor:pointer;font-weight:700;color:var(--nar)}
+
+/* ── Pedidos a carpinterías ── */
+.pc-card{background:#fff;border:1px solid var(--borde);border-left:4px solid var(--borde);border-radius:10px;padding:10px;margin-bottom:8px;font-size:13px}
+.pc-card.pc-rojo{border-left-color:#C0392B}.pc-card.pc-amar{border-left-color:#C98A00}.pc-card.pc-verde{border-left-color:#1E7A48}
+.pc-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px}
+.pc-proy{font-size:12px;color:var(--gris-m);margin-top:2px;cursor:pointer}
+.pc-aviso{border-radius:6px;padding:5px 8px;font-size:12px;font-weight:700;margin-bottom:6px}
+.pc-aviso.rojo{background:#FDE8E8;color:#C0392B}.pc-aviso.amar{background:#FFF6DB;color:#8A5F00}.pc-aviso.verde{background:#E6F6EE;color:#1E7A48}
+.pc-items{display:flex;flex-direction:column;gap:3px;margin-bottom:6px}
+.pc-it small{color:var(--gris-m)}
+.pc-datos{display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--gris)}
+.pc-planos{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;font-size:12px}
+.pc-planos a{color:var(--nar);font-weight:700}
+.pc-hist{margin-top:6px;font-size:11px;color:var(--gris-m)}
+.pc-hist summary{cursor:pointer;font-weight:700}
+.pc-hist div{padding:2px 0}
+.pc-acc{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.pc-fila{border:1px solid var(--borde);border-radius:8px;padding:6px;margin-bottom:6px}
+.pc-fila input{width:100%;padding:8px;border:1.5px solid var(--borde);border-radius:6px;font-size:13px}
+.pc-fila2{display:flex;gap:6px;margin-top:6px;align-items:center}
+.pc-fila2 input:first-child{flex:1;min-width:0}
+.pc-fila2 input{width:auto}
+.pc-res{grid-template-columns:repeat(2,1fr)}
