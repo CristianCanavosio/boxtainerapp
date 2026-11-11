@@ -13,7 +13,7 @@ const ITEMS={bano:['Inodoro','Mingitorio','Bidet','Lavamatic','Bacha','Ducha','M
 const COLORES=['Blanco','Gris claro','Gris grafito','Negro','Azul','Verde inglés','Otro'];
 let paso=0, intento=false, opts={}, archivo=null, ocupado=false;
 function nuevo(){return {sol:'',cli:'',tel:'',cuit:'',loc:'',maps:'',mapsOk:false,fecha:'',modelo:'',
-  prod:'',tam:'',motor:'',corte:'',lado:'',largo:'',ancho:'',alto:'',
+  unidades:1,prod:'',tam:'',motor:'',corte:'',lado:'',largo:'',ancho:'',alto:'',
   espacios:[],
   pExt:'',pExtOtro:'',pExtP:false,pInt:'',pIntOtro:'',piso:'',rev:[],revAsig:{},revExt:'',pInterior:'',
   linea:'',puertas:[nuevaPuerta()],puertaP:false,ventanas:[],
@@ -29,6 +29,8 @@ function confBox(key,val){return `<label class="conf"><input type="checkbox" dat
 function setPath(path,v){const ks=path.split('.');let o=d;ks.slice(0,-1).forEach(k=>o=o[k]);o[ks.at(-1)]=v}
 function getPath(path){return path.split('.').reduce((o,k)=>o?.[k],d)}
 const total=()=>d.espacios.length;
+const MAX_U=200;
+const unidades=()=>Math.max(1,Math.floor(Number(d.unidades))||1);
 const cuenta=k=>d.espacios.filter(x=>x.tipo===k).length;
 function etiqueta(x){const n=d.espacios.filter(y=>y.tipo===x.tipo);return ESP[x.tipo]+(n.length>1?' '+(n.indexOf(x)+1):'')}
 const nid=()=>Math.random().toString(36).slice(2,8);
@@ -45,7 +47,8 @@ function errores(){
   if(paso===0){if(!d.sol)e.push('Elegí el tipo de solicitud');if(!d.cli.trim())e.push('Falta el cliente');if(!d.tel.trim())e.push('Falta el teléfono');if(!d.loc.trim())e.push('Falta la dirección de entrega');else if(!d.mapsOk)e.push('Verificá la dirección en el mapa y tildá la confirmación');if(!d.fecha)e.push('Falta la fecha de entrega')}
   if(paso===1){if(!d.prod)e.push('Elegí el producto');if(!d.tam)e.push('Elegí el tamaño');
     if(d.prod==='Contenedor cortado'){const c=Number(d.corte);if(!c)e.push('Poné el largo final del corte');else if(c>=Number(d.largo))e.push(`El corte (${c} cm) tiene que ser menor que el largo del contenedor (${d.largo} cm)`);if(!d.lado)e.push('Elegí qué lado se conserva')}
-    if(d.prod==='Reefer'&&!d.motor)e.push('Indicá si es con o sin motor')}
+    if(d.prod==='Reefer'&&!d.motor)e.push('Indicá si es con o sin motor');
+    const u=Number(d.unidades);if(!Number.isInteger(u)||u<1)e.push('La cantidad de unidades tiene que ser un número entero, 1 o más');else if(u>MAX_U)e.push(`Máximo ${MAX_U} unidades por nota`)}
   if(paso===2){if(d.prod==='Módulo habitacional'&&!total())e.push('Elegí al menos un espacio');d.espacios.forEach(x=>{if(!x.ubi)e.push(`Elegí dónde va ${etiqueta(x).toLowerCase()}`);if(ITEMS[x.tipo]&&!x.rev)e.push(`Elegí el revestimiento de ${etiqueta(x).toLowerCase()}`)})}
   if(paso===3){if(!d.pExt&&!d.pExtP)e.push('Elegí la pintura exterior o marcala a confirmar');if(d.pExt==='Otro'&&!d.pExtOtro.trim()&&!d.pExtP)e.push('Escribí el color o código exterior');if(d.pInt==='Otro'&&!d.pIntOtro.trim())e.push('Escribí el color o código interior');if(!d.revExt)e.push('Elegí el revestimiento exterior');if(!d.piso)e.push('Elegí el piso');if(!d.rev.length)e.push('Elegí el revestimiento interior');if(d.rev.length>1)revDestinos().forEach(x=>{if(!d.rev.includes(d.revAsig[x.k]))e.push(`Elegí qué revestimiento va en ${x.n.toLowerCase()}`)});if(total()>1&&!d.pInterior)e.push('Elegí las puertas interiores')}
   if(paso===4){if(!d.linea)e.push('Elegí la línea de aberturas');
@@ -90,6 +93,9 @@ function render(){
     <div class="card"><div class="lbl">¿Qué se fabrica?</div>${ops('prod',['Módulo habitacional','Contenedor cortado','Reefer'],d.prod)}</div>
     <div class="card"><div class="lbl">Tamaño de contenedor</div>${ops('tam',['20 DV','40 ST','40 HC'],d.tam)}
       ${d.tam?`<div class="auto">📏 Medidas exteriores: <b>${d.largo} × ${d.ancho} × ${d.alto} cm</b> (largo × ancho × alto)</div>`:''}</div>
+    <div class="card"><div class="lbl">¿Cuántas unidades iguales? <small>si el cliente lleva varias idénticas, cargala una sola vez</small></div>
+      <div class="cnt"><button data-um="1" aria-label="Una menos">−</button><input type="number" inputmode="numeric" min="1" max="${MAX_U}" data-i="unidades" value="${esc(d.unidades)}" style="width:80px;text-align:center;font-weight:800"><button data-up="1" aria-label="Una más">+</button></div>
+      ${unidades()>1?`<div class="auto">📦 Se fabrican <b>${unidades()} unidades iguales</b>. Todo lo que cargues en los pasos siguientes es para <b>cada una</b>; materiales y costos se multiplican solos.</div>`:''}</div>
     ${d.prod==='Reefer'?`<div class="card"><div class="lbl">Motor</div>${ops('motor',['Con motor','Sin motor'],d.motor)}</div>`:''}
     ${d.prod==='Contenedor cortado'?`<div class="card"><div class="lbl">Corte</div>
       <div class="unidad"><input type="number" inputmode="numeric" data-i="corte" placeholder="Largo final" value="${esc(d.corte)}"><b>cm</b></div>
@@ -172,7 +178,7 @@ function render(){
 function resumenCuerpo(){
   const espTxt=d.espacios.map(x=>`${etiqueta(x)} (${(x.ubi||'?').toLowerCase()})${x.items&&x.items.length?' con '+x.items.join(', ').toLowerCase():''}${x.rev?', revestimiento '+x.rev.toLowerCase():''}`).join('; ')||'sin divisiones';
   return `      <h4>Pedido</h4><p><b>${esc(d.sol||'?')}</b> para <b>${esc(d.cli||'?')}</b>, entrega en ${esc(d.loc||'?')}${d.maps?' (<a href="'+esc(d.maps)+'" target="_blank" rel="noopener">ubicación</a>)':''} el ${esc(d.fecha?d.fecha.split('-').reverse().join('/'):'?')}.</p>
-      <h4>Producto</h4><p>${esc(d.prod||'?')} ${esc(d.tam)}${d.prod==='Contenedor cortado'?`, cortado a ${esc(d.corte)} cm conservando ${esc(d.lado.toLowerCase())}`:''}${d.motor?', '+esc(d.motor.toLowerCase()):''}. Medidas exteriores ${esc(d.largo)} × ${esc(d.ancho)} × ${esc(d.alto)} cm.</p>
+      <h4>Producto</h4><p>${unidades()>1?`<b>${unidades()} unidades iguales</b>, cada una: `:''}${esc(d.prod||'?')} ${esc(d.tam)}${d.prod==='Contenedor cortado'?`, cortado a ${esc(d.corte)} cm conservando ${esc(d.lado.toLowerCase())}`:''}${d.motor?', '+esc(d.motor.toLowerCase()):''}. Medidas exteriores ${esc(d.largo)} × ${esc(d.ancho)} × ${esc(d.alto)} cm.</p>
       <h4>Distribución</h4><p>${esc(espTxt)}.</p>
       <h4>Terminaciones</h4><p>Pintura exterior ${d.pExtP?'<span class="tag">a confirmar</span>':esc((d.pExt==='Otro'?d.pExtOtro:d.pExt)||'?')}, revestimiento exterior ${esc((d.revExt||'?').toLowerCase())}, pintura interior ${esc((d.pInt==='Otro'?d.pIntOtro:d.pInt)||'—')}. Piso ${esc(d.piso.toLowerCase()||'?')}, revestimiento interior ${esc(revTexto())}.</p>
       <h4>Aberturas</h4><p>Línea ${esc(d.linea||'?')}. ${d.puertaP?'Puertas exteriores <span class="tag">a confirmar</span>.':d.puertas.map((p,i)=>`Puerta ${i+1} (P${i+1}): ${esc(p.tipo.toLowerCase())} de ${p.med==='Otra'?esc(p.ancho)+' × '+esc(p.alto):esc(p.med||'?')} cm en ${esc(dondeTxt(p))}, ${esc(p.mano.toLowerCase())}${p.prot?', '+esc(p.prot.toLowerCase()):''}.`).join(' ')}
@@ -239,7 +245,7 @@ async function generarPDF(){
   const blq=(html,css='')=>`<div class="pb" style="padding:0 32px;background:#fff;${css}">${html}</div>`;
   const pl=d.espacios.length||d.prod==='Módulo habitacional'?planoSVG():'';
   box.innerHTML=[
-    blq(`<div style="background:#E8650A;color:#fff;padding:18px 20px;border-radius:0 0 10px 10px"><div style="font-size:20px;font-weight:800">Nota de pedido</div><div style="font-size:13px;opacity:.9">${esc(d.sol||'Pedido')} · emitida el ${esc(hoy)}</div></div>`,'padding-top:0'),
+    blq(`<div style="background:#E8650A;color:#fff;padding:18px 20px;border-radius:0 0 10px 10px"><div style="font-size:20px;font-weight:800">Nota de pedido</div><div style="font-size:13px;opacity:.9">${esc(d.sol||'Pedido')}${unidades()>1?' · '+unidades()+' unidades iguales':''} · emitida el ${esc(hoy)}</div></div>`,'padding-top:0'),
     ...sinVars(resumenCuerpo()).split('<h4>').filter(x=>x.trim()).map(x=>blq('<h4 style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#5E6675;margin:14px 0 4px">'+x.replace('</h4>','</h4><div>').replace(/<p>/g,'<p style="margin:0 0 6px">')+'</div>')),
     pend.length?blq(`<p style="margin-top:10px;color:#C98A00;font-weight:700">A confirmar: ${esc(pend.join(', '))}</p>`):'',
     d.obs.trim()?blq(`<h4 style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#5E6675;margin:14px 0 4px">Observaciones</h4><p>${esc(d.obs)}</p>`):'',
@@ -292,8 +298,9 @@ function limpio(o){return JSON.parse(JSON.stringify(o))}
 function toast(t){let el=document.getElementById('np-tt');if(!el){el=document.createElement('div');el.id='np-tt';document.body.appendChild(el)}el.textContent=t;el.style.opacity=1;clearTimeout(toast.t);toast.t=setTimeout(()=>el.style.opacity=0,2400)}
 function conectar(R0){
 R0.addEventListener('click',e=>{
-  const t=e.target.closest('[data-k],[data-m],[data-mas],[data-menos],[data-em],[data-ep],[data-quitar],[data-quitarp],[data-modelo],#np-add-v,#np-add-p');if(!t)return;
+  const t=e.target.closest('[data-k],[data-m],[data-mas],[data-menos],[data-em],[data-ep],[data-quitar],[data-quitarp],[data-modelo],[data-up],[data-um],#np-add-v,#np-add-p');if(!t)return;
   if(t.dataset.modelo){modelo(t.dataset.modelo);return}
+  if(t.dataset.up||t.dataset.um){d.unidades=Math.min(MAX_U,Math.max(1,unidades()+(t.dataset.up?1:-1)));render();return}
   if(t.id==='np-add-v'){d.ventanas.push({esp:'',med:'',ancho:'',alto:'',tipo:'',pared:'',pos:'',prot:''});render();return}
   if(t.id==='np-add-p'){d.puertas.push(nuevaPuerta());render();return}
   if(t.dataset.quitarp!=null){d.puertas.splice(+t.dataset.quitarp,1);render();return}
@@ -315,12 +322,14 @@ R0.addEventListener('click',e=>{
   render();
 });
 R0.addEventListener('input',e=>{const t=e.target;
+  if(t.dataset.i==='unidades'){d.unidades=t.value===''?'':Number(t.value);return}
   if(t.dataset.i){d[t.dataset.i]=t.value;if(t.dataset.i==='loc'){const a=$('#np-maps-a');if(a)a.href=mapsUrl()}}
   if(t.dataset.pui){const [i,c]=t.dataset.pui.split('.');d.puertas[+i][c]=t.value}
   if(t.dataset.vi){const [i,c]=t.dataset.vi.split('.');d.ventanas[+i][c]=t.value}
 });
 R0.addEventListener('change',e=>{const t=e.target;
   if(t.dataset.c){d[t.dataset.c]=t.checked;render()}
+  if(t.dataset.i==='unidades'){if(t.value!=='')d.unidades=Math.min(MAX_U,Math.max(1,Math.floor(Number(t.value))||1));render()}
   if(t.id==='np-confirmado'){d.confirmado=t.checked}
   if(t.dataset.f&&t.files[0]){archivo=t.files[0];toast('📎 '+archivo.name+' se sube al guardar')}
 });
@@ -371,7 +380,7 @@ function faltantes(f){return conD(f,()=>{const out=[];for(paso=0;paso<6;paso++)o
 function compat(f){return conD(f,()=>({v:2,...limpio(d),
     puerta:d.puertaP?'A confirmar':(d.puertas.map(p=>p.tipo).filter(Boolean).join(' + ')||''),
     sani:d.espacios.some(x=>ITEMS[x.tipo])?'Sí':'No',confirmada:!!d.confirmado}))}
-function nombreSugerido(f){const M={oficina:'Oficina',vivienda:'Vivienda',sanitario:'Sanitario'};return [(M[f.modelo]||f.prod||'Pedido'),f.tam].filter(Boolean).join(' ')+(f.cli?' — '+f.cli:'')}
+function nombreSugerido(f){const M={oficina:'Oficina',vivienda:'Vivienda',sanitario:'Sanitario'};const u=Math.floor(Number(f.unidades))||1;return (u>1?u+' × ':'')+[(M[f.modelo]||f.prod||'Pedido'),f.tam].filter(Boolean).join(' ')+(f.cli?' — '+f.cli:'')}
 function tipoTrabajo(f){if(f.prod==='Reefer')return 'Reefer';if(f.prod==='Contenedor cortado')return 'Modificación contenedor';return f.modelo==='oficina'?'Oficina modular':'Módulo habitable'}
 
 // ── Cómputo para el costeo (solo lo usa el administrador) ──
@@ -421,6 +430,8 @@ function lineasCosteo(){
   // generales
   add('Mano de obra general','mo','m²',piso);
   add('Flete','ter','c/u',1,d.loc||'');
+  // varias unidades iguales: todo se multiplica por la cantidad
+  const u=unidades();if(u>1)out.forEach(x=>x.cant=r2(x.cant*u));
   return out;
 }
 window.NotaPedido={abrir,cerrar,
