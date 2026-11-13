@@ -38,6 +38,7 @@ Correr en orden, una sola vez cada uno:
 11. `supabase/migrations/0011_empresas.sql` (empresa de cada vendedor y de cada nota de pedido, para filtrar por razón social)
 12. `supabase/migrations/0012_arquitectura_opcional.sql` (ventas puede mandar el proyecto directo al líder cuando no necesita plano de arquitectura)
 13. `supabase/migrations/0013_parte_diario_y_pintura.sql` (personas y horas en el parte diario, pintura en tachos de 20 l y receta de materiales por tipología)
+14. `supabase/migrations/0014_buzon_de_sugerencias.sql` (buzón de sugerencias de mejora con texto, fotos y audio, que llegan por correo; ver "Buzón de sugerencias" abajo)
 
 ### 2. Publicar la app (Vercel, gratis)
 
@@ -112,3 +113,16 @@ Las tablas `lista_costos` y `costeos` tienen Row Level Security que solo deja le
 `web/costeo-import.js`. En **🔒 Costos** el administrador puede importar un Excel/CSV (elige las columnas de descripción y precio), un PDF de presupuesto (se lee el texto y se proponen las líneas con precio) o cargar precios a mano, en USD o en ARS con el dólar del día. Cada fila queda en el catálogo del proveedor (`precios_proveedor`) con el archivo original guardado en el depósito privado `costos`. Al vincular una fila a un ítem de la lista, ese ítem toma el precio, y la próxima lista del mismo proveedor se vincula sola. Para un mismo ítem se pueden comparar precios de varios proveedores y elegir cuál usar.
 
 Pendiente: traer costos desde Flexxus (necesita acceso a su API o a la base y un proceso de sincronización fuera del navegador).
+
+## Buzón de sugerencias
+
+Pestaña **💡 Sugerencias**, visible para todos los roles. Cada usuario carga una idea con texto, hasta 3 fotos (se achican en el celular) y/o una nota de audio de hasta 3 minutos grabada desde el navegador. Ve las suyas con el estado y la respuesta del administrador. El administrador ve todas, cambia el estado (nueva, en análisis, en marcha, hecha, descartada), contesta y puede reenviar el correo.
+
+Cada sugerencia nueva se manda por correo (con fotos y audio adjuntos) a `licarizaga@gmail.com`. El correo lo envía la base con [Resend](https://resend.com) a través de la extensión `pg_net`. Para activarlo:
+
+1. Crear una cuenta gratis en resend.com **con el mismo correo que recibe las sugerencias** (sin dominio propio, Resend solo deja mandar al correo de la cuenta, desde `onboarding@resend.dev`).
+2. En Resend → **API Keys** → **Create API Key** (permiso "Sending access") y copiarla.
+3. En Supabase → SQL Editor: `select vault.create_secret('re_LA_CLAVE', 'resend_api_key');`
+
+Opcional: para mandar a otro correo, `select vault.create_secret('otro@correo.com', 'sugerencias_destino');`. Para mandar desde una dirección de la empresa hay que verificar el dominio en Resend y cargar `sugerencias_remitente` (por ejemplo `Buzón BoxTainer <mejoras@empresa.com>`). Sin la clave, las sugerencias se guardan igual y aparecen en la app con "Sin enviar".
+
