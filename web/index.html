@@ -367,6 +367,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <button class="nav-btn" data-view="costos" onclick="showView('costos')">🔒 Costos</button>
     <button class="nav-btn" data-view="usuarios" onclick="showView('usuarios')">👤 Usuarios</button>
     <button class="nav-btn" data-view="reportes" onclick="showView('reportes')">📈 Reportes</button>
+    <button class="nav-btn" data-view="sugerencias" onclick="showView('sugerencias')">💡 Sugerencias</button>
   </div>
 
   <!-- DASHBOARD -->
@@ -514,6 +515,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <div class="sec-title">👤 Gestión de Usuarios</div>
       <div id="lista-usuarios"></div>
     </div>
+  </div>
+
+  <!-- SUGERENCIAS DE MEJORA (todos) -->
+  <div class="view" id="view-sugerencias">
+    <div style="margin-top:12px" id="sug-content"></div>
   </div>
 
   <!-- REPORTES -->
@@ -791,6 +797,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <script src="materiales-proy.js"></script>
 <script src="pedidos-carp.js"></script>
 <script src="recetas.js"></script>
+<script src="sugerencias.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

@@ -37,15 +37,15 @@ const ROLES={admin:'👑 Administrador',lider:'🧭 Líder de operaciones',super
   ventas:'💼 Ventas',arquitectura:'📐 Arquitectura',lectura:'👁️ Solo lectura',
   carp_aluminio:'🪟 Carpintería de aluminio',carp_madera:'🪵 Carpintería de madera'};
 const TABS={
-  admin:['dashboard','proyectos','kanban','alertas','pedidos','personal','contenedores','materiales','costos','usuarios','reportes'],
-  lider:['dashboard','proyectos','kanban','alertas','pedidos','personal','contenedores','materiales','reportes'],
-  supervisor:['dashboard','proyectos','kanban','alertas','pedidos','materiales'],
-  ventas:['dashboard','proyectos'],
-  arquitectura:['dashboard','proyectos'],
-  lectura:['dashboard','proyectos','kanban','pedidos','reportes'],
+  admin:['dashboard','proyectos','kanban','alertas','pedidos','personal','contenedores','materiales','costos','usuarios','reportes','sugerencias'],
+  lider:['dashboard','proyectos','kanban','alertas','pedidos','personal','contenedores','materiales','reportes','sugerencias'],
+  supervisor:['dashboard','proyectos','kanban','alertas','pedidos','materiales','sugerencias'],
+  ventas:['dashboard','proyectos','sugerencias'],
+  arquitectura:['dashboard','proyectos','sugerencias'],
+  lectura:['dashboard','proyectos','kanban','pedidos','reportes','sugerencias'],
   // las carpinterías ven solo sus pedidos (y los planos de esos proyectos)
-  carp_aluminio:['pedidos','alertas'],
-  carp_madera:['pedidos','alertas'],
+  carp_aluminio:['pedidos','alertas','sugerencias'],
+  carp_madera:['pedidos','alertas','sugerencias'],
 };
 const ETAPA={
   ventas:{label:'💼 En ventas',cls:'b-azul'},
@@ -673,7 +673,7 @@ async function iniciarNube(){
 const RENDERS={
   dashboard:()=>renderDash(), proyectos:()=>renderProyectos(), kanban:()=>renderKanban(),
   alertas:()=>renderAlertas(), personal:()=>renderPersonal(), contenedores:()=>{updContSel();renderContenedores()},
-  materiales:()=>{updMatSel();renderMateriales();renderRecetas()}, pedidos:()=>{pintarTituloPC();renderPedidosCarp()}, usuarios:()=>renderUsuarios(), costos:()=>renderCostos(), reportes:()=>renderReportes()
+  materiales:()=>{updMatSel();renderMateriales();renderRecetas()}, pedidos:()=>{pintarTituloPC();renderPedidosCarp()}, usuarios:()=>renderUsuarios(), costos:()=>renderCostos(), reportes:()=>renderReportes(), sugerencias:()=>renderSugerencias()
 };
 function showView(name){
   const t=tabsPermitidas();
