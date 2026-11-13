@@ -143,7 +143,7 @@ async function cargarTodo(){
   co.forEach(r=>en(r.proyecto_id,p=>p.costos.push({id:r.id,rubro:r.rubro,importe:Number(r.importe)||0,desc:r.descripcion,
     fecha:r.fecha,autor:nombreDe(r.autor_id),ts:ts(r.creado_en)})));
   ac.forEach(r=>en(r.proyecto_id,p=>p.historial.push({id:r.id,ts:ts(r.creado_en),fecha:fechaDe(r.creado_en),avance:r.avance,
-    texto:r.texto,est:r.estado,autor:nombreDe(r.autor_id)})));
+    texto:r.texto,est:r.estado,autor:nombreDe(r.autor_id),pers:r.personas??null,hs:r.horas==null?null:Number(r.horas)})));
   cs.forEach(r=>en(r.proyecto_id,p=>p.consultas.push({id:r.id,texto:r.texto,para:r.para,ts:ts(r.creado_en),deId:r.de_id,
     deNombre:nombreDe(r.de_id),incidencia:!!r.es_error,respuesta:r.respuesta||'',respTs:ts(r.respondida_en),
     respId:r.respondida_por,respNombre:r.respondida_por?nombreDe(r.respondida_por):''})));
@@ -158,6 +158,7 @@ async function cargarTodo(){
   await cargarVersiones(T);
   await cargarMateriales(T);
   await cargarPedidosCarp(T);
+  await cargarRecetas();
   await cargarCosteo();
   personal=pe.map(r=>({id:r.id,nom:r.nombre,rol:r.rol||'',tel:r.telefono||''}));
   contenedores=ct.map(r=>({id:r.id,cod:r.codigo,tipo:r.tipo||'',estado:r.estado||'',proyId:r.proyecto_id,obs:r.observaciones||''}));
@@ -212,7 +213,8 @@ async function guardarProyectoOError(p){
     await ins('costos',nuevos(p.costos,o&&o.costos).map(x=>({id:x.id,proyecto_id:pid,rubro:RUBROS[x.rubro]?x.rubro:'otr',
       importe:Number(x.importe)||0,descripcion:x.desc||'',fecha:x.fecha||hoyISO(),creado_en:isoTs(x.ts)})));
     await ins('actualizaciones',nuevos(p.historial,o&&o.historial).map(x=>({id:x.id,proyecto_id:pid,avance:parseInt(x.avance)||0,
-      estado:x.est||p.estado||'en-curso',texto:x.texto||'',creado_en:isoTs(x.ts)})));
+      estado:x.est||p.estado||'en-curso',texto:x.texto||'',creado_en:isoTs(x.ts),
+      ...(x.pers!=null?{personas:x.pers}:{}),...(x.hs!=null?{horas:x.hs}:{})})));
     await ins('consultas',nuevos(p.consultas,o&&o.consultas).map(x=>({id:x.id,proyecto_id:pid,para:x.para,texto:x.texto,
       es_error:!!x.incidencia,creado_en:isoTs(x.ts),respuesta:x.respuesta||null,respondida_en:x.respuesta?isoTs(x.respTs||Date.now()):null,
       respondida_por:x.respuesta&&perfiles[x.respId]?x.respId:null})));
@@ -671,7 +673,7 @@ async function iniciarNube(){
 const RENDERS={
   dashboard:()=>renderDash(), proyectos:()=>renderProyectos(), kanban:()=>renderKanban(),
   alertas:()=>renderAlertas(), personal:()=>renderPersonal(), contenedores:()=>{updContSel();renderContenedores()},
-  materiales:()=>{updMatSel();renderMateriales()}, pedidos:()=>{pintarTituloPC();renderPedidosCarp()}, usuarios:()=>renderUsuarios(), costos:()=>renderCostos(), reportes:()=>renderReportes()
+  materiales:()=>{updMatSel();renderMateriales();renderRecetas()}, pedidos:()=>{pintarTituloPC();renderPedidosCarp()}, usuarios:()=>renderUsuarios(), costos:()=>renderCostos(), reportes:()=>renderReportes()
 };
 function showView(name){
   const t=tabsPermitidas();
@@ -1158,10 +1160,11 @@ function verDetalle(id){
       ${mats.map(m=>`<div class="mat-item"><div class="mat-dot dot-${esc((m.est||'p').charAt(0))}"></div>
         <div class="mat-info"><div class="mat-nom">${esc(m.nom)}</div><div class="mat-det">Cant: ${esc(m.cant)||'—'} · ${esc(m.est)}</div></div></div>`).join('')}</div>`:''}
     ${e==='ejecucion'?`<div class="dsec"><h3>📝 Historial de actualizaciones</h3>
+      ${horasHombre(p)?`<div class="drow"><span class="lbl">👷 Horas-hombre acumuladas</span><span class="val">${horasHombre(p).toLocaleString('es-AR')} h</span></div>`:''}
       ${upds.length?upds.slice(0,5).map(u=>`<div class="update-item">
         <div class="update-fecha">📅 ${esc(u.fecha)} · Por: ${esc(u.autor)}</div>
         <div class="update-texto">${esc(u.texto)}</div>
-        <div class="update-autor">Avance registrado: ${esc(u.avance)}%</div></div>`).join('')
+        <div class="update-autor">Avance registrado: ${esc(u.avance)}%${u.pers!=null?` · 👷 ${esc(u.pers)} persona${u.pers==1?'':'s'}`:''}${u.hs!=null?` · ${esc(u.hs)} h`:''}</div></div>`).join('')
         :'<div style="font-size:13px;color:var(--gris-m)">Sin actualizaciones aún</div>'}</div>`:''}
     ${(p.flujo||[]).length?`<div class="dsec"><h3>🔁 Recorrido</h3>
       ${p.flujo.map(f=>`<div class="drow"><span class="lbl">${esc(f.fecha)} · ${esc(f.autor)}</span><span class="val">${ETAPA[f.a]?.label||esc(f.a)}</span></div>`).join('')}</div>`:''}
@@ -1276,18 +1279,25 @@ function abrirUpdate(id){
   document.getElementById('upd-proy-id').value=id;
   document.getElementById('upd-av').value=p.avance||0;
   document.getElementById('upd-text').value='';
+  document.getElementById('upd-pers').value='';document.getElementById('upd-hs').value='';
   document.getElementById('upd-est').value=p.estado||'en-curso';
   closeOverlay('m-det'); openOverlay('m-update');
 }
+// Horas-hombre: personas × horas de cada parte diario
+function horasHombre(p){return Math.round((p.historial||[]).reduce((s,u)=>s+(u.pers!=null&&u.hs!=null?u.pers*u.hs:0),0)*10)/10}
 async function guardarUpdate(){
   const id=document.getElementById('upd-proy-id').value;
   const av=Math.min(100,Math.max(0,parseInt(document.getElementById('upd-av').value)||0));
   const texto=document.getElementById('upd-text').value.trim();
   const est=document.getElementById('upd-est').value;
+  const pv=document.getElementById('upd-pers').value.trim(), hv=document.getElementById('upd-hs').value.trim().replace(',','.');
+  const pers=parseInt(pv), hs=Number(hv);
+  if(pv===''||!(pers>=0)||pers>200){toast('⚠️ Poné cuántas personas trabajaron hoy');return;}
+  if(hv===''||!(hs>=0)||hs>24){toast('⚠️ Poné las horas de trabajo del día (0 a 24)');return;}
   if(!texto){toast('⚠️ Ingresá un comentario');return;}
   const p=limpiar(todos[id]); if(!p) return;
   p.avance=av; p.estado=est;
-  p.historial=(p.historial||[]); p.historial.push({id:nuevoId(),ts:Date.now(),avance:av,texto,est,fecha:hoyISO(),autor:currentUser?.nombre||'Sistema'});
+  p.historial=(p.historial||[]); p.historial.push({id:nuevoId(),ts:Date.now(),avance:av,texto,est,pers,hs,fecha:hoyISO(),autor:currentUser?.nombre||'Sistema'});
   await guardarProyecto(p); closeOverlay('m-update'); refrescar(); toast('✅ Actualización guardada');
 }
 

@@ -7,6 +7,8 @@ const MED={'20 DV':[606,244,259],'40 ST':[1219,244,259],'40 HC':[1219,244,290]};
 // Razones sociales del grupo (la misma lista está en la migración 0011)
 const EMPRESAS=['LT1 SAS','Boxtainers Argentina SAS','Refeer Containers SA','Total Containers SA','Utilbox SAS'];
 let revisandoGuardada=false; // true al revisar notas ya guardadas: las viejas no tienen empresa
+// Pintura: se controla en tachos de 20 l. Rendimiento supuesto: 100 m² por tacho (dos manos).
+const PINT_UNI='tacho 20 l', PINT_M2=100;
 const PROD_MOD=['Módulo habitable','Módulo habitable Company','Oficina','Oficina Company','Sanitario','Pañol','Showroom'];
 const esModulo=p=>PROD_MOD.includes(p)||p==='Módulo habitacional';
 const normProd=x=>{if(x.prod==='Módulo habitacional')x.prod='Módulo habitable';return x};
@@ -428,9 +430,12 @@ function lineasCosteo(){
   humedos.forEach(x=>{const m=2*(L/3+A)*H/enZona(x.ubi);humedo+=m;if(x.rev)add('Revestimiento '+x.rev.toLowerCase()+' (baño/cocina)','mat','m²',m,etiqueta(x));
     if(x.revT)add('Revestimiento de techo '+x.revT.toLowerCase()+' (baño/cocina)','mat','m²',L/3*A/enZona(x.ubi),etiqueta(x))});
   // terminaciones
-  add('Pintura exterior','mat','m²',paredes+techo,d.pExtP?'color a confirmar':(d.pExt==='Otro'?d.pExtOtro:d.pExt),d.pExtP);
+  // pintura: un solo ítem (exterior + interior), en tachos de 20 l. Se redondea para arriba al final.
+  const m2Pint=(paredes+techo)*((d.pInt&&d.pInt!=='Sin pintura')?2:1);
+  add('Pintura','mat',PINT_UNI,m2Pint/PINT_M2,'',d.pExtP);
   if(d.revExt&&d.revExt!=='Sin revestimiento')add('Revestimiento exterior · '+d.revExt,'mat','m²',paredes);
-  if(d.pInt&&d.pInt!=='Sin pintura')add('Pintura interior','mat','m²',paredes+techo,d.pInt==='Otro'?d.pIntOtro:d.pInt);
+  // aislación de paredes y techo en los módulos armados
+  if(esModulo(d.prod))add('Aislación térmica','mat','m²',paredes+techo);
   if(d.piso)add('Piso · '+d.piso,'mat','m²',piso);
   const resto=Math.max(0,paredes-humedo), dest=revDestinos();
   (d.rev||[]).filter(v=>v!=='Sin revestimiento'&&v!=='Solo pintura').forEach(v=>{
@@ -448,7 +453,7 @@ function lineasCosteo(){
   add('Tablero y disyuntor','mat','c/u',1);
   add('Toma','mat','c/u',el.reduce((s,x)=>s+(x.tomas||0),0));
   ['Plafón','Tubo LED'].forEach(t=>add('Luz · '+t,'mat','c/u',el.filter(x=>x.tipo===t).reduce((s,x)=>s+(x.luces||0),0)));
-  if(d.aa==='Solo pre-instalación')add('Pre-instalación de aire','mo','c/u',1);
+  if(d.aa==='Solo pre-instalación')add('Pre-instalación de aire','mat','c/u',1);
   if(d.aa==='Sí, con equipo')add('Aire acondicionado '+(d.aaFrig||''),'mat','c/u',1);
   if(d.termo==='Sí')add('Termotanque '+(d.termoTipo||'').toLowerCase(),'mat','c/u',1,d.termoL?d.termoL+' l':'');
   if(d.tanque==='Sí')add('Tanque de agua','mat','c/u',1,d.tanqueL?d.tanqueL+' l':'');
@@ -457,6 +462,7 @@ function lineasCosteo(){
   add('Flete','ter','c/u',1,d.loc||'');
   // varias unidades iguales: todo se multiplica por la cantidad
   const u=unidades();if(u>1)out.forEach(x=>x.cant=r2(x.cant*u));
+  out.forEach(x=>{if(x.unidad===PINT_UNI)x.cant=Math.ceil(x.cant-1e-9)});
   return out;
 }
 window.NotaPedido={abrir,cerrar,
@@ -465,5 +471,8 @@ window.NotaPedido={abrir,cerrar,
   dibujos:f=>conD(f,()=>(d.espacios.length?planoSVG():'')+abertSVG()),
   pendientes:f=>conD(f,()=>pendientes()),
   faltantes,compat,nombreSugerido,tipoTrabajo,EMPRESAS,
+  // tipología del proyecto, para la receta de materiales: producto, tamaño y cantidad de unidades
+  TIPOLOGIAS:[...PROD_MOD,'Contenedor cortado','Reefer'],TAMS:Object.keys(MED),
+  tipologia:f=>conD(f,()=>({prod:d.prod,tam:d.tam,unidades:unidades()})),
   pdf:(f,btn)=>{const pd=d;d=normProd(Object.assign(nuevo(),limpio(f)));return descargarPDF(btn||{textContent:'',disabled:false}).finally(()=>{d=pd})}};
 })();

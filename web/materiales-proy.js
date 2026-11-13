@@ -25,9 +25,14 @@ async function cargarMateriales(T){
 function itemsMateriales(p){
   const g=p.mats||[], out=[], key=(c,d)=>c+' | '+(d||'');
   const usados=new Set();
-  if(esNota(p)) NotaPedido.lineasCosteo(p.ficha).filter(x=>x.rubro==='mat').forEach(x=>{
+  // lo de la nota + la receta de su tipología (si un material está en las dos, manda la receta).
+  // La receta se toma hasta que se asigna: en obra queda lo que se fijó.
+  let base=esNota(p)?NotaPedido.lineasCosteo(p.ficha).filter(x=>x.rubro==='mat'):[];
+  const rec=etapaDe(p)==='ejecucion'?[]:lineasReceta(p);
+  if(rec.length){const k=new Set(rec.map(x=>x.clave));base=base.filter(x=>!k.has(x.clave)).concat(rec);}
+  base.forEach(x=>{
     const s=g.find(y=>key(y.clave,y.det)===key(x.clave,x.det)); if(s) usados.add(s);
-    out.push(s?{...s,pend:x.pend}:{id:null,clave:x.clave,det:x.det||'',unidad:x.unidad,plan:x.cant,extra:false,stock:null,usada:null,pend:x.pend});
+    out.push(s?{...s,pend:x.pend,receta:x.receta}:{id:null,clave:x.clave,det:x.det||'',unidad:x.unidad,plan:x.cant,extra:false,stock:null,usada:null,pend:x.pend,receta:x.receta});
   });
   // guardados que ya no están en la nota (la nota cambió) o agregados a mano
   g.filter(y=>!usados.has(y)).forEach(y=>out.push({...y,fuera:!y.extra}));
@@ -130,10 +135,10 @@ function seccionMateriales(p){
   if(e==='asignacion'){
     const falta=problemaStock(p);
     return `<div class="dsec" id="mp-sec"><h3>📦 Materiales del proyecto</h3>
-      <div style="font-size:12px;color:var(--gris-m);margin-bottom:8px">Salen de la nota de pedido. Validá el stock de cada uno: sin eso no se puede asignar. Si hace falta, corregí la cantidad.</div>
+      <div style="font-size:12px;color:var(--gris-m);margin-bottom:8px">Salen de la nota de pedido y de la receta de la tipología. Validá el stock de cada uno: sin eso no se puede asignar. Si hace falta, corregí la cantidad.</div>
       ${falta?`<div class="cst-aviso amar">${esc(falta)}</div>`:'<div class="nota-ok" style="margin-bottom:8px">✅ Stock validado de todos los materiales</div>'}
       <div class="mp-lista">${it.map((x,i)=>`<div class="mp-f${x.fuera?' mp-fuera':''}">
-        <div class="mp-n">${esc(x.clave)}${x.det?`<small>${esc(x.det)}</small>`:''}${x.pend?'<small style="color:var(--amarillo)">a confirmar con el cliente</small>':''}${x.fuera?'<small>ya no está en la nota</small>':''}</div>
+        <div class="mp-n">${esc(x.clave)}${x.det?`<small>${esc(x.det)}</small>`:''}${x.pend?'<small style="color:var(--amarillo)">a confirmar con el cliente</small>':''}${x.receta?'<small>receta de la tipología</small>':''}${x.fuera?'<small>ya no está en la nota</small>':''}</div>
         <div class="mp-c">${op?`<input type="number" step="0.01" min="0" value="${x.plan}" onchange="planItem('${id}',${i},this.value)">`:mpFmt(x.plan)} <span>${esc(x.unidad)}</span></div>
         <div class="mp-s">${Object.keys(STOCK).map(k=>op?`<button class="mp-b ${x.stock===k?'on '+STOCK[k].c:''}" onclick="stockItem('${id}',${i},'${k}')">${STOCK[k].t}</button>`
           :(x.stock===k?`<span class="mp-b on ${STOCK[k].c}">${STOCK[k].t}</span>`:'')).join('')}</div>
