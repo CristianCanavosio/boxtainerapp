@@ -35,6 +35,7 @@ Correr en orden, una sola vez cada uno:
 8. `supabase/migrations/0008_plata_solo_admin.sql` (presupuesto de obra y gastos reales en USD: solo el administrador)
 9. `supabase/migrations/0009_pedidos_a_carpinterias.sql` (pedidos a la carpintería de aluminio y a la de madera, con sus propios usuarios)
 10. `supabase/migrations/0010_cerrar_aviso_de_cambio.sql` (cuando ventas marca que el cliente aprobó el cambio, el aviso automático queda respondido)
+11. `supabase/migrations/0011_empresas.sql` (empresa de cada vendedor y de cada nota de pedido, para filtrar por razón social)
 
 ### 2. Publicar la app (Vercel, gratis)
 
@@ -71,6 +72,7 @@ En la app anterior (artefacto), pestaña Reportes → **Descargar respaldo compl
 `web/nota.js` y `web/nota.css` tienen el asistente de carga que usa ventas (cliente, producto, distribución, terminaciones, aberturas, instalaciones y confirmación). Se guarda en la columna `ficha` del proyecto con `v: 2`. Los proyectos viejos siguen mostrando la ficha técnica anterior y se pueden pasar a la nota nueva desde Editar.
 
 - Lo marcado "a confirmar" deja enviar a arquitectura, pero el líder no puede pasar el proyecto a ejecución hasta completarlo.
+- Cada nota lleva la **empresa que vende** (LT1 SAS, Boxtainers Argentina SAS, Refeer Containers SA, Total Containers SA, Utilbox SAS). Se sugiere la del vendedor, que el administrador asigna en **Usuarios**. En **Proyectos** se filtra por empresa.
 - Ventas puede subir hasta 3 archivos del cliente (croquis, planos o fotos) por proyecto; quedan junto a los planos.
 - El PDF para el cliente se arma en el celular (html2canvas y jsPDF desde cdnjs).
 

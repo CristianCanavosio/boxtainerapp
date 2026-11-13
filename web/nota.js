@@ -4,6 +4,9 @@ const PASOS=['Cliente y pedido','Producto','Distribución','Terminaciones','Aber
 const MED={'20 DV':[606,244,259],'40 ST':[1219,244,259],'40 HC':[1219,244,290]};
 // Productos que son un módulo armado sobre contenedor (llevan distribución de espacios).
 // 'Módulo habitacional' es el nombre viejo de 'Módulo habitable': las notas guardadas se pasan solas.
+// Razones sociales del grupo (la misma lista está en la migración 0011)
+const EMPRESAS=['LT1 SAS','Boxtainers Argentina SAS','Refeer Containers SA','Total Containers SA','Utilbox SAS'];
+let revisandoGuardada=false; // true al revisar notas ya guardadas: las viejas no tienen empresa
 const PROD_MOD=['Módulo habitable','Módulo habitable Company','Oficina','Oficina Company','Sanitario','Pañol','Showroom'];
 const esModulo=p=>PROD_MOD.includes(p)||p==='Módulo habitacional';
 const normProd=x=>{if(x.prod==='Módulo habitacional')x.prod='Módulo habitable';return x};
@@ -19,7 +22,7 @@ const COLORES=['Blanco','Gris claro','Gris grafito','Negro','Azul','Verde inglé
 let paso=0, intento=false, opts={}, archivos=[], ocupado=false;
 const MAX_CROQUIS=3; // archivos del cliente por nota (croquis, planos, fotos)
 const cupoCroquis=()=>Math.max(0,MAX_CROQUIS-(opts.croquisPrevios||0));
-function nuevo(){return {sol:'',cli:'',tel:'',cuit:'',loc:'',maps:'',mapsOk:false,fecha:'',modelo:'',
+function nuevo(){return {empresa:'',sol:'',cli:'',tel:'',cuit:'',loc:'',maps:'',mapsOk:false,fecha:'',modelo:'',
   unidades:1,prod:'',tam:'',motor:'',corte:'',lado:'',largo:'',ancho:'',alto:'',
   espacios:[],
   pExt:'',pExtOtro:'',pExtP:false,pInt:'',pIntOtro:'',piso:'',rev:[],revAsig:{},revExt:'',pInterior:'',
@@ -51,7 +54,7 @@ function dondeTxt(o){return o.pared?nomPared(o.pared)+(esLateral(o.pared)&&o.pos
 
 function errores(){
   const e=[];
-  if(paso===0){if(!d.sol)e.push('Elegí el tipo de solicitud');if(!d.cli.trim())e.push('Falta el cliente');if(!d.tel.trim())e.push('Falta el teléfono');if(!d.loc.trim())e.push('Falta la dirección de entrega');else if(!d.mapsOk)e.push('Verificá la dirección en el mapa y tildá la confirmación');if(!d.fecha)e.push('Falta la fecha de entrega')}
+  if(paso===0){if(!d.empresa&&!revisandoGuardada)e.push('Elegí la empresa que vende');if(!d.sol)e.push('Elegí el tipo de solicitud');if(!d.cli.trim())e.push('Falta el cliente');if(!d.tel.trim())e.push('Falta el teléfono');if(!d.loc.trim())e.push('Falta la dirección de entrega');else if(!d.mapsOk)e.push('Verificá la dirección en el mapa y tildá la confirmación');if(!d.fecha)e.push('Falta la fecha de entrega')}
   if(paso===1){if(!d.prod)e.push('Elegí el producto');if(!d.tam)e.push('Elegí el tamaño');
     if(d.prod==='Contenedor cortado'){const c=Number(d.corte);if(!c)e.push('Poné el largo final del corte');else if(c>=Number(d.largo))e.push(`El corte (${c} cm) tiene que ser menor que el largo del contenedor (${d.largo} cm)`);if(!d.lado)e.push('Elegí qué lado se conserva')}
     if(d.prod==='Reefer'&&!d.motor)e.push('Indicá si es con o sin motor');
@@ -85,6 +88,7 @@ function render(){
       <div class="modelo ${d.modelo==='vivienda'?'sel':''}" data-modelo="vivienda"><b>Vivienda</b></div>
       <div class="modelo ${d.modelo==='sanitario'?'sel':''}" data-modelo="sanitario"><b>Sanitario</b></div>
       <div class="modelo ${d.modelo==='otro'?'sel':''}" data-modelo="otro"><b>Otro</b></div></div></div>
+    <div class="card"><div class="lbl">Empresa que vende</div>${ops('empresa',EMPRESAS,d.empresa)}</div>
     <div class="card"><div class="lbl">Tipo de solicitud</div>${ops('sol',['Presupuesto','Orden de compra confirmada'],d.sol)}</div>
     <div class="card"><div class="lbl">Cliente</div><input type="text" data-i="cli" placeholder="Nombre o razón social *" value="${esc(d.cli)}">
       <div class="fila"><input type="tel" data-i="tel" placeholder="Teléfono *" value="${esc(d.tel)}"></div>
@@ -188,7 +192,7 @@ function render(){
 }
 function resumenCuerpo(){
   const espTxt=d.espacios.map(x=>`${etiqueta(x)} (${(x.ubi||'?').toLowerCase()})${x.items&&x.items.length?' con '+x.items.join(', ').toLowerCase():''}${x.rev?', revestimiento '+x.rev.toLowerCase():''}${x.revT?', techo '+x.revT.toLowerCase():''}`).join('; ')||'sin divisiones';
-  return `      <h4>Pedido</h4><p><b>${esc(d.sol||'?')}</b> para <b>${esc(d.cli||'?')}</b>, entrega en ${esc(d.loc||'?')}${d.maps?' (<a href="'+esc(d.maps)+'" target="_blank" rel="noopener">ubicación</a>)':''} el ${esc(d.fecha?d.fecha.split('-').reverse().join('/'):'?')}.</p>
+  return `      <h4>Pedido</h4><p>${d.empresa?`Vende <b>${esc(d.empresa)}</b>. `:''}<b>${esc(d.sol||'?')}</b> para <b>${esc(d.cli||'?')}</b>, entrega en ${esc(d.loc||'?')}${d.maps?' (<a href="'+esc(d.maps)+'" target="_blank" rel="noopener">ubicación</a>)':''} el ${esc(d.fecha?d.fecha.split('-').reverse().join('/'):'?')}.</p>
       <h4>Producto</h4><p>${unidades()>1?`<b>${unidades()} unidades iguales</b>, cada una: `:''}${esc(d.prod||'?')} ${esc(d.tam)}${d.prod==='Contenedor cortado'?`, cortado a ${esc(d.corte)} cm conservando ${esc(d.lado.toLowerCase())}`:''}${d.motor?', '+esc(d.motor.toLowerCase()):''}. Medidas exteriores ${esc(d.largo)} × ${esc(d.ancho)} × ${esc(d.alto)} cm.</p>
       <h4>Distribución</h4><p>${esc(espTxt)}.</p>
       <h4>Terminaciones</h4><p>Pintura exterior ${d.pExtP?'<span class="tag">a confirmar</span>':esc((d.pExt==='Otro'?d.pExtOtro:d.pExt)||'?')}, revestimiento exterior ${esc((d.revExt||'?').toLowerCase())}, pintura interior ${esc((d.pInt==='Otro'?d.pIntOtro:d.pInt)||'—')}. Piso ${esc(d.piso.toLowerCase()||'?')}, revestimiento interior ${esc(revTexto())}.</p>
@@ -256,7 +260,7 @@ async function generarPDF(){
   const blq=(html,css='')=>`<div class="pb" style="padding:0 32px;background:#fff;${css}">${html}</div>`;
   const pl=d.espacios.length||esModulo(d.prod)?planoSVG():'';
   box.innerHTML=[
-    blq(`<div style="background:#E8650A;color:#fff;padding:18px 20px;border-radius:0 0 10px 10px"><div style="font-size:20px;font-weight:800">Nota de pedido</div><div style="font-size:13px;opacity:.9">${esc(d.sol||'Pedido')}${unidades()>1?' · '+unidades()+' unidades iguales':''} · emitida el ${esc(hoy)}</div></div>`,'padding-top:0'),
+    blq(`<div style="background:#E8650A;color:#fff;padding:18px 20px;border-radius:0 0 10px 10px"><div style="font-size:20px;font-weight:800">Nota de pedido</div>${d.empresa?`<div style="font-size:14px;font-weight:700">${esc(d.empresa)}</div>`:''}<div style="font-size:13px;opacity:.9">${esc(d.sol||'Pedido')}${unidades()>1?' · '+unidades()+' unidades iguales':''} · emitida el ${esc(hoy)}</div></div>`,'padding-top:0'),
     ...sinVars(resumenCuerpo()).split('<h4>').filter(x=>x.trim()).map(x=>blq('<h4 style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#5E6675;margin:14px 0 4px">'+x.replace('</h4>','</h4><div>').replace(/<p>/g,'<p style="margin:0 0 6px">')+'</div>')),
     pend.length?blq(`<p style="margin-top:10px;color:#C98A00;font-weight:700">A confirmar: ${esc(pend.join(', '))}</p>`):'',
     d.obs.trim()?blq(`<h4 style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#5E6675;margin:14px 0 4px">Observaciones</h4><p>${esc(d.obs)}</p>`):'',
@@ -386,12 +390,13 @@ function abrir(o){
   d=normProd(Object.assign(nuevo(),o&&o.ficha&&o.ficha.v===2?limpio(o.ficha):{}));
   if(!d.puertas||!d.puertas.length)d.puertas=[nuevaPuerta()];
   if(!d.cli&&o&&o.cliente)d.cli=o.cliente;
+  if(!d.empresa&&o&&o.empresa)d.empresa=o.empresa;
   const R0=montar();$('#np-tit').textContent=opts.titulo||'Nueva nota de pedido';$('#np-borr').style.display=opts.borrador===false?'none':'';
   inicial=JSON.stringify(d);R0.classList.add('on');document.body.style.overflow='hidden';render();arriba();
 }
 // Funciones para mostrar una nota guardada fuera del asistente
 function conD(f,fn){const pd=d,pp=paso;d=normProd(Object.assign(nuevo(),limpio(f||{})));try{return fn()}finally{d=pd;paso=pp}}
-function faltantes(f){return conD(f,()=>{const out=[];for(paso=0;paso<6;paso++)out.push(...errores());if(!d.confirmado)out.push('Falta la confirmación del cliente');return out})}
+function faltantes(f){return conD(f,()=>{const out=[];revisandoGuardada=true;try{for(paso=0;paso<6;paso++)out.push(...errores())}finally{revisandoGuardada=false}if(!d.confirmado)out.push('Falta la confirmación del cliente');return out})}
 // Agrega las claves que la base ya exige para pasar a arquitectura (largo/ancho/alto, puerta, elec, sani, confirmada).
 // largo, ancho, alto y elec ya vienen de la nota (en cm y por espacio); solo se suman las que faltan.
 function compat(f){return conD(f,()=>({v:2,...limpio(d),
@@ -457,6 +462,6 @@ window.NotaPedido={abrir,cerrar,
   resumen:f=>conD(f,()=>resumenCuerpo()),
   dibujos:f=>conD(f,()=>(d.espacios.length?planoSVG():'')+abertSVG()),
   pendientes:f=>conD(f,()=>pendientes()),
-  faltantes,compat,nombreSugerido,tipoTrabajo,
+  faltantes,compat,nombreSugerido,tipoTrabajo,EMPRESAS,
   pdf:(f,btn)=>{const pd=d;d=normProd(Object.assign(nuevo(),limpio(f)));return descargarPDF(btn||{textContent:'',disabled:false}).finally(()=>{d=pd})}};
 })();

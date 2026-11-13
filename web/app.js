@@ -109,14 +109,14 @@ async function cargarPerfiles(){
   const ps=await traer('perfiles');
   perfiles={}; roles={}; solicitudes={};
   ps.forEach(x=>{
-    perfiles[x.id]={nombre:x.nombre||'',rol:x.rol,email:x.email||'',creado_en:x.creado_en};
+    perfiles[x.id]={nombre:x.nombre||'',rol:x.rol,email:x.email||'',creado_en:x.creado_en,empresa:x.empresa||''};
     if(x.rol==='pendiente') solicitudes[x.id]={nombre:x.nombre||x.email||'',fecha:fechaDe(x.creado_en),email:x.email||''};
     else roles[x.id]={rol:x.rol,nombre:x.nombre||x.email||''};
   });
 }
 function aApp(r){
   const verif=(por,en)=>por?{fecha:fechaDe(en),autor:nombreDe(por),autorId:por}:null;
-  return {id:r.id,nombre:r.nombre,cli:r.cliente,tipo:r.tipo||'',etapa:r.etapa,estado:r.estado,avance:r.avance||0,
+  return {id:r.id,nombre:r.nombre,cli:r.cliente,emp:r.empresa||'',tipo:r.tipo||'',etapa:r.etapa,estado:r.estado,avance:r.avance||0,
     val:r.valor_venta??'',creadoTs:ts(r.creado_en),creadoPorId:r.creado_por,creadoPor:nombreDe(r.creado_por),creadoEn:fechaDe(r.creado_en),
     vendId:r.vendedor_id,vend:r.vendedor||(r.vendedor_id?nombreDe(r.vendedor_id):''),
     supId:r.supervisor_id,sup:r.supervisor_id?nombreDe(r.supervisor_id):'',
@@ -181,7 +181,7 @@ function msgError(e){
   return '⚠️ No se pudo guardar: '+m;
 }
 function aFila(p){
-  return {nombre:p.nombre,cliente:p.cli,tipo:p.tipo||null,etapa:etapaDe(p),estado:p.estado||'presupuesto',
+  return {nombre:p.nombre,cliente:p.cli,...(p.emp?{empresa:p.emp}:{}),tipo:p.tipo||null,etapa:etapaDe(p),estado:p.estado||'presupuesto',
     avance:Math.min(100,Math.max(0,parseInt(p.avance)||0)),
     valor_venta:(p.val===''||p.val==null)?null:(Number(p.val)||0),
     vendedor_id:p.vendId||null,vendedor:p.vend||null,supervisor_id:p.supId||null,
@@ -530,14 +530,29 @@ function renderUsuarios(){
     <div class="sec-title">👥 Equipo con acceso (${miembros.length})</div>
     <div class="card">
       ${miembros.map(([id,r],i)=>id===myId?`<div class="persona-item"><div class="avatar" style="background:var(--morado)">${esc(nombreDe(id)).charAt(0).toUpperCase()}</div>
-        <div class="persona-info"><div class="persona-nombre">${esc(nombreDe(id))} (vos)</div><div class="persona-rol">${ROLES[r.rol]} · ${esc(perfiles[id]?.email)}</div></div></div>`
+        <div class="persona-info"><div class="persona-nombre">${esc(nombreDe(id))} (vos)</div><div class="persona-rol">${ROLES[r.rol]} · ${esc(perfiles[id]?.email)}</div>
+          <div style="margin-top:6px">${selectEmpresa(id)}</div></div></div>`
       :`<div class="persona-item">
         <div class="avatar" style="background:${r.rol==='admin'?'var(--morado)':'var(--nar)'}">${esc(nombreDe(id)).charAt(0).toUpperCase()}</div>
         <div class="persona-info"><div class="persona-nombre">${esc(nombreDe(id))}</div><div class="persona-rol">${esc(perfiles[id]?.email)}</div>
-          <div style="display:flex;gap:6px;margin-top:6px">${selectRol('mr-rol-'+i,r.rol)}
+          <div style="margin-top:6px">${selectEmpresa(id)}</div>
+          <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">${selectRol('mr-rol-'+i,r.rol)}
           <button class="btn btn-sec btn-sm" onclick="cambiarRol('${esc(id)}','mr-rol-${i}')">Guardar</button>
           <button class="btn btn-rojo btn-sm" onclick="quitarAcceso('${esc(id)}')">Quitar</button></div></div></div>`).join('')}
     </div>`;
+}
+// Empresa de cada persona: se usa como empresa sugerida en sus notas de pedido
+function selectEmpresa(uid){
+  const a=perfiles[uid]?.empresa||'';
+  return `<select onchange="ponerEmpresa('${esc(uid)}',this.value)" style="padding:7px;border:1.5px solid var(--borde);border-radius:8px;font-size:12px">
+    <option value="">🏢 Sin empresa</option>${NotaPedido.EMPRESAS.map(x=>`<option ${x===a?'selected':''}>${esc(x)}</option>`).join('')}</select>`;
+}
+async function ponerEmpresa(uid,v){
+  try{
+    const {data,error}=await sb.from('perfiles').update({empresa:v||null}).eq('id',uid).select('id');
+    if(error) throw error; if(!data||!data.length) throw {code:'42501',message:'permission'};
+    perfiles[uid].empresa=v; toast('✅ '+nombreDe(uid)+': '+(v||'sin empresa'));
+  }catch(e){toast(/column|schema cache/i.test(e.message||'')?'⚠️ Falta correr la migración 0011 en Supabase':msgError(e)); renderUsuarios();}
 }
 async function ponerRol(uid,r){
   const {data,error}=await sb.from('perfiles').update({rol:r}).eq('id',uid).select('id');
@@ -747,7 +762,7 @@ function proyCard(p){
     <div style="display:flex;justify-content:space-between;align-items:flex-start">
       <div style="flex:1;margin-right:8px">
         <div class="proy-nombre">${esc(p.nombre)}</div>
-        <div class="proy-cliente">👤 ${esc(p.cli)}</div>
+        <div class="proy-cliente">👤 ${esc(p.cli)}${p.emp?` · 🏢 ${esc(p.emp)}`:''}</div>
       </div>
       ${badgeEstado(p)}
     </div>
@@ -863,14 +878,23 @@ function setFiltro(e,el){
   el.classList.add('active');
   renderProyectos();
 }
+let filtroEmpresa='';
+function setFiltroEmpresa(v){filtroEmpresa=v;renderProyectos();}
 function pasaFiltro(p){
   const f=filtroEstado, e=etapaDe(p);
+  if(filtroEmpresa&&(filtroEmpresa==='-'?!!p.emp:p.emp!==filtroEmpresa)) return false;
   if(f==='todos') return true;
   if(f==='desviado') return esDesviado(p);
   if(ETAPA[f]&&f!=='ejecucion') return e===f;
   return e==='ejecucion'&&p.estado===f;
 }
+function selectorEmpresa(){
+  const el=document.getElementById('filtro-emp'); if(!el||el.dataset.listo) return;
+  el.innerHTML=`<option value="">🏢 Todas las empresas</option>${NotaPedido.EMPRESAS.map(x=>`<option>${esc(x)}</option>`).join('')}<option value="-">Sin empresa cargada</option>`;
+  el.dataset.listo='1';
+}
 function renderProyectos(){
+  selectorEmpresa();
   const q=(document.getElementById('search-p')?.value||'').toLowerCase();
   const filtered=proyectos.filter(p=>(!q||(p.nombre||'').toLowerCase().includes(q)||(p.cli||'').toLowerCase().includes(q))&&pasaFiltro(p));
   document.getElementById('lista-proyectos').innerHTML=filtered.length?filtered.map(proyCard).join('')
@@ -892,7 +916,7 @@ function prepararModalProy(){
 function abrirNuevoProy(){
   if(!puedeCrear()) return;
   const v=rol()==='ventas';
-  NotaPedido.abrir({titulo:'Nueva nota de pedido',enviar:v,
+  NotaPedido.abrir({titulo:'Nueva nota de pedido',enviar:v,empresa:perfiles[myId]?.empresa||'',
     onGuardar:(f,o)=>crearDesdeNota(f,o)});
 }
 const esNota=p=>!!(p&&p.ficha&&p.ficha.v===2);
@@ -901,7 +925,7 @@ const unidadesDe=p=>esNota(p)?Math.max(1,Math.floor(Number(p.ficha.unidades))||1
 async function crearDesdeNota(f,{enviar,archivos}){
   const p={id:nuevoId(),creadoTs:Date.now(),creadoPor:currentUser?.nombre||'',creadoPorId:myId,creadoEn:hoyISO(),
     historial:[],costos:[],planos:[],flujo:[],consultas:[],incidencias:[],faltantes:[],estado:'presupuesto',avance:0,
-    vendId:rol()==='ventas'?myId:null,nombre:NotaPedido.nombreSugerido(f),cli:(f.cli||'').trim()||'Sin nombre',
+    vendId:rol()==='ventas'?myId:null,nombre:NotaPedido.nombreSugerido(f),cli:(f.cli||'').trim()||'Sin nombre',emp:f.empresa||'',
     tipo:NotaPedido.tipoTrabajo(f),entrega:f.fecha||'',val:'',vend:currentUser?.nombre||'',dep:'',pri:'normal',obs:'',
     ficha:NotaPedido.compat(f)};
   p.etapa=rol()==='ventas'?'ventas':'asignacion';
@@ -918,13 +942,14 @@ function editarNota(id){
   const enVentas=etapaDe(p)==='ventas';
   if(!enVentas&&!esOp()){toast('🔒 La nota ya fue confirmada con el cliente: solo el líder la corrige');return;}
   const confirmada=notaConfirmada(p);
-  NotaPedido.abrir({ficha:esNota(p)?p.ficha:null,cliente:p.cli,croquisPrevios:croquisDe(p),titulo:'Nota de pedido · '+p.nombre,enviar:enVentas,
+  NotaPedido.abrir({ficha:esNota(p)?p.ficha:null,cliente:p.cli,empresa:p.emp||perfiles[p.vendId]?.empresa||perfiles[p.creadoPorId]?.empresa||'',croquisPrevios:croquisDe(p),titulo:'Nota de pedido · '+p.nombre,enviar:enVentas,
     aviso:confirmada?'⚠️ <b>Esta nota ya la confirmó el cliente.</b> Si la cambiás, queda registrado quién y qué cambió, le avisamos a ventas para que se la mande al cliente, y el proyecto no pasa a ejecución hasta que el cliente apruebe el cambio.':'',
     onGuardar:async(f,{enviar:env,archivos})=>{
       const q=limpiar(todos[id]); if(!q) return false;
       const antes=q.ficha;
       q.ficha=NotaPedido.compat(f);
       if((!q.cli||q.cli==='Sin nombre')&&f.cli) q.cli=f.cli.trim();
+      if(f.empresa) q.emp=f.empresa;
       if(!q.entrega&&f.fecha) q.entrega=f.fecha;
       const cambio=confirmada?cambiosEntre(antes,q.ficha):[];
       // si no cambió nada que vea el cliente, la nota confirmada queda tal cual
@@ -1081,6 +1106,7 @@ function verDetalle(id){
       <div class="prog-bar" style="height:14px"><div class="prog-fill ${progColor(av,esperado)}" style="width:${av}%"></div></div>
     </div>`:''}
     <div class="dsec"><h3>📋 Información</h3>
+      <div class="drow"><span class="lbl">Empresa</span><span class="val">${esc(p.emp)||'—'}</span></div>
       <div class="drow"><span class="lbl">Tipo</span><span class="val">${esc(p.tipo)}</span></div>
       ${unidadesDe(p)>1?`<div class="drow"><span class="lbl">Unidades</span><span class="val">${unidadesDe(p)} iguales</span></div>`:''}
       <div class="drow"><span class="lbl">Depósito</span><span class="val">${esc(p.dep)||'—'}</span></div>
