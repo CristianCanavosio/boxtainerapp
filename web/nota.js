@@ -9,6 +9,11 @@ const EMPRESAS=['LT1 SAS','Boxtainers Argentina SAS','Refeer Containers SA','Tot
 let revisandoGuardada=false; // true al revisar notas ya guardadas: las viejas no tienen empresa
 // Pintura: se controla en tachos de 20 l. Rendimiento supuesto: 100 m² por tacho (dos manos).
 const PINT_UNI='tacho 20 l', PINT_M2=100;
+// Plazo mínimo de entrega desde que se carga la nota (días corridos): productos Company 5, el resto 15
+const PLAZO_COMPANY=5, PLAZO_RESTO=15;
+let fecha0='';               // fecha de entrega con la que se abrió la nota
+// Una nota que ya salió de ventas (la corrige el líder) no vuelve a exigir el plazo si no se cambia la fecha
+const sinCambioFecha=()=>!opts.enviar&&!!fecha0&&d.fecha===fecha0;
 const PROD_MOD=['Módulo habitable','Módulo habitable Company','Oficina','Oficina Company','Sanitario','Pañol','Showroom'];
 const esModulo=p=>PROD_MOD.includes(p)||p==='Módulo habitacional';
 const normProd=x=>{if(x.prod==='Módulo habitacional')x.prod='Módulo habitable';return x};
@@ -24,6 +29,11 @@ const COLORES=['Blanco','Gris claro','Gris grafito','Negro','Azul','Verde inglé
 let paso=0, intento=false, opts={}, archivos=[], ocupado=false;
 const MAX_CROQUIS=3; // archivos del cliente por nota (croquis, planos, fotos)
 const cupoCroquis=()=>Math.max(0,MAX_CROQUIS-(opts.croquisPrevios||0));
+function plazoMin(prod){return /Company$/.test(prod||'')?PLAZO_COMPANY:PLAZO_RESTO}
+function fechaMin(dias){const f=new Date();f.setDate(f.getDate()+dias);return f.getFullYear()+'-'+String(f.getMonth()+1).padStart(2,'0')+'-'+String(f.getDate()).padStart(2,'0')}
+// Error si la fecha de entrega no respeta el plazo mínimo del producto (solo al cargar o cambiar la fecha)
+function errPlazo(){if(revisandoGuardada||!d.fecha||!d.prod||sinCambioFecha())return null;const n=plazoMin(d.prod);
+  return d.fecha<fechaMin(n)?`Para ${d.prod} la entrega es como mínimo a ${n} días: poné la fecha desde el ${fechaMin(n).split('-').reverse().join('/')} (paso 1)`:null}
 function nuevo(){return {empresa:'',arq:'Sí',sol:'',cli:'',tel:'',cuit:'',loc:'',maps:'',mapsOk:false,fecha:'',modelo:'',
   unidades:1,prod:'',tam:'',motor:'',corte:'',lado:'',largo:'',ancho:'',alto:'',
   espacios:[],
@@ -56,8 +66,8 @@ function dondeTxt(o){return o.pared?nomPared(o.pared)+(esLateral(o.pared)&&o.pos
 
 function errores(){
   const e=[];
-  if(paso===0){if(!d.empresa&&!revisandoGuardada)e.push('Elegí la empresa que vende');if(!d.sol)e.push('Elegí el tipo de solicitud');if(!d.cli.trim())e.push('Falta el cliente');if(!d.tel.trim())e.push('Falta el teléfono');if(!d.loc.trim())e.push('Falta la dirección de entrega');else if(!d.mapsOk)e.push('Verificá la dirección en el mapa y tildá la confirmación');if(!d.fecha)e.push('Falta la fecha de entrega')}
-  if(paso===1){if(!d.prod)e.push('Elegí el producto');if(!d.tam)e.push('Elegí el tamaño');
+  if(paso===0){if(!d.empresa&&!revisandoGuardada)e.push('Elegí la empresa que vende');if(!d.sol)e.push('Elegí el tipo de solicitud');if(!d.cli.trim())e.push('Falta el cliente');if(!d.tel.trim())e.push('Falta el teléfono');if(!d.loc.trim())e.push('Falta la dirección de entrega');else if(!d.mapsOk)e.push('Verificá la dirección en el mapa y tildá la confirmación');if(!d.fecha)e.push('Falta la fecha de entrega');else if(!revisandoGuardada&&!d.prod&&!sinCambioFecha()&&d.fecha<fechaMin(PLAZO_COMPANY))e.push(`La entrega es como mínimo a ${PLAZO_COMPANY} días (productos Company) o ${PLAZO_RESTO} días (el resto)`);else{const ep=errPlazo();if(ep)e.push(ep)}}
+  if(paso===1){if(!d.prod)e.push('Elegí el producto');{const ep=errPlazo();if(ep)e.push(ep)}if(!d.tam)e.push('Elegí el tamaño');
     if(d.prod==='Contenedor cortado'){const c=Number(d.corte);if(!c)e.push('Poné el largo final del corte');else if(c>=Number(d.largo))e.push(`El corte (${c} cm) tiene que ser menor que el largo del contenedor (${d.largo} cm)`);if(!d.lado)e.push('Elegí qué lado se conserva')}
     if(d.prod==='Reefer'&&!d.motor)e.push('Indicá si es con o sin motor');
     const u=Number(d.unidades);if(!Number.isInteger(u)||u<1)e.push('La cantidad de unidades tiene que ser un número entero, 1 o más');else if(u>MAX_U)e.push(`Máximo ${MAX_U} unidades por nota`)}
@@ -99,7 +109,8 @@ function render(){
       <a class="maps" id="np-maps-a" href="${mapsUrl()}" target="_blank" rel="noopener">📍 Ver en Google Maps</a>
       <div class="fila"><input type="text" data-i="maps" placeholder="Pegá el enlace del punto exacto (para logística)" value="${esc(d.maps)}"></div>
       <div class="fila"><label class="chk"><input type="checkbox" data-c="mapsOk" ${d.mapsOk?'checked':''}> Verifiqué en el mapa que la dirección es correcta</label></div>
-      <div class="fila"><div><div class="lbl" style="margin:4px 0">Fecha comprometida</div><input type="date" data-i="fecha" value="${esc(d.fecha)}"></div></div></div>`;
+      <div class="fila"><div><div class="lbl" style="margin:4px 0">Fecha comprometida</div><input type="date" data-i="fecha" min="${sinCambioFecha()?'':fechaMin(d.prod?plazoMin(d.prod):PLAZO_COMPANY)}" value="${esc(d.fecha)}">
+        <div style="font-size:12px;color:var(--gris-m,#777);margin-top:4px">Mínimo ${PLAZO_COMPANY} días para productos Company y ${PLAZO_RESTO} días para el resto.</div></div></div></div>`;
   }
   if(paso===1){
     h=`<div class="paso-t">Producto</div><div class="paso-s">Elegí el tipo y el tamaño: las medidas se completan solas.</div>
@@ -393,6 +404,7 @@ function abrir(o){
   opts=o||{};archivos=[];intento=false;paso=0;
   d=normProd(Object.assign(nuevo(),o&&o.ficha&&o.ficha.v===2?limpio(o.ficha):{}));
   if(!d.puertas||!d.puertas.length)d.puertas=[nuevaPuerta()];
+  fecha0=d.fecha||'';
   if(!d.cli&&o&&o.cliente)d.cli=o.cliente;
   if(!d.empresa&&o&&o.empresa)d.empresa=o.empresa;
   const R0=montar();$('#np-tit').textContent=opts.titulo||'Nueva nota de pedido';$('#np-borr').style.display=opts.borrador===false?'none':'';
