@@ -36,6 +36,7 @@ Correr en orden, una sola vez cada uno:
 9. `supabase/migrations/0009_pedidos_a_carpinterias.sql` (pedidos a la carpintería de aluminio y a la de madera, con sus propios usuarios)
 10. `supabase/migrations/0010_cerrar_aviso_de_cambio.sql` (cuando ventas marca que el cliente aprobó el cambio, el aviso automático queda respondido)
 11. `supabase/migrations/0011_empresas.sql` (empresa de cada vendedor y de cada nota de pedido, para filtrar por razón social)
+12. `supabase/migrations/0012_arquitectura_opcional.sql` (ventas puede mandar el proyecto directo al líder cuando no necesita plano de arquitectura)
 
 ### 2. Publicar la app (Vercel, gratis)
 

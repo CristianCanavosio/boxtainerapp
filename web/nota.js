@@ -22,7 +22,7 @@ const COLORES=['Blanco','Gris claro','Gris grafito','Negro','Azul','Verde inglé
 let paso=0, intento=false, opts={}, archivos=[], ocupado=false;
 const MAX_CROQUIS=3; // archivos del cliente por nota (croquis, planos, fotos)
 const cupoCroquis=()=>Math.max(0,MAX_CROQUIS-(opts.croquisPrevios||0));
-function nuevo(){return {empresa:'',sol:'',cli:'',tel:'',cuit:'',loc:'',maps:'',mapsOk:false,fecha:'',modelo:'',
+function nuevo(){return {empresa:'',arq:'Sí',sol:'',cli:'',tel:'',cuit:'',loc:'',maps:'',mapsOk:false,fecha:'',modelo:'',
   unidades:1,prod:'',tam:'',motor:'',corte:'',lado:'',largo:'',ancho:'',alto:'',
   espacios:[],
   pExt:'',pExtOtro:'',pExtP:false,pInt:'',pIntOtro:'',piso:'',rev:[],revAsig:{},revExt:'',pInterior:'',
@@ -77,7 +77,7 @@ function render(){
   $('#np-prog').innerHTML=PASOS.map((_,i)=>`<span class="${i<=paso?'on':''}"></span>`).join('');
   $('#np-h-sub').textContent=`Paso ${paso+1} de 7 · ${PASOS[paso]}`;
   $('#np-b-atras').textContent=paso?'← Atrás':'Cancelar';
-  $('#np-b-sig').textContent=paso===6?(opts.enviar?'Enviar a arquitectura ✓':'Guardar nota ✓'):'Siguiente →';
+  $('#np-b-sig').textContent=paso===6?(opts.enviar?(d.arq==='No'?'Enviar al líder ✓':'Enviar a arquitectura ✓'):'Guardar nota ✓'):'Siguiente →';
   const errs=intento?errores():[];
   const errHTML=errs.length?`<div class="card" style="border-color:var(--err)">${errs.map(x=>`<div class="err">⚠️ ${esc(x)}</div>`).join('')}</div>`:'';
   let h='';
@@ -186,7 +186,9 @@ function render(){
     <div class="card"><div class="lbl">Enviar al cliente para que apruebe</div>
       <button class="add" id="np-b-pdf" style="border-style:solid">📄 Descargar PDF del resumen</button>
       <div class="aviso" style="text-align:left">Incluye todo el pedido y los dos dibujos. Mandalo por WhatsApp y, cuando el cliente responda que está bien, tildá la confirmación de abajo.</div></div>
-    <div class="card"><label class="chk"><input type="checkbox" id="np-confirmado" ${d.confirmado?'checked':''}> El cliente revisó y confirmó este pedido</label></div>`;
+    <div class="card"><label class="chk"><input type="checkbox" id="np-confirmado" ${d.confirmado?'checked':''}> El cliente revisó y confirmó este pedido</label></div>
+    <div class="card"><div class="lbl">¿Necesita plano de arquitectura?</div>${ops('arq',['Sí','No'],d.arq||'Sí')}
+      <div class="aviso" style="text-align:left">${d.arq==='No'?'La nota va directo al líder de operaciones, sin pasar por arquitectura.':'La nota va a arquitectura para que haga el plano.'}</div></div>`;
   }
   $('#np-app').innerHTML=(opts.aviso?`<div class="card pend" style="font-size:13px">${opts.aviso}</div>`:'')+errHTML+h;
 }

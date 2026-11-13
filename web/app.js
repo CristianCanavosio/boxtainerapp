@@ -921,6 +921,9 @@ function abrirNuevoProy(){
 }
 const esNota=p=>!!(p&&p.ficha&&p.ficha.v===2);
 const unidadesDe=p=>esNota(p)?Math.max(1,Math.floor(Number(p.ficha.unidades))||1):1;
+// Arquitectura es opcional: la nota dice si necesita plano
+const destinoNota=f=>f&&f.arq==='No'?'asignacion':'arquitectura';
+const pasoPorArq=p=>(p.flujo||[]).some(x=>x.a==='arquitectura');
 // Crea el proyecto con lo que cargó ventas en la nota de pedido
 async function crearDesdeNota(f,{enviar,archivos}){
   const p={id:nuevoId(),creadoTs:Date.now(),creadoPor:currentUser?.nombre||'',creadoPorId:myId,creadoEn:hoyISO(),
@@ -932,7 +935,7 @@ async function crearDesdeNota(f,{enviar,archivos}){
   p.flujo.push({fecha:hoyISO(),a:p.etapa,autor:currentUser.nombre});
   try{await guardarProyectoOError(p);}catch(e){return false;}
   for(const a of archivos||[]) await subirCroquis(p.id,a);
-  if(enviar) await moverEtapa(p.id,'arquitectura');
+  if(enviar) await moverEtapa(p.id,destinoNota(f));
   else toast('✅ Nota de pedido guardada');
   refrescar();
   return true;
@@ -957,7 +960,7 @@ function editarNota(id){
       try{await guardarProyectoOError(q);}catch(e){return false;}
       if(cambio.length) await avisarCambioNota(id,cambio);
       for(const a of archivos||[]) await subirCroquis(id,a);
-      if(env) await moverEtapa(id,'arquitectura');
+      if(env) await moverEtapa(id,destinoNota(f));
       else toast(cambio.length?'✏️ Nota cambiada: le avisamos a ventas para que la apruebe el cliente':'✅ Nota de pedido guardada');
       refrescar();
       return true;
@@ -1042,7 +1045,10 @@ function verDetalle(id){
   if(MODO==='nube'){
     if(e==='ventas'&&(esOp()||(r==='ventas'&&p.creadoPorId===myId)))
       acciones+=`<div class="accion"><p>Cuando el pedido del cliente esté completo, envialo a arquitectura para que agregue el plano.</p>
-        <button class="btn btn-nar" onclick="moverEtapa('${esc(id)}','arquitectura')">📐 Enviar a Arquitectura</button></div>`;
+        <div class="flex-btns" style="flex-wrap:wrap">
+          <button class="btn btn-nar" onclick="moverEtapa('${esc(id)}','arquitectura')">📐 Enviar a Arquitectura</button>
+          <button class="btn btn-sec" onclick="moverEtapa('${esc(id)}','asignacion')">🧭 Directo al líder (sin plano)</button></div>
+        <div style="font-size:12px;color:var(--gris-m);margin-top:6px">Si el proyecto no necesita plano, mandalo directo al líder de operaciones.</div></div>`;
     if(e==='arquitectura'&&(r==='arquitectura'||esOp())){
       acciones+=`<div class="accion"><p><b>Arquitectura:</b> subí el plano (PDF o imagen) y enviá el proyecto al líder de operaciones.</p>
         ${cassets?`<label class="btn btn-sec" style="cursor:pointer;display:block;text-align:center">⬆️ Subir plano
@@ -1077,7 +1083,8 @@ function verDetalle(id){
         ${conMat?(()=>{const ps=problemaStock(p);return `<p style="font-size:12px;margin-bottom:8px;color:${ps?'var(--rojo)':'var(--verde)'}">${ps?'📦 '+esc(ps)+'. Validalo en la lista de materiales.':'📦 Stock validado de todos los materiales.'}</p>`})()
           :`<label class="check" style="margin-bottom:10px"><input type="checkbox" id="as-stock"> Verifiqué que hay stock (o compra confirmada) de los materiales críticos para arrancar</label>`}
         <div class="flex-btns">
-          <button class="btn btn-sec" onclick="moverEtapa('${esc(id)}','arquitectura')">↩️ Devolver a Arq.</button>
+          ${pasoPorArq(p)?`<button class="btn btn-sec" onclick="moverEtapa('${esc(id)}','arquitectura')">↩️ Devolver a Arq.</button>`
+            :`<button class="btn btn-sec" onclick="moverEtapa('${esc(id)}','ventas')">↩️ Devolver a Ventas</button>`}
           <button class="btn btn-verde" onclick="asignar('${esc(id)}')">✅ Asignar y comenzar</button>
         </div></div>`;
     }
@@ -1173,13 +1180,14 @@ function verDetalle(id){
 
 async function moverEtapa(id,a){
   const p=limpiar(todos[id]); if(!p) return;
-  if(a==='arquitectura'&&etapaDe(p)==='ventas'){
+  const desde=etapaDe(p);
+  if((a==='arquitectura'||a==='asignacion')&&desde==='ventas'){
     const falta=fichaFaltantes(p);
     if(falta.length){
       if(esNota(p)){toast('⚠️ Completá la nota de pedido: '+falta[0]);closeOverlay('m-det');editarNota(id);return;}
       toast('⚠️ Completá la ficha técnica: '+falta.join(', '));closeOverlay('m-det');editarProy(id);return;}
   }
-  if(a==='asignacion'){
+  if(a==='asignacion'&&desde==='arquitectura'){
     const nota=document.getElementById('det-notaarq'); if(nota) p.notaArq=nota.value.trim();
     const ver=document.getElementById('det-verif');
     if(ver&&!ver.checked){toast('⚠️ Confirmá que verificaste el plano contra la ficha técnica');return;}
