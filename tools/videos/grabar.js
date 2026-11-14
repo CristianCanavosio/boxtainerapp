@@ -4,8 +4,9 @@
 //
 // Uso:   node tools/videos/grabar.js            (todos)
 //        node tools/videos/grabar.js ventas lider   (solo esos)
-// Requiere: Node 18+, Playwright con Chromium, ffmpeg con libass, y Piper para la voz (pip install piper-tts).
-// La voz se baja sola la primera vez (ver VOZ_URL). Con SIN_VOZ=1 sale solo con subtítulos.
+// Requiere: Node 18+, Playwright con Chromium, ffmpeg con libass, y Kokoro para la voz (pip install kokoro-onnx soundfile).
+// El modelo de voz se baja solo la primera vez (ver VOZ_URL). Con SIN_VOZ=1 sale solo con subtítulos.
+// VOZ=em_alex usa la voz de hombre (por defecto ef_dora, voz de mujer).
 // Los MP4 quedan en web/recursos/videos/<clave>.mp4, que es lo que muestra la pestaña Recursos.
 const fs=require('fs'), path=require('path'), crypto=require('crypto'), {execFileSync}=require('child_process');
 const {chromium}=require('playwright');
@@ -13,8 +14,8 @@ const datos=require('./datos');
 
 const RAIZ=path.resolve(__dirname,'../..'), WEB=path.join(RAIZ,'web'), SALIDA=path.join(WEB,'recursos/videos');
 const TMP=path.join(__dirname,'.tmp'), CACHE=path.join(__dirname,'.cache');
-const VOZ_URL='https://github.com/rhasspy/piper/releases/download/v0.0.2/voice-es-mls_10246-low.tar.gz';
-const VOZ_ONNX=path.join(CACHE,'voz','es-mls_10246-low.onnx');
+const VOZ_URL='https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/';
+const VOZ_DIR=path.join(CACHE,'kokoro'), VOZ=process.env.VOZ||'ef_dora', VOZ_VEL='1.05';
 const ANCHO=390, ALTO=780, ESCALA=2, BANDA=250;      // celular de 390×780 px; banda de subtítulos abajo
 const ORIGEN='https://app.prueba';   // https: la app usa crypto.randomUUID, que pide contexto seguro
 const CDN_SUPABASE=/cdn\.jsdelivr\.net\/npm\/@supabase\/supabase-js/;
@@ -23,18 +24,23 @@ const CDN_SUPABASE=/cdn\.jsdelivr\.net\/npm\/@supabase\/supabase-js/;
 // ── voz ──
 function prepararVoz(){
   if(process.env.SIN_VOZ) return false;
-  if(!fs.existsSync(VOZ_ONNX)){
-    const dir=path.dirname(VOZ_ONNX); fs.mkdirSync(dir,{recursive:true});
-    console.log('Bajando la voz de Piper…');
-    execFileSync('curl',['-sSL','-o',path.join(dir,'v.tgz'),VOZ_URL]);
-    execFileSync('tar',['xzf','v.tgz'],{cwd:dir});
+  fs.mkdirSync(VOZ_DIR,{recursive:true});
+  for(const f of ['kokoro-v1.0.onnx','voices-v1.0.bin']) if(!fs.existsSync(path.join(VOZ_DIR,f))){
+    console.log('Bajando el modelo de voz ('+f+')…');
+    execFileSync('curl',['-sSL','-o',path.join(VOZ_DIR,f),VOZ_URL+f]);
   }
   return true;
 }
+const wavDe=texto=>path.join(CACHE,VOZ+'-'+crypto.createHash('sha1').update(VOZ_VEL+texto).digest('hex').slice(0,16)+'.wav');
+// genera de una vez todas las frases que faltan (cargar el modelo tarda)
+function generarVoces(textos){
+  const faltan=[...new Set(textos)].filter(t=>!fs.existsSync(wavDe(t))).map(t=>[t,wavDe(t)]);
+  if(faltan.length) execFileSync('python3',[path.join(__dirname,'voz.py'),path.join(VOZ_DIR,'kokoro-v1.0.onnx'),path.join(VOZ_DIR,'voices-v1.0.bin'),VOZ,VOZ_VEL],
+    {input:JSON.stringify(faltan),stdio:['pipe','inherit','inherit']});
+}
 function duracion(f){return Number(execFileSync('ffprobe',['-v','error','-show_entries','format=duration','-of','csv=p=0',f]).toString().trim());}
 function sintetizar(texto){
-  const h=crypto.createHash('sha1').update(texto).digest('hex').slice(0,16), f=path.join(CACHE,h+'.wav');
-  if(!fs.existsSync(f)) execFileSync('python3',['-m','piper','-m',VOZ_ONNX,'--length_scale','0.92','-f',f],{input:texto});
+  const f=wavDe(texto); if(!fs.existsSync(f)) generarVoces([texto]);
   return {archivo:f,dur:duracion(f)};
 }
 // La voz lee mejor sin emojis ni comillas
@@ -183,7 +189,7 @@ async function grabar(nombre,voz){
   const user=datos.U[guion.usuario];
   // la voz se genera antes de grabar, para que no queden pausas en el video
   if(voz){const src=fs.readFileSync(require.resolve('./guiones/'+nombre),'utf8');
-    for(const m of src.matchAll(/g\.decir\('((?:[^'\\]|\\.)*)'/g)) sintetizar(paraVoz(m[1].replace(/\\'/g,"'")));}
+    generarVoces([...src.matchAll(/g\.decir\('((?:[^'\\]|\\.)*)'/g)].map(m=>paraVoz(m[1].replace(/\\'/g,"'"))));}
   const db=datos(); if(guion.preparar) guion.preparar(db,datos);
   const browser=await chromium.launch({args:['--lang=es-AR']});
   const ctx=await browser.newContext({viewport:{width:ANCHO,height:ALTO},deviceScaleFactor:ESCALA,locale:'es-AR',timezoneId:'America/Argentina/Cordoba',
@@ -221,7 +227,7 @@ async function grabar(nombre,voz){
   }
   const out=path.join(SALIDA,nombre+'.mp4');
   args.push('-filter_complex',filtro,'-map','[v]');
-  if(conAudio.length) args.push('-map','[a]','-c:a','aac','-b:a','64k','-ac','1');
+  if(conAudio.length) args.push('-map','[a]','-c:a','aac','-b:a','96k','-ac','1');
   args.push('-c:v','libx264','-preset','slow','-crf','30','-movflags','+faststart',out);
   execFileSync('ffmpeg',args,{stdio:'inherit'});
   fs.rmSync(path.dirname(video),{recursive:true,force:true});
