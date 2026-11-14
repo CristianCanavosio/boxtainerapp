@@ -27,10 +27,11 @@ de cada tarjeta están en `web/recursos.js` (`REC_BASE`).
 2. **Volver a grabar con este programa** cuando cambie la app: se edita el guion del rol y se corre:
 
    ```bash
-   pip install piper-tts                 # voz en español (se baja sola la primera vez)
+   pip install kokoro-onnx soundfile    # voz en español (el modelo se baja solo la primera vez)
    node tools/videos/grabar.js           # todos los videos
    node tools/videos/grabar.js lider     # solo uno
    SIN_VOZ=1 node tools/videos/grabar.js supervisor   # solo subtítulos, sin voz
+   VOZ=em_alex node tools/videos/grabar.js            # voz de hombre (por defecto, voz de mujer)
    DEBUG=1 node tools/videos/grabar.js ventas         # muestra cada frase mientras graba
    ```
 
