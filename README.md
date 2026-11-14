@@ -39,6 +39,7 @@ Correr en orden, una sola vez cada uno:
 12. `supabase/migrations/0012_arquitectura_opcional.sql` (ventas puede mandar el proyecto directo al líder cuando no necesita plano de arquitectura)
 13. `supabase/migrations/0013_parte_diario_y_pintura.sql` (personas y horas en el parte diario, pintura en tachos de 20 l y receta de materiales por tipología)
 14. `supabase/migrations/0014_buzon_de_sugerencias.sql` (buzón de sugerencias de mejora con texto, fotos y audio, que llegan por correo; ver "Buzón de sugerencias" abajo)
+15. `supabase/migrations/0015_recursos.sql` (pestaña Recursos: el administrador puede reemplazar los videos y guías desde la app; ver "Recursos" abajo)
 
 ### 2. Publicar la app (Vercel, gratis)
 
@@ -125,4 +126,11 @@ Cada sugerencia nueva se manda por correo (con fotos y audio adjuntos) a `licari
 3. En Supabase → SQL Editor: `select vault.create_secret('re_LA_CLAVE', 'resend_api_key');`
 
 Opcional: para mandar a otro correo, `select vault.create_secret('otro@correo.com', 'sugerencias_destino');`. Para mandar desde una dirección de la empresa hay que verificar el dominio en Resend y cargar `sugerencias_remitente` (por ejemplo `Buzón BoxTainer <mejoras@empresa.com>`). Sin la clave, las sugerencias se guardan igual y aparecen en la app con "Sin enviar".
+
+## Recursos (videos y guías por rol)
+
+La pestaña **🎬 Recursos** la ven todos los roles. Cada uno ve primero el video corto y el paso a paso de su rol, y puede mirar los de los demás con **Todos los roles**.
+
+- Los videos que trae la app están en `web/recursos/videos/` y se graban solos con `tools/videos/grabar.js` sobre datos de prueba (ver `tools/videos/README.md`).
+- El administrador puede actualizarlos **sin tocar código**: Recursos → **✏️ Editar** → subir el video nuevo (hasta 50 MB) o pegar un enlace de YouTube/Drive, y corregir título, pasos y roles. Con **➕ Nuevo recurso** suma otros videos, manuales en PDF o enlaces. Para esto hay que correr `0015_recursos.sql`; sin ella se ven los videos que trae la app.
 
