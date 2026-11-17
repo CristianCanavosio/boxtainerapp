@@ -790,7 +790,9 @@ function calcAvanceEsperado(p){
 function costoInfo(p){
   // la plata (presupuesto de obra y gastos reales) la ve solo el administrador
   const soloAdmin=MODO==='nube'&&!esAdmin();
-  const pres=soloAdmin?{}:(p.presup||{}), por={};
+  // presupuesto: en las notas de pedido sale solo del costeo (nota × lista de costos); en las fichas viejas, el cargado a mano
+  const cn=!soloAdmin&&typeof costoNota==='function'?costoNota(p):null;
+  const pres=soloAdmin?{}:cn?cn.por:(p.presup||{}), por={};
   let presTot=0, realTot=0;
   for(const k in RUBROS){por[k]={pres:Number(pres[k])||0,real:0};presTot+=por[k].pres;}
   (soloAdmin?[]:(p.costos||[])).forEach(c=>{const k=por[c.rubro]?c.rubro:'otr';por[k].real+=Number(c.importe)||0;realTot+=Number(c.importe)||0;});
@@ -854,6 +856,8 @@ function proyCard(p){
       ${drLabel}
       ${desv?`<span class="badge b-rojo">⚠️ ${costoDesviado(p)?'DESVÍO DE COSTO':'DESVIADO'}</span>`:''}
       ${p.val?`<span class="badge b-verde">💰 ${usd(p.val)}</span>`:''}
+      ${(()=>{const cn=costoNota(p);if(!cn||!cn.total) return '';const m=p.val&&!cn.sinPrecio.length?(Number(p.val)-cn.total)/Number(p.val)*100:null;
+        return `<span class="badge ${m!=null&&m<0?'b-rojo':'b-gris'}">🔒 Costo ${usd(cn.total)}${m!=null?' · margen '+m.toFixed(0)+'%':''}${cn.sinPrecio.length?' · faltan '+cn.sinPrecio.length+' precios':''}</span>`;})()}
     </div>
   </div>`;
 }
@@ -983,6 +987,9 @@ function prepararModalProy(){
   const op=esOp();
   document.querySelectorAll('#m-proy .campo-op').forEach(el=>el.style.display=op?'':'none');
   if(MODO==='nube'&&!esAdmin()) document.getElementById('ep-presup-box').style.display='none';
+  // con nota de pedido el presupuesto sale solo del costeo: no se carga a mano
+  const pid=document.getElementById('ep-id').value, pe=pid&&todos[pid];
+  if(pe&&esNota(pe)) document.getElementById('ep-presup-box').style.display='none';
   document.getElementById('ep-sup').style.display=MODO==='local'?'':'none';
   document.getElementById('ep-supid').style.display=MODO==='nube'?'':'none';
 }
