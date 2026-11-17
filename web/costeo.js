@@ -23,7 +23,10 @@ async function cargarCosteo(){
 // Líneas del costeo: lo que sale de la nota + correcciones + líneas a mano
 function costeoDe(p){
   const c=costeos[p.id]||{ajustes:{},extras:[]};
-  const base=esNota(p)?NotaPedido.lineasCosteo(p.ficha):[];
+  // lo de la nota + la receta de su tipología (si un material está en las dos, manda la receta)
+  let base=esNota(p)?NotaPedido.lineasCosteo(p.ficha):[];
+  const rec=typeof lineasReceta==='function'?lineasReceta(p):[];
+  if(rec.length){const k=new Set(rec.map(x=>x.clave));base=base.filter(x=>!k.has(x.clave)).concat(rec);}
   const lineas=base.map(x=>{
     const k=x.clave+(x.det?' | '+x.det:'');
     const precio=listaCostos[x.clave];
@@ -41,6 +44,8 @@ function costeoDe(p){
   const pend=lineas.filter(x=>x.pend);
   return {lineas,extras,por,total,sinPrecio,pend,guardado:c.total};
 }
+// costo de la nota para las tarjetas y el resumen (solo administrador)
+function costoNota(p){if(!esAdmin()||!costeoListo||!esNota(p)) return null; return costeoDe(p);}
 const num=v=>{const n=Number(String(v).replace(',','.'));return isFinite(n)?n:0};
 const fmt2=n=>(Math.round(n*100)/100).toLocaleString('es-AR');
 
@@ -50,37 +55,39 @@ function seccionCosteo(p){
   if(!esNota(p)) return `<div class="dsec"><h3>🔒 Costeo del pedido</h3><div style="font-size:13px">Este proyecto tiene la ficha anterior: el costeo automático necesita la nota de pedido nueva.</div></div>`;
   const c=costeoDe(p), id=esc(p.id), val=Number(p.val)||0;
   const margen=val?val-c.total:null;
+  // el total queda guardado solo (para reportes), sin botón
+  if(c.guardado==null||Math.abs((Number(c.guardado)||0)-c.total)>=0.5) setTimeout(()=>guardarFilaCosteo(p.id),0);
   return `<div class="dsec costeo"><h3>🔒 Costeo del pedido <span style="font-weight:400;color:var(--gris-m);font-size:11px">solo vos lo ves</span></h3>
-    ${c.sinPrecio.length?`<div class="cst-aviso">Faltan precios en ${c.sinPrecio.length} ítem${c.sinPrecio.length>1?'s':''}: cargalos acá abajo o en la pestaña Costos.</div>`:''}
+    <div style="font-size:12px;color:var(--gris-m);margin-bottom:8px">Se calcula solo: cantidades de la nota de pedido y de la receta de la tipología, por el precio de cada material en la pestaña Costos.</div>
+    ${c.sinPrecio.length?`<div class="cst-aviso">Faltan precios en ${c.sinPrecio.length} ítem${c.sinPrecio.length>1?'s':''}: ${esc(c.sinPrecio.slice(0,3).map(x=>x.clave).join(', '))}${c.sinPrecio.length>3?'…':''}.
+      <button class="btn btn-sec btn-sm" style="margin-top:6px" onclick="closeOverlay('m-det');filtroCostos='';showView('costos')">Cargarlos en Costos</button></div>`:''}
     ${c.pend.length?`<div class="cst-aviso amar">Hay ítems "a confirmar" en la nota: el costo puede cambiar.</div>`:''}
     <div class="cst-tabla">
       <div class="cst-h"><span>Ítem</span><span>Cant.</span><span>Costo u.</span><span>Subtotal</span></div>
       ${c.lineas.map(x=>`<div class="cst-f ${x.costo?'':'sinp'}">
         <span>${esc(x.clave)}${x.det?`<small>${esc(x.det)}</small>`:''}</span>
-        <span><input type="number" step="0.01" value="${x.cant}" onchange="ajustarCant('${id}',${esc(JSON.stringify(x.k))},this.value,${x.cantNota})">
-          <small>${esc(x.unidad)}${x.ajustada?' · ajustado':''}</small></span>
-        <span><input type="number" step="0.01" placeholder="USD" value="${x.costo??''}" onchange="ponerPrecio(${esc(JSON.stringify(x.clave))},this.value,'${x.rubro}','${esc(x.unidad)}','${id}')"></span>
+        <span><input type="number" step="0.01" value="${x.cant}" title="Cantidad calculada de la nota: corregila solo si hace falta" onchange="ajustarCant('${id}',${esc(JSON.stringify(x.k))},this.value,${x.cantNota})">
+          <small>${esc(x.unidad)}${x.ajustada?' · corregido':''}${x.receta?' · receta':''}</small></span>
+        <span class="cst-pu">${x.costo?usd(x.costo):'<b style="color:var(--rojo)">sin precio</b>'}</span>
         <span class="cst-sub">${x.costo!=null?usd(x.sub):'—'}</span></div>`).join('')}
       ${c.extras.map(x=>`<div class="cst-f extra">
         <span>${esc(x.desc)}<small>${esc(RUBROS[x.rubro]||'Otros')} · agregado a mano <a href="#" onclick="quitarExtra(event,'${id}',${x.i})">quitar</a></small></span>
         <span>${fmt2(Number(x.cant)||0)}</span><span>${usd(x.costo)}</span><span class="cst-sub">${usd(x.sub)}</span></div>`).join('')}
     </div>
-    <div class="cst-add">
+
+    ${Object.entries(RUBROS).map(([k,v])=>`<div class="drow"><span class="lbl">${v}</span><span class="val">${usd(c.por[k])}</span></div>`).join('')}
+    <div class="drow"><span class="lbl"><b>Costo total</b></span><span class="val">${usd(c.total)}</span></div>
+    <div class="drow"><span class="lbl">Valor de venta</span><span class="val">${val?usd(val):'— (sin cargar)'}</span></div>
+    ${margen!=null?`<div class="drow"><span class="lbl">Margen</span><span class="val" style="color:${margen<0?'var(--rojo)':'var(--verde)'}">${usd(margen)} (${(margen/val*100).toFixed(1)}%)</span></div>`:''}
+    <details style="margin-top:8px;font-size:12px"><summary style="cursor:pointer;color:var(--gris-m)">➕ Agregar un costo que no está en la nota (flete, extra)</summary>
+    <div class="cst-add" style="margin-top:6px">
       <input id="cx-desc" placeholder="Agregar ítem (ej: flete Mendoza)">
       <input id="cx-cant" type="number" step="0.01" placeholder="Cant." value="1">
       <input id="cx-costo" type="number" step="0.01" placeholder="Costo u.">
       <select id="cx-rubro">${Object.entries(RUBROS).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select>
       <button class="btn btn-sec btn-sm" onclick="agregarExtra('${id}')">＋</button>
     </div>
-    ${Object.entries(RUBROS).map(([k,v])=>`<div class="drow"><span class="lbl">${v}</span><span class="val">${usd(c.por[k])}</span></div>`).join('')}
-    <div class="drow"><span class="lbl"><b>Costo total</b></span><span class="val">${usd(c.total)}</span></div>
-    <div class="drow"><span class="lbl">Valor de venta</span><span class="val">${val?usd(val):'— (sin cargar)'}</span></div>
-    ${margen!=null?`<div class="drow"><span class="lbl">Margen</span><span class="val" style="color:${margen<0?'var(--rojo)':'var(--verde)'}">${usd(margen)} (${(margen/val*100).toFixed(1)}%)</span></div>`:''}
-    <div class="flex-btns" style="margin-top:10px">
-      <button class="btn btn-nar btn-sm" onclick="guardarCosteo('${id}')">💾 Guardar costeo</button>
-      <button class="btn btn-sec btn-sm" onclick="costeoAPresupuesto('${id}')">➡️ Usar como presupuesto de obra</button>
-    </div>
-    ${c.guardado!=null?`<div style="font-size:11px;color:var(--gris-m);margin-top:6px">Último costeo guardado: ${usd(c.guardado)}</div>`:''}
+    </details>
   </div>`;
 }
 
@@ -121,18 +128,6 @@ async function quitarExtra(ev,pid,i){
   const c=costeos[pid]; if(!c) return;
   c.extras.splice(i,1); await guardarFilaCosteo(pid); verDetalle(pid);
 }
-async function guardarCosteo(pid){await guardarFilaCosteo(pid); toast('✅ Costeo guardado'); verDetalle(pid);}
-// El líder ve solo los totales por rubro como presupuesto de obra, nunca los precios unitarios
-async function costeoAPresupuesto(pid){
-  const p=todos[pid]; if(!p) return;
-  const c=costeoDe(p);
-  if(c.sinPrecio.length&&!await confirmar(`Faltan precios en ${c.sinPrecio.length} ítems. ¿Pasar igual los totales al presupuesto de obra?`)) return;
-  const q=limpiar(p);
-  q.presup={mat:Math.round(c.por.mat),mo:Math.round(c.por.mo),ter:Math.round(c.por.ter),otr:Math.round(c.por.otr)};
-  await guardarFilaCosteo(pid);
-  await guardarProyecto(q); toast('✅ Presupuesto de obra actualizado con los totales del costeo'); verDetalle(pid);
-}
-
 // ── Pestaña Costos: lista de precios unitarios ──
 let filtroCostos='';
 function catalogoCostos(){

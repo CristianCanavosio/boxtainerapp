@@ -179,3 +179,4 @@
 .pc-fila2 input:first-child{flex:1;min-width:0}
 .pc-fila2 input{width:auto}
 .pc-res{grid-template-columns:repeat(2,1fr)}
+.cst-pu{text-align:right;font-size:12px}
