@@ -64,7 +64,8 @@ Cuando esté terminado, tocá "Está listo" para que coordinen el retiro.
 El semáforo muestra los pedidos sin responder y los que vencen pronto.`},
   {clave:'admin',orden:60,roles:['admin'],titulo:'Administrador: usuarios, costos y recursos',
     descripcion:'Dar acceso y roles, ver costos y desvíos en plata, gestionar sugerencias y actualizar estos videos.',
-    pasos:`En Usuarios aprobá a quien se registró eligiendo su rol. Ahí mismo cambiás el rol o la empresa de cada vendedor.
+    pasos:`En Usuarios aprobá a quien se registró eligiendo su rol. Ahí mismo cambiás el rol, el nombre o la empresa de cada uno.
+Si un vendedor se va, creale la cuenta al nuevo y pasale los pedidos con "Pasar sus pedidos a otro vendedor": en el recorrido queda anotado el cambio.
 Si cambiás el rol de un supervisor con proyectos a cargo, la app avisa para reasignarlos.
 En Costos mantenés la lista de precios (a mano o importando Excel o PDF de proveedores). Toda la plata la ves solo vos.
 En cada proyecto ves el costeo y el desvío de materiales en dólares.
