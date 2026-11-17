@@ -532,17 +532,24 @@ function renderUsuarios(){
     <div class="sec-title">👥 Equipo con acceso (${miembros.length})</div>
     <div class="card">
       ${miembros.map(([id,r],i)=>id===myId?`<div class="persona-item"><div class="avatar" style="background:var(--morado)">${esc(nombreDe(id)).charAt(0).toUpperCase()}</div>
-        <div class="persona-info"><div class="persona-nombre">${esc(nombreDe(id))} (vos)</div><div class="persona-rol">${ROLES[r.rol]} · ${esc(perfiles[id]?.email)}</div>
+        <div class="persona-info"><div class="persona-nombre" id="pn-${esc(id)}">${esc(nombreDe(id))} (vos) ${btnNombre(id)}</div><div class="persona-rol">${ROLES[r.rol]} · ${esc(perfiles[id]?.email)}</div>
           <div style="margin-top:6px">${selectEmpresa(id)}</div></div></div>`
       :`<div class="persona-item">
         <div class="avatar" style="background:${r.rol==='admin'?'var(--morado)':'var(--nar)'}">${esc(nombreDe(id)).charAt(0).toUpperCase()}</div>
-        <div class="persona-info"><div class="persona-nombre">${esc(nombreDe(id))}</div><div class="persona-rol">${esc(perfiles[id]?.email)}</div>
+        <div class="persona-info"><div class="persona-nombre" id="pn-${esc(id)}">${esc(nombreDe(id))} ${btnNombre(id)}</div><div class="persona-rol">${esc(perfiles[id]?.email)}</div>
           <div style="margin-top:6px">${selectEmpresa(id)}</div>
           <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">${selectRol('mr-rol-'+i,r.rol)}
           <button class="btn btn-sec btn-sm" onclick="cambiarRol('${esc(id)}','mr-rol-${i}')">Guardar</button>
-          <button class="btn btn-rojo btn-sm" onclick="quitarAcceso('${esc(id)}')">Quitar</button></div></div></div>`).join('')}
+          <button class="btn btn-rojo btn-sm" onclick="quitarAcceso('${esc(id)}')">Quitar</button></div>
+          ${pedidosDeVendedor(id).length?`<div style="margin-top:6px"><button class="btn btn-sec btn-sm" onclick="abrirPasarPedidos('${esc(id)}')">↪️ Pasar sus ${pedidosDeVendedor(id).length} pedido${pedidosDeVendedor(id).length>1?'s':''} a otro vendedor</button>
+            <div id="pp-${esc(id)}"></div></div>`:''}</div></div>`).join('')}
     </div>`;
+  // si llega una recarga mientras se edita, se vuelve a abrir lo que estaba abierto
+  if(uEdit.nombre&&perfiles[uEdit.nombre.uid]){const v=uEdit.nombre.valor;editarNombre(uEdit.nombre.uid);document.getElementById('pn-in-'+uEdit.nombre.uid).value=v;}
+  if(uEdit.pasar&&perfiles[uEdit.pasar.uid]&&pedidosDeVendedor(uEdit.pasar.uid).length){const v=uEdit.pasar.valor;abrirPasarPedidos(uEdit.pasar.uid);const se=document.getElementById('pp-sel-'+uEdit.pasar.uid);if(se)se.value=v;}
 }
+const uEdit={nombre:null,pasar:null};
+
 // Empresa de cada persona: se usa como empresa sugerida en sus notas de pedido
 function selectEmpresa(uid){
   const a=perfiles[uid]?.empresa||'';
@@ -583,9 +590,73 @@ async function cambiarRol(uid,selId){
   try{await ponerRol(uid,r); toast('✅ Rol actualizado: '+ROLES[r]); renderUsuarios();}catch(e){toast(msgError(e));}
 }
 async function quitarAcceso(uid){
-  if(!await confirmar('¿Quitarle el acceso a '+nombreDe(uid)+'? Su cuenta queda sin rol y no ve nada. Para borrarla del todo, eliminala en Supabase → Authentication.')) return;
+  const ped=pedidosDeVendedor(uid).length;
+  if(!await confirmar('¿Quitarle el acceso a '+nombreDe(uid)+'? Su cuenta queda sin rol y no ve nada. Para borrarla del todo, eliminala en Supabase → Authentication.'
+    +(ped?` Tiene ${ped} pedido${ped>1?'s':''} sin terminar: antes conviene pasarlos a otro vendedor con "↪️ Pasar sus pedidos".`:''))) return;
   if(!await pedirReasignacion(uid,'Sin acceso no va a poder actualizarlos.')) return;
   try{await ponerRol(uid,'pendiente'); toast('Acceso quitado'); marcarSolicitudes(); renderUsuarios();}catch(e){toast(msgError(e));}
+}
+
+// ── Nombre de una persona (lo cambia el administrador) ──
+function btnNombre(uid){return `<button class="btn btn-sec btn-sm" style="padding:2px 8px;font-size:11px;margin-left:4px" onclick="editarNombre('${esc(uid)}')">✏️ Nombre</button>`;}
+function editarNombre(uid){
+  const el=document.getElementById('pn-'+uid); if(!el) return;
+  el.innerHTML=`<div style="display:flex;gap:6px;flex-wrap:wrap"><input id="pn-in-${esc(uid)}" value="${esc(perfiles[uid]?.nombre||'')}" maxlength="80" placeholder="Nombre y apellido" style="flex:1;min-width:140px;padding:7px;border:1.5px solid var(--borde);border-radius:8px;font-size:13px">
+    <button class="btn btn-verde btn-sm" onclick="guardarNombre('${esc(uid)}')">Guardar</button><button class="btn btn-sec btn-sm" onclick="uEdit.nombre=null;renderUsuarios()">Cancelar</button></div>
+    <div style="font-size:11px;font-weight:400;color:var(--gris-m);margin-top:4px">El nombre nuevo aparece también en todo lo que ya cargó esta cuenta. Si es otra persona que usa el mismo correo, conviene una cuenta nueva y pasarle los pedidos.</div>`;
+  const inp=document.getElementById('pn-in-'+uid);
+  uEdit.nombre={uid,valor:inp.value}; inp.oninput=()=>uEdit.nombre.valor=inp.value; inp.focus();
+}
+async function guardarNombre(uid){
+  const n=document.getElementById('pn-in-'+uid).value.replace(/\s+/g,' ').trim();
+  if(n.length<2){toast('⚠️ Escribí el nombre y apellido');return;}
+  if(n===perfiles[uid]?.nombre){uEdit.nombre=null;renderUsuarios();return;}
+  try{
+    const {data,error}=await sb.from('perfiles').update({nombre:n}).eq('id',uid).select('id');
+    if(error) throw error; if(!data||!data.length) throw {code:'42501',message:'permission'};
+    // los proyectos guardan el nombre del vendedor como texto: se actualiza en los suyos
+    const suyos=Object.values(todos).filter(p=>p.vendId===uid).map(p=>p.id);
+    for(let i=0;i<suyos.length;i+=100) chk(await sb.from('proyectos').update({vendedor:n}).in('id',suyos.slice(i,i+100)));
+    perfiles[uid].nombre=n; if(roles[uid]) roles[uid].nombre=n;
+    if(uid===myId){miNombre=n; currentUser.nombre=n; pintarHeader();}
+    uEdit.nombre=null; toast('✅ Nombre actualizado: '+n); programarRecarga(300); renderUsuarios();
+  }catch(e){toast(msgError(e));}
+}
+// ── Pasar los pedidos de un vendedor a otro (por ejemplo, cuando alguien se va) ──
+function pedidosDeVendedor(uid){
+  return Object.values(todos).filter(p=>(p.vendId===uid||p.creadoPorId===uid)&&p.estado!=='finalizado');
+}
+function abrirPasarPedidos(uid){
+  const box=document.getElementById('pp-'+uid); if(!box) return;
+  const otros=Object.entries(perfiles).filter(([id,x])=>id!==uid&&(x.rol==='ventas'||x.rol==='admin')).sort((a,b)=>(a[1].nombre||'').localeCompare(b[1].nombre||''));
+  if(!otros.length){toast('⚠️ No hay otro vendedor con acceso. Primero creale la cuenta al nuevo y dale el rol Ventas');return;}
+  const ls=pedidosDeVendedor(uid);
+  uEdit.pasar={uid,valor:''};
+  box.innerHTML=`<div class="card" style="margin-top:6px;padding:10px">
+    <div style="font-size:12px;margin-bottom:6px">Pedidos sin terminar de <b>${esc(nombreDe(uid))}</b>:</div>
+    ${ls.map(p=>`<div class="drow"><span class="lbl">${esc(p.nombre)}</span><span class="val">${ETAPA[etapaDe(p)]?.label||''}</span></div>`).join('')}
+    <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap"><select id="pp-sel-${esc(uid)}" onchange="uEdit.pasar.valor=this.value" style="flex:1;padding:7px;border:1.5px solid var(--borde);border-radius:8px;font-size:12px">
+      <option value="">¿A quién se los pasás?</option>${otros.map(([id,x])=>`<option value="${esc(id)}">${esc(x.nombre||x.email)} · ${ROLES[x.rol]}</option>`).join('')}</select>
+      <button class="btn btn-verde btn-sm" onclick="pasarPedidos('${esc(uid)}')">Pasar</button></div>
+    <button class="btn btn-sec btn-sm" style="margin-top:6px" onclick="uEdit.pasar=null;renderUsuarios()">Cancelar</button>
+    <div style="font-size:11px;color:var(--gris-m);margin-top:4px">El nuevo vendedor los ve, los edita y responde sus consultas. En el recorrido de cada proyecto queda anotado el cambio.</div></div>`;
+}
+async function pasarPedidos(uid){
+  const a=document.getElementById('pp-sel-'+uid).value;
+  if(!a){toast('⚠️ Elegí a quién pasárselos');return;}
+  const de=nombreDe(uid), para=nombreDe(a), ls=pedidosDeVendedor(uid);
+  uEdit.pasar=null;
+  if(!await confirmar(`¿Pasar ${ls.length} pedido${ls.length>1?'s':''} de ${de} a ${para}?`)) return;
+  let ok=0;
+  try{
+    for(const p of ls){
+      chk(await sb.from('proyectos').update({vendedor_id:a,vendedor:para,creado_por:a}).eq('id',p.id));
+      chk(await sb.from('recorrido').insert({proyecto_id:p.id,a_etapa:etapaDe(p),detalle:`${currentUser.nombre}: pedido pasado de ${de} a ${para}`}));
+      ok++;
+    }
+    toast(`✅ ${ok} pedido${ok>1?'s':''} pasado${ok>1?'s':''} a ${para}`);
+  }catch(e){toast(msgError(e)+(ok?` (se pasaron ${ok})`:''));}
+  await cargarTodo(); decidirAcceso(); renderUsuarios();
 }
 
 // ════════════════════════════════════════════════
