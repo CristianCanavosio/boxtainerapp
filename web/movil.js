@@ -32,7 +32,7 @@ function pintarBnav(){
   const el=document.getElementById('bnav'); if(!el||!currentUser) return;
   const barra=barraDeRol(), resto=tabsPermitidas().filter(v=>!barra.includes(v));
   el.innerHTML=barra.map(v=>`<button class="bn-btn${v===vistaActual?' on':''}" onclick="showView('${v}')" data-bview="${v}">
-      <span class="bn-i"><i>${VISTAS[v]?.i||'•'}</i>${v==='dashboard'&&badgeHoy?`<b class="bn-badge">${badgeHoy>9?'9+':badgeHoy}</b>`:''}</span><span class="bn-t">${VISTAS[v]?.t||v}</span></button>`).join('')
+      <span class="bn-i"><i>${VISTAS[v]?.i||'•'}</i>${(()=>{const n=v==='dashboard'?badgeHoy:v==='pedidos'&&typeof pcPendientes==='function'?pcPendientes():0;return n?`<b class="bn-badge">${n>9?'9+':n}</b>`:''})()}</span><span class="bn-t">${v==='pedidos'&&typeof miTaller==='function'&&miTaller()?'Pedidos':VISTAS[v]?.t||v}</span></button>`).join('')
     +`<button class="bn-btn${resto.includes(vistaActual)?' on':''}" onclick="abrirMas()"><span class="bn-i"><i>☰</i></span><span class="bn-t">Más</span></button>`;
   document.body.classList.add('con-bnav');
 }
