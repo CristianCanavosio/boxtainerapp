@@ -62,7 +62,7 @@ showView=function(name){
   const v=VISTAS[vistaActual];
   const h=document.getElementById('header-tit'); if(h) h.textContent=v?v.t:'BoxTainer';
   pintarBnav();
-  window.scrollTo(0,0);
+  window.scrollTo(0,0); const sa=document.getElementById('screen-app'); if(sa) sa.scrollTop=0;
 };
 const _pintarHeader=pintarHeader;
 pintarHeader=function(){

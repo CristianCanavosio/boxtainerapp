@@ -18,9 +18,15 @@
   .nav{display:none}
   body.con-bnav #bnav{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:160;background:#fff;
     border-top:1px solid var(--borde);box-shadow:0 -2px 12px rgba(0,0,0,.08);padding-bottom:env(safe-area-inset-bottom)}
-  body.con-bnav #screen-app{padding-bottom:calc(84px + env(safe-area-inset-bottom))}
+  /* En el iPhone, cuando la página entera se desplaza, Safari achica y agranda la pantalla visible y la barra
+     fija puede quedar flotando a mitad de pantalla. Por eso, con la barra, la página no se desplaza:
+     se desplaza solo el contenido (#screen-app), que termina justo arriba de la barra. */
+  html:has(body.con-bnav),body.con-bnav{height:100%;overflow:hidden;overscroll-behavior:none}
+  body.con-bnav #screen-app{position:fixed;top:0;left:0;right:0;bottom:calc(62px + env(safe-area-inset-bottom));
+    overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding-bottom:24px}
   body.con-bnav .fab{bottom:calc(78px + env(safe-area-inset-bottom))}
   body.con-bnav .toast{bottom:calc(84px + env(safe-area-inset-bottom))}
+  body.con-bnav #bnav{height:calc(62px + env(safe-area-inset-bottom))}
 }
 .bn-btn{flex:1;min-height:62px;border:none;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;
   gap:2px;color:var(--gris-m);font-size:12px;font-weight:700;cursor:pointer;padding:6px 2px}
