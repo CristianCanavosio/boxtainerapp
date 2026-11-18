@@ -180,3 +180,9 @@
 .pc-fila2 input{width:auto}
 .pc-res{grid-template-columns:repeat(2,1fr)}
 .cst-pu{text-align:right;font-size:12px}
+/* Croquis táctil */
+#nota .croq-bar{background:var(--chip);border-radius:10px;padding:10px;margin-bottom:10px}
+#nota .croq-bar.sel{background:var(--nar-l)}
+#nota .croq-t{font-size:13px;margin-bottom:8px;color:var(--tx)}
+#nota svg [data-croq]{cursor:pointer;-webkit-tap-highlight-color:transparent}
+#nota svg .croq-z:active{fill:rgba(232,101,10,.12)}
