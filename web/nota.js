@@ -16,7 +16,23 @@ let fecha0='';               // fecha de entrega con la que se abrió la nota
 const sinCambioFecha=()=>!opts.enviar&&!!fecha0&&d.fecha===fecha0;
 const PROD_MOD=['Módulo habitable','Módulo habitable Company','Oficina','Oficina Company','Sanitario','Pañol','Showroom'];
 const esModulo=p=>PROD_MOD.includes(p)||p==='Módulo habitacional';
-const normProd=x=>{if(x.prod==='Módulo habitacional')x.prod='Módulo habitable';return x};
+// Contenedores (paso 2): cada opción fija el producto y, si corresponde, el tamaño, el lado que se conserva y si es open top.
+// 'Contenedor' es la venta del contenedor tal cual: distribución, terminaciones, aberturas e instalaciones quedan opcionales.
+const CONT={
+  'Cortado 20 DV parte trasera':{prod:'Contenedor cortado',tam:'20 DV',lado:'Parte trasera'},
+  'Cortado 20 DV puerta original':{prod:'Contenedor cortado',tam:'20 DV',lado:'Puertas originales'},
+  'Cortado 40 HC parte trasera':{prod:'Contenedor cortado',tam:'40 HC',lado:'Parte trasera'},
+  'Cortado 40 HC puerta original':{prod:'Contenedor cortado',tam:'40 HC',lado:'Puertas originales'},
+  'Contenedor 20 DV':{prod:'Contenedor',tam:'20 DV',ot:false},
+  'Contenedor 20 DV OT':{prod:'Contenedor',tam:'20 DV',ot:true},
+  'Contenedor 40 HC':{prod:'Contenedor',tam:'40 HC',ot:false},
+  'Contenedor 40 HC OT':{prod:'Contenedor',tam:'40 HC',ot:true},
+  'Contenedor reefers':{prod:'Reefer'}};
+const esSolo=p=>p==='Contenedor'; // venta del contenedor sin transformar
+// Notas guardadas antes de las opciones de contenedor: se les asigna la opción que corresponde
+function contDe(x){if(x.cont&&CONT[x.cont])return x.cont;return Object.keys(CONT).find(k=>{const c=CONT[k];return c.prod===x.prod&&(!c.tam||c.tam===x.tam)&&(!c.lado||c.lado===x.lado)&&(c.ot==null||c.ot===!!x.ot)})||''}
+const normProd=x=>{if(x.prod==='Módulo habitacional')x.prod='Módulo habitable';if(x.prod&&!PROD_MOD.includes(x.prod))x.cont=contDe(x);else x.cont='';return x};
+const nomProd=()=>d.cont||d.prod;
 const ESP={bano:'Baño',cocina:'Cocina',habitacion:'Habitación',oficina:'Oficina'};
 const UBI=['Extremo izquierdo','Centro','Extremo derecho'];
 const PAREDES=['Lateral A','Lateral B','Lado puertas','Lado opuesto'];
@@ -26,21 +42,27 @@ const REV_EXT=['Sin revestimiento','Megacold','Chapa prepintada negra','Chapa pr
 const nuevaPuerta=()=>({tipo:'',med:'',ancho:'',alto:'',pared:'',pos:'',mano:'',prot:''});
 const ITEMS={bano:['Inodoro','Mingitorio','Bidet','Lavamatic','Bacha','Ducha','Mueble','Espejo'],cocina:['Bacha monocomando','Bajo mesada','Alacena','Cocina eléctrica']};
 const COLORES=['Blanco','Gris claro','Gris grafito','Negro','Azul','Verde inglés','Otro'];
+const SIN_PINT='No lleva'; // pintura exterior: el contenedor queda sin pintar por fuera
 let paso=0, intento=false, opts={}, archivos=[], ocupado=false;
 // Croquis táctil: qué se va a ubicar al tocar el dibujo ({pon:'bano'|'puerta'|...} o {sel:id|'p0'|'v1'})
 let herr={};
 const MAX_CROQUIS=3; // archivos del cliente por nota (croquis, planos, fotos)
 const cupoCroquis=()=>Math.max(0,MAX_CROQUIS-(opts.croquisPrevios||0));
+// Hay un plano o croquis para seguir: el que se sube ahora, uno ya subido (del cliente o de arquitectura)
+const hayPlano=()=>!!(archivos.length||opts.croquisPrevios||opts.planosPrevios||d.segunPlano);
+// Con "seguir tal cual plano adjunto" las aberturas no son obligatorias: solo se revisan las que se empezaron a cargar
+const empezada=p=>!!(p.tipo||p.pared||p.mano||p.med);
+const puertasVal=()=>d.segunPlano?d.puertas.filter(empezada):d.puertas;
 function plazoMin(prod){return /Company$/.test(prod||'')?PLAZO_COMPANY:PLAZO_RESTO}
 function fechaMin(dias){const f=new Date();f.setDate(f.getDate()+dias);return f.getFullYear()+'-'+String(f.getMonth()+1).padStart(2,'0')+'-'+String(f.getDate()).padStart(2,'0')}
 // Error si la fecha de entrega no respeta el plazo mínimo del producto (solo al cargar o cambiar la fecha)
 function errPlazo(){if(revisandoGuardada||!d.fecha||!d.prod||sinCambioFecha())return null;const n=plazoMin(d.prod);
-  return d.fecha<fechaMin(n)?`Para ${d.prod} la entrega es como mínimo a ${n} días: poné la fecha desde el ${fechaMin(n).split('-').reverse().join('/')} (paso 1)`:null}
+  return d.fecha<fechaMin(n)?`Para ${nomProd()} la entrega es como mínimo a ${n} días: poné la fecha desde el ${fechaMin(n).split('-').reverse().join('/')} (paso 1)`:null}
 function nuevo(){return {empresa:'',arq:'Sí',sol:'',cli:'',tel:'',cuit:'',loc:'',maps:'',mapsOk:false,fecha:'',modelo:'',
-  unidades:1,prod:'',tam:'',motor:'',corte:'',lado:'',largo:'',ancho:'',alto:'',
+  unidades:1,prod:'',cont:'',ot:false,tam:'',motor:'',corte:'',lado:'',largo:'',ancho:'',alto:'',
   espacios:[],
   pExt:'',pExtOtro:'',pExtP:false,pInt:'',pIntOtro:'',piso:'',rev:[],revAsig:{},revExt:'',pInterior:'',
-  linea:'',puertas:[nuevaPuerta()],puertaP:false,ventanas:[],
+  linea:'',puertas:[nuevaPuerta()],puertaP:false,ventanas:[],segunPlano:false,
   elec:{},aa:'',aaFrig:'',aaEsp:'',termo:'',termoL:'',termoTipo:'',tanque:'',tanqueL:'',
   obs:'',archivos:[],confirmado:false}}
 let d=nuevo();
@@ -73,10 +95,11 @@ function errores(){
     if(d.prod==='Contenedor cortado'){const c=Number(d.corte);if(!c)e.push('Poné el largo final del corte');else if(c>=Number(d.largo))e.push(`El corte (${c} cm) tiene que ser menor que el largo del contenedor (${d.largo} cm)`);if(!d.lado)e.push('Elegí qué lado se conserva')}
     if(d.prod==='Reefer'&&!d.motor)e.push('Indicá si es con o sin motor');
     const u=Number(d.unidades);if(!Number.isInteger(u)||u<1)e.push('La cantidad de unidades tiene que ser un número entero, 1 o más');else if(u>MAX_U)e.push(`Máximo ${MAX_U} unidades por nota`)}
-  if(paso===2){if(esModulo(d.prod)&&!total())e.push('Elegí al menos un espacio');d.espacios.forEach(x=>{if(!x.ubi)e.push(`Elegí dónde va ${etiqueta(x).toLowerCase()}`);if(ITEMS[x.tipo]&&!x.rev)e.push(`Elegí el revestimiento de ${etiqueta(x).toLowerCase()}`)})}
+  if(esSolo(d.prod)&&paso>=2&&paso<=5)return e;
+  if(paso===2){if(esModulo(d.prod)&&!total())e.push('Elegí al menos un espacio');d.espacios.forEach(x=>{if(!x.ubi)e.push(`Elegí dónde va ${etiqueta(x).toLowerCase()}`);})}
   if(paso===3){if(!d.pExt&&!d.pExtP)e.push('Elegí la pintura exterior o marcala a confirmar');if(d.pExt==='Otro'&&!d.pExtOtro.trim()&&!d.pExtP)e.push('Escribí el color o código exterior');if(d.pInt==='Otro'&&!d.pIntOtro.trim())e.push('Escribí el color o código interior');if(!d.revExt)e.push('Elegí el revestimiento exterior');if(!d.piso)e.push('Elegí el piso');if(!d.rev.length)e.push('Elegí el revestimiento interior');if(d.rev.length>1)revDestinos().forEach(x=>{if(!d.rev.includes(d.revAsig[x.k]))e.push(`Elegí qué revestimiento va en ${x.n.toLowerCase()}`)});if(total()>1&&!d.pInterior)e.push('Elegí las puertas interiores')}
-  if(paso===4){if(!d.linea)e.push('Elegí la línea de aberturas');
-    if(!d.puertaP)d.puertas.forEach((p,i)=>{const n=d.puertas.length>1?' '+(i+1):'';if(!p.tipo||!p.pared||!p.mano)e.push(`Completá tipo, pared y apertura de la puerta${n} (o marcá las puertas a confirmar)`);else if(esLateral(p.pared)&&!p.pos)e.push(`Elegí en qué parte del ${p.pared.toLowerCase()} va la puerta${n}`);if(p.med==='Otra'&&(!p.ancho||!p.alto))e.push(`Poné ancho y alto de la puerta${n}`)});
+  if(paso===4){if(!d.linea&&!d.segunPlano)e.push('Elegí la línea de aberturas');
+    if(!d.puertaP)puertasVal().forEach((p,i)=>{const n=d.puertas.length>1?' '+(i+1):'';if(!p.tipo||!p.pared||!p.mano)e.push(`Completá tipo, pared y apertura de la puerta${n} (o marcá las puertas a confirmar)`);else if(esLateral(p.pared)&&!p.pos)e.push(`Elegí en qué parte del ${p.pared.toLowerCase()} va la puerta${n}`);if(p.med==='Otra'&&(!p.ancho||!p.alto))e.push(`Poné ancho y alto de la puerta${n}`)});
     d.ventanas.forEach((v,i)=>{if(!v.esp||!v.ancho||!v.alto||!v.tipo||!v.pared)e.push(`Completá la ventana ${i+1}`);else if(esLateral(v.pared)&&!v.pos)e.push(`Elegí en qué parte del ${v.pared.toLowerCase()} va la ventana ${i+1}`)});
     const L=largoTot(),A=Number(d.ancho)||244;
     PAREDES.forEach(pa=>{const suma=d.ventanas.filter(v=>v.pared===pa).reduce((s,v)=>s+(Number(v.ancho)||0),0)+d.puertas.filter(p=>p.pared===pa).reduce((s,p)=>s+anchoPuerta(p),0);const max=esLateral(pa)?L-60:A-40;
@@ -116,8 +139,10 @@ function render(){
   }
   if(paso===1){
     h=`<div class="paso-t">Producto</div><div class="paso-s">Elegí el tipo y el tamaño: las medidas se completan solas.</div>
-    <div class="card"><div class="lbl">¿Qué se fabrica?</div>${ops('prod',[...PROD_MOD,'Contenedor cortado','Reefer'],d.prod)}</div>
-    <div class="card"><div class="lbl">Tamaño de contenedor</div>${ops('tam',['20 DV','40 ST','40 HC'],d.tam)}
+    <div class="card"><div class="lbl">¿Qué se fabrica?</div>${ops('prod',PROD_MOD,d.cont?'':d.prod)}
+      <div class="lbl" style="margin-top:12px">Contenedores</div>${ops('cont',Object.keys(CONT),d.cont)}
+      ${esSolo(d.prod)?`<div class="auto">Venta del contenedor: los pasos de distribución, terminaciones, aberturas e instalaciones son opcionales.</div>`:''}</div>
+    <div class="card"><div class="lbl">Tamaño de contenedor</div>${CONT[d.cont]&&CONT[d.cont].tam?`<div class="auto">Tamaño <b>${esc(d.tam)}</b>${d.ot?' open top':''}, según el contenedor elegido.</div>`:ops('tam',['20 DV','40 ST','40 HC'],d.tam)}
       ${d.tam?`<div class="auto">📏 Medidas exteriores: <b>${d.largo} × ${d.ancho} × ${d.alto} cm</b> (largo × ancho × alto)</div>`:''}</div>
     <div class="card"><div class="lbl">¿Cuántas unidades iguales? <small>si el cliente lleva varias idénticas, cargala una sola vez</small></div>
       <div class="cnt"><button data-um="1" aria-label="Una menos">−</button><input type="number" inputmode="numeric" min="1" max="${MAX_U}" data-i="unidades" value="${esc(d.unidades)}" style="width:80px;text-align:center;font-weight:800"><button data-up="1" aria-label="Una más">+</button></div>
@@ -125,13 +150,13 @@ function render(){
     ${d.prod==='Reefer'?`<div class="card"><div class="lbl">Motor</div>${ops('motor',['Con motor','Sin motor'],d.motor)}</div>`:''}
     ${d.prod==='Contenedor cortado'?`<div class="card"><div class="lbl">Corte</div>
       <div class="unidad"><input type="number" inputmode="numeric" data-i="corte" placeholder="Largo final" value="${esc(d.corte)}"><b>cm</b></div>
-      <div class="lbl" style="margin-top:12px">¿Qué parte se conserva?</div>${ops('lado',['Puertas originales','Parte trasera'],d.lado)}</div>`:''}`;
+      ${d.cont?`<div class="auto" style="margin-top:12px">Se conserva: <b>${esc(d.lado.toLowerCase())}</b>.</div>`:`<div class="lbl" style="margin-top:12px">¿Qué parte se conserva?</div>${ops('lado',['Puertas originales','Parte trasera'],d.lado)}`}</div>`:''}`;
   }
   if(paso===2){
     h=`<div class="paso-t">Distribución</div><div class="paso-s">Cada espacio se personaliza por separado. Elegí qué querés poner y tocá en el dibujo dónde va.</div><div class="card">${barraEsp()}${planoSVG(true)}</div><div class="card">
     ${Object.keys(ESP).map(k=>`<div class="esp"><div class="esp-h"><b>${ESP[k]}</b><div class="cnt"><button data-menos="${k}">−</button><span>${cuenta(k)}</span><button data-mas="${k}">+</button></div></div>
       ${d.espacios.filter(x=>x.tipo===k).map(x=>`<div class="sub"><div class="lbl">${esc(etiqueta(x))}: ¿dónde va?</div>${ops('ubi.'+x.id,UBI,x.ubi||'')}
-      ${ITEMS[k]?`<div class="lbl" style="margin-top:10px">¿Qué lleva ${esc(etiqueta(x).toLowerCase())}? <small>tocá todo lo que aplique</small></div>${multi('it.'+x.id,ITEMS[k],x.items)}<div class="lbl" style="margin-top:10px">Revestimiento de paredes</div>${ops('rh.'+x.id,REV_HUM,x.rev||'')}<div class="lbl" style="margin-top:10px">Revestimiento de techo <small>opcional</small></div>${ops('rt.'+x.id,REV_HUM,x.revT||'')}`:''}</div>`).join('')}</div>`).join('')}
+      ${ITEMS[k]?`<div class="lbl" style="margin-top:10px">¿Qué lleva ${esc(etiqueta(x).toLowerCase())}? <small>tocá todo lo que aplique</small></div>${multi('it.'+x.id,ITEMS[k],x.items)}<div class="lbl" style="margin-top:10px">Revestimiento de paredes <small>opcional · tocá de nuevo para sacarlo</small></div>${ops('rh.'+x.id,REV_HUM,x.rev||'')}<div class="lbl" style="margin-top:10px">Revestimiento de techo <small>opcional · tocá de nuevo para sacarlo</small></div>${ops('rt.'+x.id,REV_HUM,x.revT||'')}`:''}</div>`).join('')}</div>`).join('')}
     </div><div class="card"><div class="lbl">Croquis o plano del cliente <small>recomendado · hasta ${MAX_CROQUIS} archivos</small></div>
       ${opts.croquisPrevios?`<div class="auto">Ya ${opts.croquisPrevios===1?'hay 1 archivo subido':'hay '+opts.croquisPrevios+' archivos subidos'} en este proyecto.</div>`:''}
       ${archivos.map((f,i)=>`<div class="auto">📎 ${esc(f.name)}: se sube al guardar <button class="x" data-quitaf="${i}">Quitar</button></div>`).join('')}
@@ -140,7 +165,7 @@ function render(){
   }
   if(paso===3){
     h=`<div class="paso-t">Terminaciones</div><div class="paso-s">&nbsp;</div>
-    <div class="card ${d.pExtP?'pend':''}"><div class="lbl">Pintura exterior ${confBox('pExtP',d.pExtP)}</div>${ops('pExt',COLORES,d.pExt)}
+    <div class="card ${d.pExtP?'pend':''}"><div class="lbl">Pintura exterior ${confBox('pExtP',d.pExtP)}</div>${ops('pExt',[...COLORES,SIN_PINT],d.pExt)}
       ${d.pExt==='Otro'?`<div class="fila"><input type="text" data-i="pExtOtro" placeholder="Color o código (ej: RAL 5010)" value="${esc(d.pExtOtro)}"></div>`:''}</div>
     <div class="card"><div class="lbl">Revestimiento exterior</div>${ops('revExt',REV_EXT,d.revExt)}</div>
     <div class="card"><div class="lbl">Pintura interior</div>${ops('pInt',['Blanco','Gris claro','Sin pintura','Otro'],d.pInt)}
@@ -153,7 +178,10 @@ function render(){
   if(paso===4){
     const espOps=d.espacios.map(etiqueta);
     h=`<div class="paso-t">Aberturas</div><div class="paso-s">Las puertas son lo que más consultas genera en obra: pared, ubicación y apertura son obligatorias. El dibujo se actualiza con cada abertura.</div>
-    <div class="card"><div class="lbl">Línea de aberturas</div>${ops('linea',['Herrero','Módena','DVH'],d.linea)}</div>
+    ${hayPlano()?`<div class="card ${d.segunPlano?'pend':''}"><label class="chk"><input type="checkbox" data-c="segunPlano" ${d.segunPlano?'checked':''}> <b>Seguir tal cual plano adjunto</b></label>
+      <div class="aviso" style="text-align:left">${d.segunPlano?'Puertas y ventanas van como en el plano. Podés avanzar sin cargarlas, o cargar alguna igual si querés dejarla aclarada.':'Si el cliente o arquitectura ya mandaron un plano con las aberturas, tildalo y avanzá sin cargarlas una por una.'}</div></div>`
+      :`<div class="aviso" style="text-align:left;margin-bottom:8px">¿Hay un plano con las aberturas? Subilo en Distribución y vas a poder seguirlo tal cual.</div>`}
+    <div class="card"><div class="lbl">Línea de aberturas${d.segunPlano?' <small>opcional</small>':''}</div>${ops('linea',['Herrero','Módena','DVH'],d.linea)}</div>
     <div class="card">${barraAbert()}${abertSVG(true)}</div>
     <div class="card ${d.puertaP?'pend':''}"><div class="lbl">Puertas exteriores <small>${d.puertas.length} cargada${d.puertas.length>1?'s':''}</small> ${confBox('puertaP',d.puertaP)}</div>
       ${d.puertas.map((p,i)=>`<div class="abert"><div class="abert-h">Puerta ${i+1} <span style="color:var(--nar)">(P${i+1})</span>${d.puertas.length>1?`<button class="x" data-quitarp="${i}">Quitar</button>`:''}</div>
@@ -200,7 +228,7 @@ function render(){
     <div class="card"><div class="lbl">Observaciones <small>opcional</small></div><textarea data-i="obs" placeholder="Algo que producción tenga que saber">${esc(d.obs)}</textarea></div>
     <div class="card"><div class="lbl">Enviar al cliente para que apruebe</div>
       <button class="add" id="np-b-pdf" style="border-style:solid">📄 Descargar PDF del resumen</button>
-      <div class="aviso" style="text-align:left">Incluye todo el pedido y los dos dibujos. Mandalo por WhatsApp y, cuando el cliente responda que está bien, tildá la confirmación de abajo.</div></div>
+      <div class="aviso" style="text-align:left">Incluye todo el pedido, los dos dibujos y los planos o croquis adjuntos. Mandalo por WhatsApp y, cuando el cliente responda que está bien, tildá la confirmación de abajo.</div></div>
     <div class="card"><label class="chk"><input type="checkbox" id="np-confirmado" ${d.confirmado?'checked':''}> El cliente revisó y confirmó este pedido</label></div>
     <div class="card"><div class="lbl">¿Necesita plano de arquitectura?</div>${ops('arq',['Sí','No'],d.arq||'Sí')}
       <div class="aviso" style="text-align:left">${d.arq==='No'?'La nota va directo al líder de operaciones, sin pasar por arquitectura.':'La nota va a arquitectura para que haga el plano.'}</div></div>`;
@@ -210,12 +238,92 @@ function render(){
 function resumenCuerpo(){
   const espTxt=d.espacios.map(x=>`${etiqueta(x)} (${(x.ubi||'?').toLowerCase()})${x.items&&x.items.length?' con '+x.items.join(', ').toLowerCase():''}${x.rev?', revestimiento '+x.rev.toLowerCase():''}${x.revT?', techo '+x.revT.toLowerCase():''}`).join('; ')||'sin divisiones';
   return `      <h4>Pedido</h4><p>${d.empresa?`Vende <b>${esc(d.empresa)}</b>. `:''}<b>${esc(d.sol||'?')}</b> para <b>${esc(d.cli||'?')}</b>, entrega en ${esc(d.loc||'?')}${d.maps?' (<a href="'+esc(d.maps)+'" target="_blank" rel="noopener">ubicación</a>)':''} el ${esc(d.fecha?d.fecha.split('-').reverse().join('/'):'?')}.</p>
-      <h4>Producto</h4><p>${unidades()>1?`<b>${unidades()} unidades iguales</b>, cada una: `:''}${esc(d.prod||'?')} ${esc(d.tam)}${d.prod==='Contenedor cortado'?`, cortado a ${esc(d.corte)} cm conservando ${esc(d.lado.toLowerCase())}`:''}${d.motor?', '+esc(d.motor.toLowerCase()):''}. Medidas exteriores ${esc(d.largo)} × ${esc(d.ancho)} × ${esc(d.alto)} cm.</p>
+      <h4>Producto</h4><p>${unidades()>1?`<b>${unidades()} unidades iguales</b>, cada una: `:''}${esc(d.cont||((d.prod||'?')+' '+d.tam))}${d.prod==='Contenedor cortado'?`, cortado a ${esc(d.corte)} cm conservando ${esc(d.lado.toLowerCase())}`:''}${d.prod==='Reefer'&&d.cont?' '+esc(d.tam):''}${d.motor?', '+esc(d.motor.toLowerCase()):''}. Medidas exteriores ${esc(d.largo)} × ${esc(d.ancho)} × ${esc(d.alto)} cm.</p>
       <h4>Distribución</h4><p>${esc(espTxt)}.</p>
-      <h4>Terminaciones</h4><p>Pintura exterior ${d.pExtP?'<span class="tag">a confirmar</span>':esc((d.pExt==='Otro'?d.pExtOtro:d.pExt)||'?')}, revestimiento exterior ${esc((d.revExt||'?').toLowerCase())}, pintura interior ${esc((d.pInt==='Otro'?d.pIntOtro:d.pInt)||'—')}. Piso ${esc(d.piso.toLowerCase()||'?')}, revestimiento interior ${esc(revTexto())}.</p>
-      <h4>Aberturas</h4><p>Línea ${esc(d.linea||'?')}. ${d.puertaP?'Puertas exteriores <span class="tag">a confirmar</span>.':d.puertas.map((p,i)=>`Puerta ${i+1} (P${i+1}): ${esc(p.tipo.toLowerCase())} de ${p.med==='Otra'?esc(p.ancho)+' × '+esc(p.alto):esc(p.med||'?')} cm en ${esc(dondeTxt(p))}, ${esc(p.mano.toLowerCase())}${p.prot?', '+esc(p.prot.toLowerCase()):''}.`).join(' ')}
-        ${d.ventanas.length?d.ventanas.map((v,i)=>` Ventana ${i+1} (V${i+1}): ${esc(v.esp)}, ${esc(v.ancho)} × ${esc(v.alto)} cm en ${esc(dondeTxt(v))}, ${esc([(v.tipo||''),(v.prot||'')].filter(Boolean).join(', ').toLowerCase())}.`).join(''):' Sin ventanas.'}</p>
+      <h4>Terminaciones</h4><p>Pintura exterior ${d.pExtP?'<span class="tag">a confirmar</span>':(d.pExt===SIN_PINT?'no lleva':esc((d.pExt==='Otro'?d.pExtOtro:d.pExt)||'?'))}, revestimiento exterior ${esc((d.revExt||'?').toLowerCase())}, pintura interior ${esc((d.pInt==='Otro'?d.pIntOtro:d.pInt)||'—')}. Piso ${esc(d.piso.toLowerCase()||'?')}, revestimiento interior ${esc(revTexto())}.</p>
+      <h4>Aberturas</h4><p>${d.segunPlano?'<b>Tal cual plano adjunto.</b> ':''}${d.linea||!d.segunPlano?`Línea ${esc(d.linea||'?')}. `:''}${d.puertaP?'Puertas exteriores <span class="tag">a confirmar</span>.':puertasVal().map((p,i)=>`Puerta ${i+1} (P${i+1}): ${esc(p.tipo.toLowerCase())} de ${p.med==='Otra'?esc(p.ancho)+' × '+esc(p.alto):esc(p.med||'?')} cm en ${esc(dondeTxt(p))}, ${esc(p.mano.toLowerCase())}${p.prot?', '+esc(p.prot.toLowerCase()):''}.`).join(' ')}
+        ${d.ventanas.length?d.ventanas.map((v,i)=>` Ventana ${i+1} (V${i+1}): ${esc(v.esp)}, ${esc(v.ancho)} × ${esc(v.alto)} cm en ${esc(dondeTxt(v))}, ${esc([(v.tipo||''),(v.prot||'')].filter(Boolean).join(', ').toLowerCase())}.`).join(''):d.segunPlano?'':' Sin ventanas.'}</p>
       <h4>Instalaciones</h4><p>${Object.entries(d.elec).map(([e,x])=>`${esc(e)}: ${x.tomas} tomas, ${x.luces} luces ${esc(x.tipo.toLowerCase())} ${esc(x.luz.toLowerCase())}`).join(' · ')||'—'}. Aire: ${esc(d.aa||'?')}${d.aaFrig?' '+esc(d.aaFrig):''}. Termotanque: ${esc(d.termo||'?')}${d.termoL?' '+esc(d.termoL)+' l '+esc(d.termoTipo.toLowerCase()):''}. Tanque: ${esc(d.tanque||'?')}${d.tanqueL?' '+esc(d.tanqueL)+' l':''}.</p>`;
+}
+// Íconos de lo que lleva cada baño o cocina, con la pared en y=0 y hacia y positivo
+function icono(n,t,sz){const h=sz,a=sz*.5;switch(n){ // íconos con la pared en y=0, hacia y positivo
+    case 'Inodoro':return `<rect x="${-a*.8}" y="1" width="${a*1.6}" height="${h*.28}" rx="1"/><ellipse cx="0" cy="${h*.66}" rx="${a*.7}" ry="${h*.38}"/>`;
+    case 'Bidet':return `<ellipse cx="0" cy="${h*.52}" rx="${a*.62}" ry="${h*.44}"/><circle cx="0" cy="${h*.35}" r="${sz*.06}"/>`;
+    case 'Mingitorio':return `<rect x="${-a*.6}" y="1" width="${a*1.2}" height="${h*.55}" rx="${a*.5}"/>`;
+    case 'Ducha':return `<rect x="${-a}" y="1" width="${sz}" height="${sz}"/><path d="M${-a} 1L${a} ${sz+1}M${a} 1L${-a} ${sz+1}"/>`;
+    case 'Lavamatic':return `<rect x="${-a*.9}" y="1" width="${a*1.8}" height="${a*1.8}" rx="1"/><circle cx="0" cy="${a*.9+1}" r="${a*.55}"/>`;
+    case 'Vanitory':return `<rect x="${-a*1.1}" y="1" width="${a*2.2}" height="${h*.6}" rx="1" fill="var(--azul-l)"/><ellipse cx="0" cy="${h*.32}" rx="${a*.6}" ry="${h*.18}"/>`;
+    case 'Bacha':return `<rect x="${-a}" y="1" width="${sz}" height="${h*.55}" rx="1"/><ellipse cx="0" cy="${h*.3}" rx="${a*.6}" ry="${h*.17}"/>`;
+    case 'Mueble':return `<rect x="${-a}" y="1" width="${sz}" height="${h*.5}" rx="1" fill="var(--azul-l)"/>`;
+    case 'Espejo':return `<line x1="${-a}" y1="1.5" x2="${a}" y2="1.5" stroke-width="2.4"/>`;
+    case 'Bacha monocomando':return `<rect x="${-a*.8}" y="${h*.08}" width="${a*1.6}" height="${h*.42}" rx="1"/>`;
+    case 'Cocina eléctrica':return [[-1,-1],[1,-1],[-1,1],[1,1]].map(([i,j])=>`<circle cx="${i*a*.42}" cy="${h*.3+j*a*.42}" r="${a*.28}"/>`).join('');
+    default:return `<rect x="${-a}" y="1" width="${sz}" height="${h*.5}" rx="1"/>`}}
+// Referencias de los íconos que aparecen en el dibujo (solo los usados)
+function leyendaAmb(){const usados=[];d.espacios.forEach(x=>{const it=x.items||[];
+    if(x.tipo==='bano'){['Ducha','Inodoro','Bidet','Mingitorio'].forEach(k=>it.includes(k)&&usados.push(k));if(it.includes('Bacha'))usados.push(it.includes('Mueble')?'Vanitory':'Bacha');else if(it.includes('Mueble'))usados.push('Mueble');if(it.includes('Lavamatic'))usados.push('Lavamatic');if(it.includes('Espejo'))usados.push('Espejo')}
+    if(x.tipo==='cocina'){['Bacha monocomando','Cocina eléctrica'].forEach(k=>it.includes(k)&&usados.push(k));if(it.includes('Bajo mesada')||it.some(k=>k!=='Alacena'))usados.push('Mesada');if(it.includes('Alacena'))usados.push('Alacena')}});
+  const u=[...new Set(usados)];if(!u.length)return '';
+  const nom={'Bacha monocomando':'bacha cocina','Cocina eléctrica':'anafe','Vanitory':'vanitory (bacha con mueble)'};
+  return `<div class="aviso" style="text-align:left;margin-top:6px;display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center">${u.map(k=>{
+    const g=k==='Mesada'?`<rect x="-8" y="1" width="16" height="9" fill="var(--azul-l)" stroke="var(--azul)" stroke-width=".8"/>`:k==='Alacena'?`<rect x="-8" y="1" width="16" height="6" fill="none" stroke="var(--azul)" stroke-width=".8" stroke-dasharray="2 1.5"/>`:`<g fill="none" stroke="var(--azul)" stroke-width="1"${k==='Espejo'?'':''}>${icono(k,'',14)}</g>`;
+    return `<span style="display:inline-flex;align-items:center;gap:4px"><svg viewBox="-9 0 18 17" width="18" height="17" data-w="18">${g}</svg>${esc(nom[k]||k.toLowerCase())}</span>`}).join('')}</div>`}
+// Dibuja cada espacio dentro del contenedor visto desde arriba: tabiques, puerta interior de baños y habitaciones
+// y lo que lleva cada baño o cocina (inodoro, vanitory, ducha, mesada...). Cada espacio ocupa su zona (UBI);
+// si hay varios en la misma zona se reparten en franjas. Es un esquema, no un plano a escala.
+// Supuesto de la puerta interior de baños y habitaciones: da a un espacio abierto (cocina, oficina o una zona libre).
+// Primero a la cocina u oficina de la misma zona; si no, al centro (los del centro, al lado que quede abierto).
+// Si alrededor solo hay baños o habitaciones (por ejemplo un sanitario), no se dibuja: la puerta es exterior y va en Aberturas.
+function ambientesSVG(X0,X1,Y0,Y1,fs){
+  const w=(X1-X0)/3,ln='var(--tx2)',az='var(--azul)';let s='';
+  const ic=icono;
+  const zonas=UBI.map(u=>d.espacios.filter(e=>e.ubi===u));
+  const huecos={1:[],2:[]}; // puertas en los tabiques entre zonas (x = X0+i*w)
+  const hh_={}; // puertas en los tabiques entre franjas de una misma zona ('zona|franja' de abajo)
+  const cerrado=x=>x.tipo==='bano'||x.tipo==='habitacion';
+  const abierta=i=>!zonas[i].length||zonas[i].some(x=>!cerrado(x)); // zona libre o con cocina/oficina
+  zonas.forEach((esp,i)=>{const n=esp.length;if(!n)return;const zx=X0+i*w,hh=(Y1-Y0)/n;
+    esp.forEach((x,j)=>{const y0=Y0+j*hh,y1=y0+hh;
+      // puerta interior (ver el supuesto arriba): lado 1 derecha, -1 izquierda; vert -1 arriba, 1 abajo (a la misma zona)
+      let lado=0,vert=0;
+      if(cerrado(x)){if(j>0&&!cerrado(esp[j-1]))vert=-1;else if(j<n-1&&!cerrado(esp[j+1]))vert=1;
+        else if(i===0&&abierta(1))lado=1;else if(i===2&&abierta(1))lado=-1;else if(i===1)lado=abierta(0)?-1:abierta(2)?1:0}
+      const bx=lado?zx+(lado>0?w:0):0, adentro=-lado; // hacia dónde abre (dentro del espacio)
+      if(lado){const g=Math.min(hh*.62,20),ga=(y0+y1)/2-g/2;huecos[lado>0?i+1:i].push([ga,ga+g]);
+        s+=`<path d="M${bx} ${ga}L${bx+adentro*g} ${ga}" stroke="${ln}" stroke-width="1.5"/><path d="M${bx+adentro*g} ${ga}A${g} ${g} 0 0 ${adentro>0?1:0} ${bx} ${ga+g}" fill="none" stroke="${ln}" stroke-dasharray="2 2"/>`}
+      if(vert){const g=Math.min(hh*.8,w*.3,20),by=vert<0?y0:y1,ga=zx+w-g-3,dn=-vert;hh_[i+'|'+(vert<0?j:j+1)]=[ga,ga+g];
+        s+=`<path d="M${ga} ${by}L${ga} ${by+dn*g}" stroke="${ln}" stroke-width="1.5"/><path d="M${ga} ${by+dn*g}A${g} ${g} 0 0 ${dn>0?0:1} ${ga+g} ${by}" fill="none" stroke="${ln}" stroke-dasharray="2 2"/>`}
+      // artefactos contra la pared exterior (arriba; la última franja, abajo), empezando lejos de la puerta
+      const it=x.items||[];let pzs=[];
+      if(x.tipo==='bano'){const hay=k=>it.includes(k);pzs=['Ducha','Inodoro','Bidet','Mingitorio'].filter(hay);
+        if(hay('Bacha'))pzs.push(hay('Mueble')?'Vanitory':'Bacha');else if(hay('Mueble'))pzs.push('Mueble');
+        if(hay('Lavamatic'))pzs.push('Lavamatic')}
+      else if(x.tipo==='cocina')pzs=['Bacha monocomando','Cocina eléctrica'].filter(k=>it.includes(k));
+      const abajo=n>1&&j===n-1, wy=abajo?y1:y0, dy=abajo?-1:1;
+      const conMesada=x.tipo==='cocina'&&(it.includes('Bajo mesada')||pzs.length), conAlacena=x.tipo==='cocina'&&it.includes('Alacena');
+      const nSlots=Math.max(pzs.length,conMesada||conAlacena?1:0);
+      let ty=(y0+y1)/2+fs*.35;
+      if(nSlots){const sz=Math.max(5,Math.min(16,hh*.42,(w-12-(lado?8:0))/(nSlots*1.3))),paso=sz*1.3,largo=nSlots*paso;
+        // si la puerta está a la derecha, se arranca desde la izquierda y al revés
+        const x0=lado>0?zx+5:zx+w-5-largo;
+        if(conMesada)s+=`<rect x="${x0}" y="${abajo?wy-sz*.62:wy}" width="${largo}" height="${sz*.62}" fill="var(--azul-l)" stroke="${az}" stroke-width=".8"><title>${esc(etiqueta(x))}: mesada</title></rect>`;
+        if(conAlacena)s+=`<rect x="${x0}" y="${abajo?wy-sz*.35:wy}" width="${largo}" height="${sz*.35}" fill="none" stroke="${az}" stroke-width=".8" stroke-dasharray="2 1.5"><title>${esc(etiqueta(x))}: alacena</title></rect>`;
+        pzs.forEach((k,q)=>{const cx=x0+paso*(q+.5);
+          s+=`<g transform="translate(${cx} ${wy}) scale(1 ${dy})" fill="none" stroke="${az}" stroke-width="1"><title>${esc(etiqueta(x))}: ${esc(k.toLowerCase())}</title>${ic(k,x.tipo,sz)}</g>`;
+          if(k==='Vanitory'||k==='Bacha'){if(it.includes('Espejo'))s+=`<g transform="translate(${cx} ${wy}) scale(1 ${dy})" stroke="${az}"><title>espejo</title>${ic('Espejo',x.tipo,sz)}</g>`}});
+        ty=abajo?y0+Math.min(hh*.42,fs+3):Math.max(y0+sz+fs*.9,y1-hh*.25)}
+      const f2=Math.min(fs,hh*.34);
+      s+=`<text x="${zx+w/2+(lado?-lado*4:vert?-12:0)}" y="${ty}" text-anchor="middle" font-size="${f2}" font-weight="700" fill="var(--tx)">${esc(etiqueta(x))}</text>`});
+    // tabiques entre franjas de la misma zona, con el hueco de la puerta si hay
+    for(let j=1;j<n;j++){const y=Y0+j*hh,gp=hh_[i+'|'+j];
+      s+=gp?`<line x1="${zx}" y1="${y}" x2="${gp[0]}" y2="${y}" stroke="${ln}" stroke-width="1.5"/><line x1="${gp[1]}" y1="${y}" x2="${zx+w}" y2="${y}" stroke="${ln}" stroke-width="1.5"/>`
+        :`<line x1="${zx}" y1="${y}" x2="${zx+w}" y2="${y}" stroke="${ln}" stroke-width="1.5"/>`}});
+  // tabiques entre zonas: llenos si separan algún espacio (con el hueco de las puertas), punteados si no
+  [1,2].forEach(i=>{const x=X0+i*w;
+    if(!zonas[i-1].length&&!zonas[i].length){s+=`<line x1="${x}" y1="${Y0}" x2="${x}" y2="${Y1}" stroke="${ln}" stroke-dasharray="4 4" opacity=".6"/>`;return}
+    let y=Y0;huecos[i].sort((a,b)=>a[0]-b[0]).forEach(([a,b])=>{if(a>y)s+=`<line x1="${x}" y1="${y}" x2="${x}" y2="${a}" stroke="${ln}" stroke-width="1.5"/>`;y=Math.max(y,b)});
+    if(y<Y1)s+=`<line x1="${x}" y1="${y}" x2="${x}" y2="${Y1}" stroke="${ln}" stroke-width="1.5"/>`});
+  return s;
 }
 function planoSVG(tactil){
   const X0=24,X1=336,Y0=46,Y1=118,w=(X1-X0)/3;
@@ -227,18 +335,16 @@ function planoSVG(tactil){
     <text x="180" y="18" text-anchor="middle" font-size="11" fill="var(--tx2)">${d.tam?esc(d.tam)+' · ':''}${d.largo?esc(d.corte||d.largo)+' cm de largo':'contenedor'}</text>
     ${zonas.map((z,i)=>`<rect x="${z.x}" y="${Y0}" width="${w}" height="${Y1-Y0}" fill="${z.items.length?'var(--nar-l)':'none'}"/>`).join('')}
     <rect x="${X0}" y="${Y0}" width="${X1-X0}" height="${Y1-Y0}" fill="none" stroke="${linea}" stroke-width="2" rx="2"/>
-    <line x1="${X0+w}" y1="${Y0}" x2="${X0+w}" y2="${Y1}" stroke="${linea}" stroke-dasharray="4 4"/>
-    <line x1="${X0+2*w}" y1="${Y0}" x2="${X0+2*w}" y2="${Y1}" stroke="${linea}" stroke-dasharray="4 4"/>
+    ${ambientesSVG(X0,X1,Y0,Y1,11.5)}
     ${puertas?`<rect x="${X0-6}" y="${Y0+4}" width="6" height="${(Y1-Y0)/2-6}" fill="var(--nar)"/><rect x="${X0-6}" y="${(Y0+Y1)/2+2}" width="6" height="${(Y1-Y0)/2-6}" fill="var(--nar)"/>
     <text x="${X0-2}" y="${Y0-8}" font-size="11" font-weight="700" fill="var(--nar)">🚪 PUERTAS</text>`:''}
-    ${zonas.map(z=>z.items.slice(0,3).map((t,j)=>`<text x="${z.x+w/2}" y="${Y0+22+j*15}" text-anchor="middle" font-size="11.5" font-weight="700" fill="var(--tx)">${esc(t)}</text>`).join('')+(z.items.length>3?`<text x="${z.x+w/2}" y="${Y0+67}" text-anchor="middle" font-size="10.5" fill="var(--tx2)">+${z.items.length-3} más</text>`:'')).join('')}
     <text x="${X0+w/2}" y="${Y1+20}" text-anchor="middle" font-size="12" font-weight="700" fill="var(--tx)">Extremo izquierdo</text>
     <text x="${X0+w/2}" y="${Y1+35}" text-anchor="middle" font-size="10.5" fill="var(--tx2)">${puertas?'lado puertas':'lado del corte'}</text>
     <text x="${X0+1.5*w}" y="${Y1+20}" text-anchor="middle" font-size="12" font-weight="700" fill="var(--tx)">Centro</text>
     <text x="${X0+2.5*w}" y="${Y1+20}" text-anchor="middle" font-size="12" font-weight="700" fill="var(--tx)">Extremo derecho</text>
     <text x="${X0+2.5*w}" y="${Y1+35}" text-anchor="middle" font-size="10.5" fill="var(--tx2)">lado opuesto</text>
     ${tactil?capaEsp(zonas,X0,Y0,Y1,w):''}
-  </svg>`;
+  </svg>${leyendaAmb()}`;
 }
 function abertSVG(tactil){
   const X0=44,X1=316,Y0=58,Y1=128,w=(X1-X0)/3,L=largoTot()||606,A=Number(d.ancho)||244,esc2=(X1-X0)/L,ln='var(--tx2)';
@@ -251,13 +357,11 @@ function abertSVG(tactil){
       o.cx=cx;o.cy=y;marcas+=`<rect x="${cx-lw/2}" y="${y-4}" width="${lw}" height="8" rx="2" fill="${o.col}"/><text x="${cx}" y="${pa==='Lateral A'?y-9:y+18}" text-anchor="middle" font-size="11" font-weight="700" fill="${o.col}">${o.cod}</text>`}
     else{const cy=Y0+(Y1-Y0)*f;const lh=Math.max(12,Math.min((Y1-Y0)/arr.length-4,o.an*(Y1-Y0)/A));const x=pa==='Lado puertas'?X0:X1;
       o.cx=x;o.cy=cy;marcas+=`<rect x="${x-4}" y="${cy-lh/2}" width="8" height="${lh}" rx="2" fill="${o.col}"/><text x="${pa==='Lado puertas'?x-7:x+7}" y="${cy+4}" text-anchor="${pa==='Lado puertas'?'end':'start'}" font-size="11" font-weight="700" fill="${o.col}">${o.cod}</text>`}})});
-  const zonas=UBI.map((u,i)=>d.espacios.filter(e=>e.ubi===u).map(etiqueta));
   return `<div class="lbl">Dónde va cada abertura <small>vista desde arriba</small></div>
   <svg viewBox="0 0 360 196" width="100%" role="img" aria-label="Contenedor visto desde arriba con sus cuatro paredes y las aberturas cargadas" style="display:block;font-family:inherit">
     <text x="180" y="22" text-anchor="middle" font-size="12" font-weight="700" fill="var(--tx)">Lateral A</text>
     <rect x="${X0}" y="${Y0}" width="${X1-X0}" height="${Y1-Y0}" fill="none" stroke="${ln}" stroke-width="2" rx="2"/>
-    <line x1="${X0+w}" y1="${Y0}" x2="${X0+w}" y2="${Y1}" stroke="${ln}" stroke-dasharray="3 5" opacity=".6"/><line x1="${X0+2*w}" y1="${Y0}" x2="${X0+2*w}" y2="${Y1}" stroke="${ln}" stroke-dasharray="3 5" opacity=".6"/>
-    ${zonas.map((z,i)=>z.slice(0,2).map((t,j)=>`<text x="${X0+i*w+w/2}" y="${(Y0+Y1)/2+(z.length>1?j*14-3:4)}" text-anchor="middle" font-size="10.5" fill="var(--tx2)">${esc(t)}</text>`).join('')+(z.length>2?`<text x="${X0+i*w+w/2}" y="${(Y0+Y1)/2+25}" text-anchor="middle" font-size="9.5" fill="var(--tx2)">+${z.length-2}</text>`:'')).join('')}
+    ${ambientesSVG(X0,X1,Y0,Y1,10.5)}
     ${marcas}
     <text x="16" y="${(Y0+Y1)/2}" transform="rotate(-90 16 ${(Y0+Y1)/2})" text-anchor="middle" font-size="11" font-weight="700" fill="var(--nar)">${cortado?'Lado del corte':'Lado puertas'}</text>
     <text x="344" y="${(Y0+Y1)/2}" transform="rotate(90 344 ${(Y0+Y1)/2})" text-anchor="middle" font-size="11" font-weight="700" fill="var(--tx)">Lado opuesto</text>
@@ -265,7 +369,7 @@ function abertSVG(tactil){
     <text x="${X0+w/2}" y="${Y1+58}" text-anchor="middle" font-size="9.5" fill="var(--tx2)">extremo izq.</text><text x="${X0+1.5*w}" y="${Y1+58}" text-anchor="middle" font-size="9.5" fill="var(--tx2)">centro</text><text x="${X0+2.5*w}" y="${Y1+58}" text-anchor="middle" font-size="9.5" fill="var(--tx2)">extremo der.</text>
     ${tactil?capaAbert(todas,X0,X1,Y0,Y1,w):''}
   </svg>
-  <div class="aviso" style="text-align:left;margin-top:4px"><b style="color:var(--nar)">P</b> puertas · <b style="color:var(--azul)">V</b> ventanas. Lateral A es el que queda a la izquierda parado en el lado puertas mirando hacia adentro.</div>`;
+  <div class="aviso" style="text-align:left;margin-top:4px"><b style="color:var(--nar)">P</b> puertas · <b style="color:var(--azul)">V</b> ventanas. Lateral A es el que queda a la izquierda parado en el lado puertas mirando hacia adentro.</div>`+leyendaAmb();
 }
 // ---- Croquis táctil: ubicar espacios y aberturas tocando el dibujo con el dedo ----
 // Las capas son rectángulos transparentes encima del dibujo; solo se agregan en pantalla (no en el PDF).
@@ -346,7 +450,7 @@ function tocarCroquis(e){
 const COL={'--nar':'#E8650A','--nar-l':'#FDF0E6','--tx':'#1E2330','--tx2':'#5E6675','--azul':'#2563C9','--azul-l':'#E6EEFB','--warn':'#C98A00','--warn-l':'#FFF6DB','--borde':'#DDE1E7'};
 const sinVars=t=>t.replace(/var\((--[a-z0-9-]+)\)/g,(m,k)=>COL[k]||'#1E2330');
 function cargarJS(src){return new Promise((ok,mal)=>{if(document.querySelector(`script[src="${src}"]`)){ok();return}const sc=document.createElement('script');sc.src=src;sc.onload=ok;sc.onerror=()=>mal(new Error('no cargó '+src));document.head.appendChild(sc)})}
-async function generarPDF(){
+async function generarPDF(adj=[]){
   await cargarJS('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
   await cargarJS('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
   const hoy=new Date().toLocaleDateString('es-AR');const pend=pendientes();
@@ -361,14 +465,15 @@ async function generarPDF(){
     d.obs.trim()?blq(`<h4 style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#5E6675;margin:14px 0 4px">Observaciones</h4><p>${esc(d.obs)}</p>`):'',
     pl?blq(`<div style="border:1px solid #DDE1E7;border-radius:10px;padding:12px;margin-top:14px">${sinVars(pl)}</div>`):'',
     blq(`<div style="border:1px solid #DDE1E7;border-radius:10px;padding:12px;margin-top:14px">${sinVars(abertSVG())}</div>`),
+    adj.length?blq(`<h4 style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#5E6675;margin:14px 0 4px">Planos adjuntos</h4><p style="margin:0 0 6px">${adj.some(a=>a.blob)?'Forman parte de este pedido y van en las páginas siguientes:':'Forman parte de este pedido:'}</p>${adj.map(a=>`<div>📐 ${esc(a.nombre)}${a.blob?'':a.url?` · <a href="${esc(a.url)}">${esc(a.url)}</a>`:' (no se pudo adjuntar)'}</div>`).join('')}`):'',
     blq(`<div style="margin-top:28px;padding-top:14px;border-top:1px solid #DDE1E7;font-size:13px;color:#5E6675">Revisá que todo esté correcto. Si estás de acuerdo, respondé <b style="color:#1E2330">"Apruebo"</b> por WhatsApp o firmá abajo.</div>
       <div style="display:flex;gap:24px;margin-top:40px;padding-bottom:24px">${['Firma del cliente','Aclaración','Fecha'].map(t=>`<div style="flex:1;border-top:1px solid #1E2330;padding-top:4px;font-size:12px;color:#5E6675">${t}</div>`).join('')}</div>`)
   ].join('');
-  for(const sv of [...box.querySelectorAll('svg')]){const vb=sv.getAttribute('viewBox').split(' ').map(Number);const W2=860,H2=Math.round(W2*vb[3]/vb[2]);
+  for(const sv of [...box.querySelectorAll('svg')]){const vb=sv.getAttribute('viewBox').split(' ').map(Number);const dw=Number(sv.dataset.w)||430,W2=dw*2,H2=Math.round(W2*vb[3]/vb[2]);
     sv.setAttribute('xmlns','http://www.w3.org/2000/svg');sv.setAttribute('width',W2);sv.setAttribute('height',H2);sv.setAttribute('style','font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif');
     const im=new Image();await new Promise((ok,mal)=>{im.onload=ok;im.onerror=mal;im.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(new XMLSerializer().serializeToString(sv))});
     const cv=document.createElement('canvas');cv.width=W2;cv.height=H2;cv.getContext('2d').drawImage(im,0,0);
-    const img=document.createElement('img');img.src=cv.toDataURL('image/png');img.style.cssText='display:block;margin:0 auto;width:430px;height:'+Math.round(430*vb[3]/vb[2])+'px';sv.replaceWith(img)}
+    const img=document.createElement('img');img.src=cv.toDataURL('image/png');img.style.cssText=(sv.dataset.w?'display:inline-block;':'display:block;margin:0 auto;')+'width:'+dw+'px;height:'+Math.round(dw*vb[3]/vb[2])+'px';sv.replaceWith(img)}
   box.querySelectorAll('a').forEach(x=>x.style.color='#2563C9');
   document.body.appendChild(box);
   try{
@@ -382,10 +487,44 @@ async function generarPDF(){
     return pdf.output('blob');
   }finally{box.remove()}
 }
-async function descargarPDF(btn){
+// Planos y croquis que van al final del PDF que firma el cliente: los del proyecto (arquitectura y cliente,
+// los trae la app con opts.adjuntos) y los que se eligieron recién en la nota y todavía no se subieron.
+async function adjuntosPDF(extra){
+  let ya=[];try{ya=extra?await extra():[]}catch(e){console.error(e)}
+  return [...(ya||[]),...archivos.map(f=>({nombre:'Croquis del cliente: '+f.name,blob:f}))];
+}
+const latin=t=>String(t).replace(/[^\x20-\x7E\xA0-\xFF]/g,'?');
+function aPNG(blob){return new Promise((ok,mal)=>{const im=new Image(),u=URL.createObjectURL(blob);
+  im.onload=()=>{const c=document.createElement('canvas');c.width=im.naturalWidth;c.height=im.naturalHeight;c.getContext('2d').drawImage(im,0,0);URL.revokeObjectURL(u);c.toBlob(b=>b?b.arrayBuffer().then(ok,mal):mal(new Error('imagen')),'image/png')};
+  im.onerror=()=>{URL.revokeObjectURL(u);mal(new Error('formato de imagen no soportado'))};im.src=u})}
+// Suma al PDF de la nota las páginas de cada plano: los PDF se copian tal cual (sin perder calidad) y las imágenes van una por hoja
+async function sumarPlanos(blob,adj){
+  const conArchivo=adj.filter(a=>a.blob);if(!conArchivo.length)return blob;
+  await cargarJS('https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js');
+  const {PDFDocument,StandardFonts,rgb}=window.PDFLib;
+  const doc=await PDFDocument.load(await blob.arrayBuffer());const font=await doc.embedFont(StandardFonts.HelveticaBold);
+  const fallaron=[];
+  for(const a of conArchivo){
+    try{const tipo=a.blob.type||'',nom=a.nombre||'';
+      if(tipo==='application/pdf'||/\.pdf$/i.test(nom)){const src=await PDFDocument.load(await a.blob.arrayBuffer(),{ignoreEncryption:true});
+        (await doc.copyPages(src,src.getPageIndices())).forEach(pg=>doc.addPage(pg));continue}
+      const buf=await a.blob.arrayBuffer();
+      const img=/jpe?g/i.test(tipo)||/\.jpe?g$/i.test(nom)?await doc.embedJpg(buf):/png/i.test(tipo)||/\.png$/i.test(nom)?await doc.embedPng(buf):await doc.embedPng(await aPNG(a.blob));
+      const hor=img.width>img.height,W=hor?841.89:595.28,H=hor?595.28:841.89,M=28,T=22;
+      const pg=doc.addPage([W,H]);pg.drawText(latin(nom).slice(0,110),{x:M,y:H-M-10,size:11,font,color:rgb(.12,.14,.19)});
+      const k=Math.min((W-2*M)/img.width,(H-2*M-T)/img.height);
+      pg.drawImage(img,{x:(W-img.width*k)/2,y:M+(H-2*M-T-img.height*k)/2,width:img.width*k,height:img.height*k});
+    }catch(e){console.error(e);fallaron.push(a.nombre)}
+  }
+  if(fallaron.length)toast('⚠️ No se pudo sumar al PDF: '+fallaron.join(', '));
+  return new Blob([await doc.save()],{type:'application/pdf'});
+}
+async function descargarPDF(btn,extra){
   const txt=btn.textContent;btn.textContent='Armando el PDF…';btn.disabled=true;
   try{
-    const blob=await generarPDF();
+    const adj=await adjuntosPDF(extra||opts.adjuntos);
+    let blob=await generarPDF(adj);
+    blob=await sumarPlanos(blob,adj);
     const nombre=`Nota de pedido - ${(d.cli||'cliente').trim()}.pdf`;
     if(window.claude){const dl=await claude.use('downloads');if(!dl){toast('En esta vista no se puede descargar. Abrí el enlace en el navegador.');return}
       try{await dl.save({filename:nombre,data:blob});toast('PDF listo: mandalo por WhatsApp al cliente')}catch(e){if(e&&e.code!=='declined')toast('No se pudo descargar el PDF')}}
@@ -426,12 +565,14 @@ R0.addEventListener('click',e=>{
   const k=t.dataset.k,v=t.dataset.v;
   if(k.startsWith('v.')){const [,i,c]=k.split('.');const w=d.ventanas[+i];w[c]=v;if(c==='med'&&v!=='Otra'){const m=v.match(/(\d+) × (\d+)/);w.ancho=m[1];w.alto=m[2]}if(c==='med'&&v==='Otra'){w.ancho='';w.alto=''}if(c==='esp'&&!w.pos){const x=d.espacios.find(y=>etiqueta(y)===v);if(x&&x.ubi)w.pos=x.ubi}render();return}
   if(k.startsWith('pu.')){const [,i,c]=k.split('.');const p=d.puertas[+i];p[c]=v;if(c==='med'&&v==='Otra'){p.ancho='';p.alto=''}render();return}
-  if(k.startsWith('rh.')){d.espacios.find(y=>y.id===k.slice(3)).rev=v;render();return}
-  // techo: tocar de nuevo la opción elegida la saca (es opcional)
+  // revestimientos de baño/cocina (paredes y techo): son opcionales, tocar de nuevo la opción elegida la saca
+  if(k.startsWith('rh.')){const y=d.espacios.find(z=>z.id===k.slice(3));y.rev=y.rev===v?'':v;render();return}
   if(k.startsWith('rt.')){const y=d.espacios.find(z=>z.id===k.slice(3));y.revT=y.revT===v?'':v;render();return}
   if(k.startsWith('ra.')){d.revAsig[k.slice(3)]=v;render();return}
   if(k.startsWith('elec.')){const p=k.slice(5).split('.');const c=p.pop();d.elec[p.join('.')][c]=v;render();return}
   if(k.startsWith('ubi.')){d.espacios.find(y=>y.id===k.slice(4)).ubi=v;render();return}
+  if(k==='cont'){const c=CONT[v];d.cont=v;d.prod=c.prod;d.ot=!!c.ot;if(c.lado)d.lado=c.lado;if(c.tam){const [l,a,h]=MED[c.tam];d.tam=c.tam;d.largo=l;d.ancho=a;d.alto=h}render();return}
+  if(k==='prod')d.cont='',d.ot=false;
   setPath(k,v);
   if(k==='tam'){const [l,a,h]=MED[v];d.largo=l;d.ancho=a;d.alto=h}
   render();
@@ -499,8 +640,8 @@ function faltantes(f){return conD(f,()=>{const out=[];revisandoGuardada=true;try
 function compat(f){return conD(f,()=>({v:2,...limpio(d),
     puerta:d.puertaP?'A confirmar':(d.puertas.map(p=>p.tipo).filter(Boolean).join(' + ')||''),
     sani:d.espacios.some(x=>ITEMS[x.tipo])?'Sí':'No',confirmada:!!d.confirmado}))}
-function nombreSugerido(f){const M={oficina:'Oficina',vivienda:'Vivienda',sanitario:'Sanitario'};const u=Math.floor(Number(f.unidades))||1;const pr=normProd({prod:f.prod}).prod;return (u>1?u+' × ':'')+[(pr&&pr!=='Módulo habitable'?pr:(M[f.modelo]||pr||'Pedido')),f.tam].filter(Boolean).join(' ')+(f.cli?' — '+f.cli:'')}
-function tipoTrabajo(f){if(f.prod==='Reefer')return 'Reefer';if(f.prod==='Contenedor cortado')return 'Modificación contenedor';const pr=normProd({prod:f.prod}).prod;if(pr&&pr!=='Módulo habitable')return pr;return f.modelo==='oficina'?'Oficina':'Módulo habitable'}
+function nombreSugerido(f){const M={oficina:'Oficina',vivienda:'Vivienda',sanitario:'Sanitario'};const u=Math.floor(Number(f.unidades))||1;const pr=normProd({prod:f.prod}).prod;const c=normProd(limpio(f)).cont;if(c)return (u>1?u+' × ':'')+c+(c==='Contenedor reefers'&&f.tam?' '+f.tam:'')+(f.cli?' — '+f.cli:'');return (u>1?u+' × ':'')+[(pr&&pr!=='Módulo habitable'?pr:(M[f.modelo]||pr||'Pedido')),f.tam].filter(Boolean).join(' ')+(f.cli?' — '+f.cli:'')}
+function tipoTrabajo(f){if(f.prod==='Contenedor')return 'Contenedor '+(/^40/.test(f.tam||'')?'40':'20')+' pies';if(f.prod==='Reefer')return 'Reefer';if(f.prod==='Contenedor cortado')return 'Modificación contenedor';const pr=normProd({prod:f.prod}).prod;if(pr&&pr!=='Módulo habitable')return pr;return f.modelo==='oficina'?'Oficina':'Módulo habitable'}
 
 // ── Cómputo para el costeo (solo lo usa el administrador) ──
 // Devuelve una línea por cada cosa a costear: clave (nombre en la lista de costos), rubro, unidad y cantidad.
@@ -510,7 +651,7 @@ function lineasCosteo(){
   const add=(clave,rubro,unidad,cant,det='',pend=false)=>{if(!(cant>0))return;const ya=out.find(x=>x.clave===clave&&x.det===det);if(ya)ya.cant=r2(ya.cant+cant);else out.push({clave,rubro,unidad,cant:r2(cant),det,pend})};
   const L=largoTot()/100,A=(Number(d.ancho)||0)/100,H=(Number(d.alto)||0)/100;
   const paredes=2*(L+A)*H, techo=L*A, piso=L*A;
-  if(d.tam)add('Contenedor '+d.tam+(d.prod==='Reefer'?' reefer '+(d.motor||'').toLowerCase():''),'mat','c/u',1);
+  if(d.tam)add('Contenedor '+d.tam+(d.ot?' OT':'')+(d.prod==='Reefer'?' reefer '+(d.motor||'').toLowerCase():''),'mat','c/u',1);
   if(d.prod==='Contenedor cortado')add('Corte de contenedor','mo','c/u',1,d.corte?d.corte+' cm':'');
   // espacios
   const esp=d.espacios, humedos=esp.filter(x=>ITEMS[x.tipo]);
@@ -524,8 +665,8 @@ function lineasCosteo(){
     if(x.revT)add('Revestimiento de techo '+x.revT.toLowerCase()+' (baño/cocina)','mat','m²',L/3*A/enZona(x.ubi),etiqueta(x))});
   // terminaciones
   // pintura: un solo ítem (exterior + interior), en tachos de 20 l. Se redondea para arriba al final.
-  const m2Pint=(paredes+techo)*((d.pInt&&d.pInt!=='Sin pintura')?2:1);
-  add('Pintura','mat',PINT_UNI,m2Pint/PINT_M2,'',d.pExtP);
+  const m2Pint=(paredes+techo)*((d.pExt===SIN_PINT?0:1)+((d.pInt&&d.pInt!=='Sin pintura')?1:0));
+  if(!esSolo(d.prod)||d.pExt||d.pExtP)add('Pintura','mat',PINT_UNI,m2Pint/PINT_M2,'',d.pExtP);
   if(d.revExt&&d.revExt!=='Sin revestimiento')add('Revestimiento exterior · '+d.revExt,'mat','m²',paredes);
   // aislación de paredes y techo en los módulos armados
   if(esModulo(d.prod))add('Aislación térmica','mat','m²',paredes+techo);
@@ -537,13 +678,14 @@ function lineasCosteo(){
   if(esp.length>1&&d.pInterior)add('Puerta interior · '+d.pInterior,'mat','c/u',esp.length-1);
   // aberturas
   if(d.puertaP)add('Puerta exterior (a confirmar)','mat','c/u',d.puertas.length||1,'',true);
+  else if(d.segunPlano&&!d.puertas.some(p=>p.tipo))add('Puerta exterior (según plano)','mat','c/u',1,'',true);
   else d.puertas.forEach(p=>{if(!p.tipo)return;add('Puerta exterior · '+p.tipo+(p.tipo==='Original del contenedor'?'':' '+(p.med==='Otra'?'medida especial':(p.med||'90')+' cm')),'mat','c/u',1,p.med==='Otra'?p.ancho+' × '+p.alto+' cm':'');
     if(p.prot==='Reja')add('Reja de puerta','mat','c/u',1);if(p.prot==='Postigón')add('Postigón','mat','c/u',1)});
   d.ventanas.forEach(v=>{add('Ventana '+(d.linea||'')+' · '+(v.med==='Otra'?'medida especial':(v.med||'').replace(' (baño)','')),'mat','c/u',1,v.med==='Otra'?v.ancho+' × '+v.alto+' cm':'');
     if(v.prot==='Reja')add('Reja de ventana','mat','c/u',1);if(v.prot==='Mosquitero')add('Mosquitero','mat','c/u',1)});
   // instalaciones
   const el=Object.values(d.elec||{});
-  add('Tablero y disyuntor','mat','c/u',1);
+  if(!esSolo(d.prod))add('Tablero y disyuntor','mat','c/u',1);
   add('Toma','mat','c/u',el.reduce((s,x)=>s+(x.tomas||0),0));
   ['Plafón','Tubo LED'].forEach(t=>add('Luz · '+t,'mat','c/u',el.filter(x=>x.tipo===t).reduce((s,x)=>s+(x.luces||0),0)));
   if(d.aa==='Solo pre-instalación')add('Pre-instalación de aire','mat','c/u',1);
@@ -551,7 +693,7 @@ function lineasCosteo(){
   if(d.termo==='Sí')add('Termotanque '+(d.termoTipo||'').toLowerCase(),'mat','c/u',1,d.termoL?d.termoL+' l':'');
   if(d.tanque==='Sí')add('Tanque de agua','mat','c/u',1,d.tanqueL?d.tanqueL+' l':'');
   // generales
-  add('Mano de obra general','mo','m²',piso);
+  if(!esSolo(d.prod))add('Mano de obra general','mo','m²',piso);
   add('Flete','ter','c/u',1,d.loc||'');
   // varias unidades iguales: todo se multiplica por la cantidad
   const u=unidades();if(u>1)out.forEach(x=>x.cant=r2(x.cant*u));
@@ -565,7 +707,8 @@ window.NotaPedido={abrir,cerrar,
   pendientes:f=>conD(f,()=>pendientes()),
   faltantes,compat,nombreSugerido,tipoTrabajo,EMPRESAS,
   // tipología del proyecto, para la receta de materiales: producto, tamaño y cantidad de unidades
-  TIPOLOGIAS:[...PROD_MOD,'Contenedor cortado','Reefer'],TAMS:Object.keys(MED),
+  TIPOLOGIAS:[...PROD_MOD,'Contenedor cortado','Reefer','Contenedor'],TAMS:Object.keys(MED),
   tipologia:f=>conD(f,()=>({prod:d.prod,tam:d.tam,unidades:unidades()})),
-  pdf:(f,btn)=>{const pd=d;d=normProd(Object.assign(nuevo(),limpio(f)));return descargarPDF(btn||{textContent:'',disabled:false}).finally(()=>{d=pd})}};
+  // adj: función que devuelve los planos del proyecto [{nombre,blob}] o [{nombre,url}] para sumarlos al PDF
+  pdf:(f,btn,adj)=>{const pd=d,pa=archivos;d=normProd(Object.assign(nuevo(),limpio(f)));archivos=[];return descargarPDF(btn||{textContent:'',disabled:false},adj||(()=>[])).finally(()=>{d=pd;archivos=pa})}};
 })();

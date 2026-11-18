@@ -1025,7 +1025,7 @@ function editarNota(id){
   const enVentas=etapaDe(p)==='ventas';
   if(!enVentas&&!esOp()){toast('🔒 La nota ya fue confirmada con el cliente: solo el líder la corrige');return;}
   const confirmada=notaConfirmada(p);
-  NotaPedido.abrir({ficha:esNota(p)?p.ficha:null,cliente:p.cli,empresa:p.emp||perfiles[p.vendId]?.empresa||perfiles[p.creadoPorId]?.empresa||'',croquisPrevios:croquisDe(p),titulo:'Nota de pedido · '+p.nombre,enviar:enVentas,
+  NotaPedido.abrir({ficha:esNota(p)?p.ficha:null,cliente:p.cli,empresa:p.emp||perfiles[p.vendId]?.empresa||perfiles[p.creadoPorId]?.empresa||'',croquisPrevios:croquisDe(p),planosPrevios:(p.planos||[]).length,adjuntos:()=>adjuntosPDF(id),titulo:'Nota de pedido · '+p.nombre,enviar:enVentas,
     aviso:confirmada?'⚠️ <b>Esta nota ya la confirmó el cliente.</b> Si la cambiás, queda registrado quién y qué cambió, le avisamos a ventas para que se la mande al cliente, y el proyecto no pasa a ejecución hasta que el cliente apruebe el cambio.':'',
     onGuardar:async(f,{enviar:env,archivos})=>{
       const q=limpiar(todos[id]); if(!q) return false;
@@ -1048,7 +1048,20 @@ function editarNota(id){
 }
 async function pdfNota(id,btn){
   const p=todos[id]; if(!p||!esNota(p)) return;
-  try{await NotaPedido.pdf(p.ficha,btn);}catch(e){toast('⚠️ No se pudo armar el PDF');}
+  try{await NotaPedido.pdf(p.ficha,btn,()=>adjuntosPDF(id));}catch(e){toast('⚠️ No se pudo armar el PDF');}
+}
+// Planos del proyecto para el PDF que firma el cliente: primero los de arquitectura, después los croquis del cliente.
+// Los archivos se bajan del depósito; los enlaces (Drive, etc.) van como link.
+async function adjuntosPDF(id){
+  const p=todos[id];if(!p)return [];
+  const pls=(p.planos||[]).slice().sort((a,b)=>(a.nombre||'').startsWith(PREF_CROQUIS)-(b.nombre||'').startsWith(PREF_CROQUIS));
+  const out=[];
+  for(const x of pls){
+    const nombre=(x.nombre||'').startsWith(PREF_CROQUIS)?x.nombre:'Plano de arquitectura: '+(x.nombre||'Plano');
+    if(x.archivo){const {data,error}=await sb.storage.from('planos').download(x.archivo);out.push(error||!data?{nombre}:{nombre,blob:data});}
+    else if(x.url) out.push({nombre,url:x.url});
+  }
+  return out;
 }
 // El croquis que carga ventas queda con los planos del proyecto
 const PREF_CROQUIS='Croquis del cliente: ';
