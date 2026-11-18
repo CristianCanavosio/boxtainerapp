@@ -37,12 +37,12 @@ Escribí una nota para operaciones si hace falta (medidas, materiales, observaci
 Tildá que verificaste que el plano coincide con la ficha técnica y tocá "Enviar al líder", abajo.
 Si a la nota le falta información, mandá una consulta a ventas o devolvé el proyecto con "Devolver a Ventas".`},
   {clave:'lider',orden:30,roles:['lider'],titulo:'Líder de operaciones: stock, asignación y seguimiento',
-    descripcion:'Validar materiales, asignar supervisor y fechas, pedir a carpinterías y seguir los desvíos.',
+    descripcion:'Validar materiales, pedir aberturas y aires, asignar supervisor y fechas y seguir los desvíos.',
     pasos:`En Hoy ves los proyectos que esperan asignación, los faltantes de material y las consultas para vos.
 Abrí el proyecto y revisá la nota de pedido. Si hay que corregirla, el cambio queda en el historial y ventas tiene que reconfirmarlo con el cliente.
 En "Materiales del proyecto" marcá solo lo que está Pedido o en Falta, y después tocá "Hay stock de los … sin validar" para el resto. Sin el stock validado no se puede asignar.
 Elegí el supervisor, la fecha de inicio y la de entrega, y tocá "Asignar y comenzar", abajo.
-Desde el proyecto pedí a la carpintería de aluminio o de madera: la lista sale de la nota y la podés corregir.
+Con el stock validado, en "Pedidos" pedí las aberturas a la fábrica (carpintería de aluminio), lo de madera y la colocación de los aires a los técnicos: la lista sale de la nota y la podés corregir.
 En Avisos y Kanban seguí los proyectos atrasados o desviados. Cuando un supervisor avisa que falta material, resolvelo y marcalo "Resuelto".
 En Materiales cargás la receta de cada tipología: los materiales que se suman solos a cada proyecto de ese tipo.`},
   {clave:'supervisor',orden:40,roles:['supervisor'],titulo:'Supervisor: parte diario y materiales',
@@ -54,13 +54,14 @@ Si usaste algo que no estaba previsto, agregalo con "Agregar material no previst
 Si falta un material, tocá "📦 Falta" (abajo en el proyecto, o el 📦 en Hoy): le llega al líder con la fecha en que lo necesitás y si frena el trabajo.
 Si encontrás un error en medidas o planos, tocá "⋯" → "Reportar error" y elegí de qué área vino.
 Para aberturas o muebles, pedí a la carpintería desde el proyecto y marcá "Lo recibimos" cuando llegue.`},
-  {clave:'carpinteria',orden:50,roles:['carp_aluminio','carp_madera'],titulo:'Carpinterías: responder y avisar los pedidos',
-    descripcion:'Aceptar con fecha, fabricar y avisar cuando el pedido está listo.',
+  {clave:'carpinteria',orden:50,roles:['carp_aluminio','carp_madera','tecnico_aires'],titulo:'Carpinterías y técnicos de aire: responder y avisar los pedidos',
+    descripcion:'Aceptar con fecha, fabricar o colocar y avisar cuando el pedido está listo.',
     pasos:`En la pestaña de pedidos ves solo los pedidos que te mandaron, con los planos del proyecto.
 Pedido nuevo: tocá "Aceptar" y poné la fecha en que lo vas a tener, o "Rechazar" con el motivo.
 Cuando empiecen a fabricar, tocá "Empezamos a fabricar".
 Si no llegás a la fecha, tocá "Correr la fecha" y explicá por qué: la obra se entera al instante.
 Cuando esté terminado, tocá "Está listo" para que coordinen el retiro.
+Técnicos de aire: los botones dicen "Empezamos a colocar" y "Está colocado"; la obra revisa y marca "Quedó bien".
 El semáforo muestra los pedidos sin responder y los que vencen pronto.`},
   {clave:'admin',orden:60,roles:['admin'],titulo:'Administrador: usuarios, costos y recursos',
     descripcion:'Dar acceso y roles, ver costos y desvíos en plata, gestionar sugerencias y actualizar estos videos.',
