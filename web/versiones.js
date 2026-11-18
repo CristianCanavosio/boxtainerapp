@@ -88,5 +88,5 @@ function seccionVersiones(p){
 }
 async function pdfVersion(id,n,btn){
   const v=(todos[id]?.versiones||[]).find(x=>x.version===n); if(!v) return;
-  try{await NotaPedido.pdf(v.ficha,btn);}catch(e){toast('⚠️ No se pudo armar el PDF');}
+  try{await NotaPedido.pdf(v.ficha,btn,typeof adjuntosPDF==='function'?()=>adjuntosPDF(id):null);}catch(e){toast('⚠️ No se pudo armar el PDF');}
 }
