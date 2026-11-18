@@ -27,6 +27,8 @@ const nuevaPuerta=()=>({tipo:'',med:'',ancho:'',alto:'',pared:'',pos:'',mano:'',
 const ITEMS={bano:['Inodoro','Mingitorio','Bidet','Lavamatic','Bacha','Ducha','Mueble','Espejo'],cocina:['Bacha monocomando','Bajo mesada','Alacena','Cocina eléctrica']};
 const COLORES=['Blanco','Gris claro','Gris grafito','Negro','Azul','Verde inglés','Otro'];
 let paso=0, intento=false, opts={}, archivos=[], ocupado=false;
+// Croquis táctil: qué se va a ubicar al tocar el dibujo ({pon:'bano'|'puerta'|...} o {sel:id|'p0'|'v1'})
+let herr={};
 const MAX_CROQUIS=3; // archivos del cliente por nota (croquis, planos, fotos)
 const cupoCroquis=()=>Math.max(0,MAX_CROQUIS-(opts.croquisPrevios||0));
 function plazoMin(prod){return /Company$/.test(prod||'')?PLAZO_COMPANY:PLAZO_RESTO}
@@ -126,7 +128,7 @@ function render(){
       <div class="lbl" style="margin-top:12px">¿Qué parte se conserva?</div>${ops('lado',['Puertas originales','Parte trasera'],d.lado)}</div>`:''}`;
   }
   if(paso===2){
-    h=`<div class="paso-t">Distribución</div><div class="paso-s">Cada espacio se personaliza por separado. El dibujo muestra dónde va quedando cada uno.</div><div class="card">${planoSVG()}</div><div class="card">
+    h=`<div class="paso-t">Distribución</div><div class="paso-s">Cada espacio se personaliza por separado. Elegí qué querés poner y tocá en el dibujo dónde va.</div><div class="card">${barraEsp()}${planoSVG(true)}</div><div class="card">
     ${Object.keys(ESP).map(k=>`<div class="esp"><div class="esp-h"><b>${ESP[k]}</b><div class="cnt"><button data-menos="${k}">−</button><span>${cuenta(k)}</span><button data-mas="${k}">+</button></div></div>
       ${d.espacios.filter(x=>x.tipo===k).map(x=>`<div class="sub"><div class="lbl">${esc(etiqueta(x))}: ¿dónde va?</div>${ops('ubi.'+x.id,UBI,x.ubi||'')}
       ${ITEMS[k]?`<div class="lbl" style="margin-top:10px">¿Qué lleva ${esc(etiqueta(x).toLowerCase())}? <small>tocá todo lo que aplique</small></div>${multi('it.'+x.id,ITEMS[k],x.items)}<div class="lbl" style="margin-top:10px">Revestimiento de paredes</div>${ops('rh.'+x.id,REV_HUM,x.rev||'')}<div class="lbl" style="margin-top:10px">Revestimiento de techo <small>opcional</small></div>${ops('rt.'+x.id,REV_HUM,x.revT||'')}`:''}</div>`).join('')}</div>`).join('')}
@@ -152,7 +154,7 @@ function render(){
     const espOps=d.espacios.map(etiqueta);
     h=`<div class="paso-t">Aberturas</div><div class="paso-s">Las puertas son lo que más consultas genera en obra: pared, ubicación y apertura son obligatorias. El dibujo se actualiza con cada abertura.</div>
     <div class="card"><div class="lbl">Línea de aberturas</div>${ops('linea',['Herrero','Módena','DVH'],d.linea)}</div>
-    <div class="card">${abertSVG()}</div>
+    <div class="card">${barraAbert()}${abertSVG(true)}</div>
     <div class="card ${d.puertaP?'pend':''}"><div class="lbl">Puertas exteriores <small>${d.puertas.length} cargada${d.puertas.length>1?'s':''}</small> ${confBox('puertaP',d.puertaP)}</div>
       ${d.puertas.map((p,i)=>`<div class="abert"><div class="abert-h">Puerta ${i+1} <span style="color:var(--nar)">(P${i+1})</span>${d.puertas.length>1?`<button class="x" data-quitarp="${i}">Quitar</button>`:''}</div>
       <div class="lbl" style="font-weight:600">Tipo</div>${ops('pu.'+i+'.tipo',['De abrir','Corrediza','Original del contenedor'],p.tipo)}
@@ -215,7 +217,7 @@ function resumenCuerpo(){
         ${d.ventanas.length?d.ventanas.map((v,i)=>` Ventana ${i+1} (V${i+1}): ${esc(v.esp)}, ${esc(v.ancho)} × ${esc(v.alto)} cm en ${esc(dondeTxt(v))}, ${esc([(v.tipo||''),(v.prot||'')].filter(Boolean).join(', ').toLowerCase())}.`).join(''):' Sin ventanas.'}</p>
       <h4>Instalaciones</h4><p>${Object.entries(d.elec).map(([e,x])=>`${esc(e)}: ${x.tomas} tomas, ${x.luces} luces ${esc(x.tipo.toLowerCase())} ${esc(x.luz.toLowerCase())}`).join(' · ')||'—'}. Aire: ${esc(d.aa||'?')}${d.aaFrig?' '+esc(d.aaFrig):''}. Termotanque: ${esc(d.termo||'?')}${d.termoL?' '+esc(d.termoL)+' l '+esc(d.termoTipo.toLowerCase()):''}. Tanque: ${esc(d.tanque||'?')}${d.tanqueL?' '+esc(d.tanqueL)+' l':''}.</p>`;
 }
-function planoSVG(){
+function planoSVG(tactil){
   const X0=24,X1=336,Y0=46,Y1=118,w=(X1-X0)/3;
   const zonas=UBI.map((u,i)=>({u,x:X0+i*w,items:d.espacios.filter(e=>e.ubi===u).map(etiqueta)}));
   const linea='var(--tx2)';
@@ -235,19 +237,20 @@ function planoSVG(){
     <text x="${X0+1.5*w}" y="${Y1+20}" text-anchor="middle" font-size="12" font-weight="700" fill="var(--tx)">Centro</text>
     <text x="${X0+2.5*w}" y="${Y1+20}" text-anchor="middle" font-size="12" font-weight="700" fill="var(--tx)">Extremo derecho</text>
     <text x="${X0+2.5*w}" y="${Y1+35}" text-anchor="middle" font-size="10.5" fill="var(--tx2)">lado opuesto</text>
+    ${tactil?capaEsp(zonas,X0,Y0,Y1,w):''}
   </svg>`;
 }
-function abertSVG(){
+function abertSVG(tactil){
   const X0=44,X1=316,Y0=58,Y1=128,w=(X1-X0)/3,L=largoTot()||606,A=Number(d.ancho)||244,esc2=(X1-X0)/L,ln='var(--tx2)';
   const cortado=d.prod==='Contenedor cortado'&&d.lado==='Parte trasera';
-  const todas=[...d.puertas.map((p,i)=>({...p,cod:'P'+(i+1),col:'var(--nar)',an:anchoPuerta(p)})),...d.ventanas.map((v,i)=>({...v,cod:'V'+(i+1),col:'var(--azul)',an:Number(v.ancho)||100}))].filter(o=>o.pared&&(!esLateral(o.pared)||o.pos));
+  const todas=[...d.puertas.map((p,i)=>({...p,ref:'p'+i,cod:'P'+(i+1),col:'var(--nar)',an:anchoPuerta(p)})),...d.ventanas.map((v,i)=>({...v,ref:'v'+i,cod:'V'+(i+1),col:'var(--azul)',an:Number(v.ancho)||100}))].filter(o=>o.pared&&(!esLateral(o.pared)||o.pos));
   const grupos={};todas.forEach(o=>{const g=o.pared+'|'+(esLateral(o.pared)?o.pos:'');(grupos[g]=grupos[g]||[]).push(o)});
   let marcas='';
   Object.entries(grupos).forEach(([g,arr])=>{const [pa,pos]=g.split('|');arr.forEach((o,j)=>{const f=(j+1)/(arr.length+1);
     if(esLateral(pa)){const zi=UBI.indexOf(pos);const cx=X0+zi*w+w*f;const lw=Math.max(14,Math.min(w/arr.length-4,o.an*esc2));const y=pa==='Lateral A'?Y0:Y1;
-      marcas+=`<rect x="${cx-lw/2}" y="${y-4}" width="${lw}" height="8" rx="2" fill="${o.col}"/><text x="${cx}" y="${pa==='Lateral A'?y-9:y+18}" text-anchor="middle" font-size="11" font-weight="700" fill="${o.col}">${o.cod}</text>`}
+      o.cx=cx;o.cy=y;marcas+=`<rect x="${cx-lw/2}" y="${y-4}" width="${lw}" height="8" rx="2" fill="${o.col}"/><text x="${cx}" y="${pa==='Lateral A'?y-9:y+18}" text-anchor="middle" font-size="11" font-weight="700" fill="${o.col}">${o.cod}</text>`}
     else{const cy=Y0+(Y1-Y0)*f;const lh=Math.max(12,Math.min((Y1-Y0)/arr.length-4,o.an*(Y1-Y0)/A));const x=pa==='Lado puertas'?X0:X1;
-      marcas+=`<rect x="${x-4}" y="${cy-lh/2}" width="8" height="${lh}" rx="2" fill="${o.col}"/><text x="${pa==='Lado puertas'?x-7:x+7}" y="${cy+4}" text-anchor="${pa==='Lado puertas'?'end':'start'}" font-size="11" font-weight="700" fill="${o.col}">${o.cod}</text>`}})});
+      o.cx=x;o.cy=cy;marcas+=`<rect x="${x-4}" y="${cy-lh/2}" width="8" height="${lh}" rx="2" fill="${o.col}"/><text x="${pa==='Lado puertas'?x-7:x+7}" y="${cy+4}" text-anchor="${pa==='Lado puertas'?'end':'start'}" font-size="11" font-weight="700" fill="${o.col}">${o.cod}</text>`}})});
   const zonas=UBI.map((u,i)=>d.espacios.filter(e=>e.ubi===u).map(etiqueta));
   return `<div class="lbl">Dónde va cada abertura <small>vista desde arriba</small></div>
   <svg viewBox="0 0 360 196" width="100%" role="img" aria-label="Contenedor visto desde arriba con sus cuatro paredes y las aberturas cargadas" style="display:block;font-family:inherit">
@@ -260,8 +263,85 @@ function abertSVG(){
     <text x="344" y="${(Y0+Y1)/2}" transform="rotate(90 344 ${(Y0+Y1)/2})" text-anchor="middle" font-size="11" font-weight="700" fill="var(--tx)">Lado opuesto</text>
     <text x="180" y="${Y1+40}" text-anchor="middle" font-size="12" font-weight="700" fill="var(--tx)">Lateral B</text>
     <text x="${X0+w/2}" y="${Y1+58}" text-anchor="middle" font-size="9.5" fill="var(--tx2)">extremo izq.</text><text x="${X0+1.5*w}" y="${Y1+58}" text-anchor="middle" font-size="9.5" fill="var(--tx2)">centro</text><text x="${X0+2.5*w}" y="${Y1+58}" text-anchor="middle" font-size="9.5" fill="var(--tx2)">extremo der.</text>
+    ${tactil?capaAbert(todas,X0,X1,Y0,Y1,w):''}
   </svg>
   <div class="aviso" style="text-align:left;margin-top:4px"><b style="color:var(--nar)">P</b> puertas · <b style="color:var(--azul)">V</b> ventanas. Lateral A es el que queda a la izquierda parado en el lado puertas mirando hacia adentro.</div>`;
+}
+// ---- Croquis táctil: ubicar espacios y aberturas tocando el dibujo con el dedo ----
+// Las capas son rectángulos transparentes encima del dibujo; solo se agregan en pantalla (no en el PDF).
+function barraEsp(){
+  const sel=herr.sel&&d.espacios.find(x=>x.id===herr.sel);
+  if(sel)return `<div class="croq-bar sel"><div class="croq-t"><b>${esc(etiqueta(sel))}</b> seleccionado: tocá otra parte del dibujo para moverlo, o la misma parte para pasar al siguiente.</div>
+    <div class="ops"><div class="op" data-croq="quitar">Quitar</div><div class="op" data-croq="listo">Listo</div></div></div>`;
+  const sinUbi=d.espacios.filter(x=>!x.ubi).length;
+  return `<div class="croq-bar"><div class="croq-t">${herr.pon?`Tocá en el dibujo dónde va ${ESP[herr.pon]==='Habitación'?'la':ESP[herr.pon]==='Baño'?'el':'la'} <b>${esc(ESP[herr.pon].toLowerCase())}</b>. Podés tocar varias veces.`:'Elegí qué querés poner y tocá en el dibujo dónde va. Para mover un espacio, tocalo en el dibujo (si hay varios en la misma parte, tocá de nuevo para pasar al siguiente).'}</div>
+    <div class="ops">${Object.keys(ESP).map(k=>`<div class="op ${herr.pon===k?'sel':''}" data-croq="pon" data-v="${k}">+ ${ESP[k]}</div>`).join('')}</div>
+    ${sinUbi?`<div class="aviso" style="text-align:left;margin-top:6px">${sinUbi===1?'Hay 1 espacio':'Hay '+sinUbi+' espacios'} sin ubicar: tocá una parte del dibujo y se ubica${sinUbi===1?'':' el primero'}.</div>`:''}</div>`;
+}
+function capaEsp(zonas,X0,Y0,Y1,w){
+  // una zona tocable por parte del contenedor; el espacio seleccionado se marca con su zona
+  const sel=herr.sel&&d.espacios.find(x=>x.id===herr.sel);
+  return zonas.map((z,i)=>(sel&&sel.ubi===UBI[i]?`<rect x="${z.x+2}" y="${Y0+2}" width="${w-4}" height="${Y1-Y0-4}" rx="4" fill="none" stroke="var(--nar)" stroke-width="3"/>`:'')+
+    `<rect class="croq-z" x="${z.x}" y="${Y0-6}" width="${w}" height="${Y1-Y0+44}" fill="transparent" data-croq="zona" data-v="${UBI[i]}"/>`).join('');
+}
+function barraAbert(){
+  const o=herr.sel&&abertDe(herr.sel);
+  if(o)return `<div class="croq-bar sel"><div class="croq-t"><b>${herr.sel[0]==='p'?'Puerta':'Ventana'} ${+herr.sel.slice(1)+1}</b> seleccionada: tocá otra pared para moverla. Tipo y medida se completan abajo.</div>
+    <div class="ops"><div class="op" data-croq="quitar">Quitar</div><div class="op" data-croq="listo">Listo</div></div></div>`;
+  return `<div class="croq-bar"><div class="croq-t">${herr.pon?`Tocá la pared donde va la <b>${herr.pon}</b>. En los laterales, tocá cerca del extremo o del centro.`:'Elegí qué querés poner y tocá la pared en el dibujo. Tocá una P o una V para moverla.'}</div>
+    <div class="ops"><div class="op ${herr.pon==='puerta'?'sel':''}" data-croq="pon" data-v="puerta">+ Puerta</div><div class="op ${herr.pon==='ventana'?'sel':''}" data-croq="pon" data-v="ventana">+ Ventana</div></div></div>`;
+}
+function capaAbert(todas,X0,X1,Y0,Y1,w){
+  // toda el área del dibujo es tocable; la pared se calcula por cercanía
+  let h=`<rect x="0" y="0" width="360" height="196" fill="transparent" data-croq="pared" data-g="${X0},${X1},${Y0},${Y1}"/>`;
+  todas.forEach(o=>{if(o.cx==null)return;
+    if(herr.sel===o.ref)h+=`<circle cx="${o.cx}" cy="${o.cy}" r="13" fill="none" stroke="${o.col}" stroke-width="2.5"/>`;
+    h+=`<circle cx="${o.cx}" cy="${o.cy}" r="15" fill="transparent" data-croq="ab" data-v="${o.ref}"/>`});
+  return h;
+}
+const abertDe=r=>r&&(r[0]==='p'?d.puertas:d.ventanas)[+r.slice(1)];
+// Punto del toque en coordenadas del dibujo
+function puntoSVG(e,el){const sv=el.ownerSVGElement||el;const m=sv.getScreenCTM();if(!m)return null;const pt=sv.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;return pt.matrixTransform(m.inverse())}
+// Pared y parte de la pared más cercanas al toque
+function paredDe(p,g){const [X0,X1,Y0,Y1]=g.split(',').map(Number);
+  const dist={'Lateral A':Math.abs(p.y-Y0),'Lateral B':Math.abs(p.y-Y1),'Lado puertas':Math.abs(p.x-X0),'Lado opuesto':Math.abs(p.x-X1)};
+  // dentro de los extremos del contenedor pesan más los laterales (son las paredes largas)
+  if(p.x>X0+12&&p.x<X1-12){dist['Lado puertas']+=30;dist['Lado opuesto']+=30}
+  const pared=Object.keys(dist).sort((a,b)=>dist[a]-dist[b])[0];
+  const zi=Math.max(0,Math.min(2,Math.floor((p.x-X0)/((X1-X0)/3))));
+  return {pared,pos:esLateral(pared)?UBI[zi]:''};
+}
+function espEn(ubi){const x=d.espacios.find(y=>y.ubi===ubi);return x?etiqueta(x):''}
+function tocarCroquis(e){
+  const t=e.target.closest('[data-croq]');if(!t)return false;
+  const c=t.dataset.croq,v=t.dataset.v;
+  if(c==='pon'){herr=herr.pon===v?{}:{pon:v};render();return true}
+  if(c==='listo'){herr={};render();return true}
+  if(c==='quitar'){
+    if(paso===2){const i=d.espacios.findIndex(x=>x.id===herr.sel);if(i>=0)d.espacios.splice(i,1)}
+    else if(herr.sel){const arr=herr.sel[0]==='p'?d.puertas:d.ventanas;arr.splice(+herr.sel.slice(1),1);if(!d.puertas.length)d.puertas.push(nuevaPuerta())}
+    herr={};render();return true}
+  if(c==='ab'){herr=herr.sel===v?{}:{sel:v};render();return true}
+  if(c==='zona'){
+    const sel=herr.sel&&d.espacios.find(x=>x.id===herr.sel);
+    const aqui=d.espacios.filter(x=>x.ubi===v);
+    // tocar la zona del seleccionado pasa al siguiente espacio de esa zona; otra zona lo mueve
+    if(sel&&sel.ubi===v){const n=aqui[(aqui.indexOf(sel)+1)%aqui.length];herr=n===sel?{}:{sel:n.id};render();return true}
+    if(sel){sel.ubi=v;herr={};render();toast(`${etiqueta(sel)} movido a ${v.toLowerCase()}`);return true}
+    if(herr.pon){d.espacios.push({id:nid(),tipo:herr.pon,ubi:v,items:[]});const x=d.espacios.at(-1);render();toast(`${etiqueta(x)} en ${v.toLowerCase()}. Completá abajo qué lleva.`);return true}
+    const libre=d.espacios.find(x=>!x.ubi);if(libre){libre.ubi=v;render();return true}
+    if(aqui.length){herr={sel:aqui[0].id};render();return true}
+    toast('Primero elegí arriba qué querés poner (baño, cocina, habitación u oficina)');return true}
+  if(c==='pared'){const p=puntoSVG(e,t);if(!p)return true;const {pared,pos}=paredDe(p,t.dataset.g);
+    const o=abertDe(herr.sel);
+    if(o){o.pared=pared;o.pos=pos;herr={};render();return true}
+    if(herr.pon==='puerta'){let i=d.puertas.findIndex(x=>!x.pared);if(i<0){d.puertas.push(nuevaPuerta());i=d.puertas.length-1}
+      Object.assign(d.puertas[i],{pared,pos});d.puertaP=false;render();toast(`Puerta ${i+1} en ${dondeTxt(d.puertas[i])}. Completá tipo, medida y apertura abajo.`);return true}
+    if(herr.pon==='ventana'){let i=d.ventanas.findIndex(x=>!x.pared);if(i<0){d.ventanas.push({esp:'',med:'',ancho:'',alto:'',tipo:'',pared:'',pos:'',prot:''});i=d.ventanas.length-1}
+      const w=d.ventanas[i];Object.assign(w,{pared,pos});if(!w.esp)w.esp=(pos&&espEn(pos))||(d.espacios.length?'':'General');
+      render();toast(`Ventana ${i+1} en ${dondeTxt(w)}. Completá medida y tipo abajo.`);return true}
+    toast('Primero elegí arriba si es una puerta o una ventana');return true}
+  return false;
 }
 const COL={'--nar':'#E8650A','--nar-l':'#FDF0E6','--tx':'#1E2330','--tx2':'#5E6675','--azul':'#2563C9','--azul-l':'#E6EEFB','--warn':'#C98A00','--warn-l':'#FFF6DB','--borde':'#DDE1E7'};
 const sinVars=t=>t.replace(/var\((--[a-z0-9-]+)\)/g,(m,k)=>COL[k]||'#1E2330');
@@ -329,6 +409,7 @@ function toast(t){let el=document.getElementById('np-tt');if(!el){el=document.cr
 function conectar(R0){
 R0.addEventListener('click',e=>{
   const bp=e.target.closest('#np-b-pdf');if(bp){descargarPDF(bp);return}
+  if(tocarCroquis(e))return;
   const t=e.target.closest('[data-k],[data-m],[data-mas],[data-menos],[data-em],[data-ep],[data-quitar],[data-quitarp],[data-quitaf],[data-modelo],[data-up],[data-um],#np-add-v,#np-add-p');if(!t)return;
   if(t.dataset.modelo){modelo(t.dataset.modelo);return}
   if(t.dataset.up||t.dataset.um){d.unidades=Math.min(MAX_U,Math.max(1,unidades()+(t.dataset.up?1:-1)));render();return}
@@ -370,7 +451,7 @@ R0.addEventListener('change',e=>{const t=e.target;
     toast(nuevos.length>lugar?`⚠️ Máximo ${MAX_CROQUIS} archivos: se agregaron ${Math.max(0,lugar)}`:'📎 '+(nuevos.length>1?nuevos.length+' archivos':nuevos[0].name)+' se sube'+(nuevos.length>1?'n':'')+' al guardar');render()}
 });
 $('#np-b-sig').onclick=siguiente;
-$('#np-b-atras').onclick=()=>{if(paso){paso--;intento=false;render();arriba()}else salir()};
+$('#np-b-atras').onclick=()=>{if(paso){paso--;intento=false;herr={};render();arriba()}else salir()};
 $('#np-x').onclick=salir;
 $('#np-borr').onclick=()=>guardar(false,true);
 }
@@ -381,7 +462,7 @@ async function siguiente(){
   if(errs.length){render();arriba();return}
   intento=false;
   if(paso===6){await guardar(!!opts.enviar,false);return}
-  paso++;render();arriba();
+  paso++;herr={};render();arriba();
 }
 async function guardar(enviar,borrador){
   if(ocupado||!opts.onGuardar)return;
@@ -401,7 +482,7 @@ let inicial='';
 async function salir(){if(JSON.stringify(d)!==inicial&&typeof window.confirmar==='function'&&!(await window.confirmar('¿Salir sin guardar la nota de pedido?')))return;cerrar()}
 function cerrar(guardado){const R0=document.getElementById('nota');if(R0)R0.classList.remove('on');document.body.style.overflow='';if(!guardado&&opts.onCerrar)opts.onCerrar()}
 function abrir(o){
-  opts=o||{};archivos=[];intento=false;paso=0;
+  opts=o||{};archivos=[];intento=false;paso=0;herr={};
   d=normProd(Object.assign(nuevo(),o&&o.ficha&&o.ficha.v===2?limpio(o.ficha):{}));
   if(!d.puertas||!d.puertas.length)d.puertas=[nuevaPuerta()];
   fecha0=d.fecha||'';
