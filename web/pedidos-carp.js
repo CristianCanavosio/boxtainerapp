@@ -48,6 +48,7 @@ async function cargarPedidosCarp(T){
     pedidosCarp.forEach(x=>{const p=T[x.pid]; if(p) (p.pedidosCarp=p.pedidosCarp||[]).push(x);});
     pcListo=true;
   }catch(e){console.warn('Pedidos a carpinterías no disponibles (¿falta la migración 0009?)',e);return;}
+  try{pcAvisar();}catch(e){console.warn('Avisos de pedidos',e);}
   // la carpintería no ve los proyectos, pero sí los planos de los proyectos con pedido suyo
   const pids=[...new Set(pedidosCarp.map(x=>x.pid))].filter(pid=>!T[pid]);
   if(pids.length){
@@ -313,6 +314,7 @@ function renderPedidosCarp(){
   if(!pcListo){el.innerHTML=`<div class="card" style="font-size:13px">Para activarlo hay que correr la migración <b>0009_pedidos_a_carpinterias.sql</b> en Supabase.</div>`;return;}
   const taller=miTaller();
   const ls=pedidosCarp.filter(x=>!taller||x.taller===taller);
+  const ban=pcBannerAvisos();
   const grupos=taller?[
     ['📥 Nuevos: aceptalos o rechazalos',ls.filter(x=>x.estado==='enviado')],
     [TALLER[taller].coloca?'🔧 Por colocar':'🔨 En curso',ls.filter(x=>x.estado==='aceptado'||x.estado==='en_fabricacion')],
@@ -326,14 +328,68 @@ function renderPedidosCarp(){
       const a=abiertos.filter(x=>x.taller===k), atr=a.filter(x=>avisoPedido(x)?.c==='rojo').length;
       return `<div class="stat-box"><div class="stat-num">${a.length}</div><div class="stat-lbl">${taller?'Pedidos abiertos':TALLER[k].corto+' abiertos'}${atr?` · <b style="color:var(--rojo)">${atr} con problema</b>`:''}</div></div>`;}).join('')}</div>`;
   if(taller){
-    el.innerHTML=res+(ls.length?grupos.map(([t,g])=>g.length?`<div class="sec-title" style="font-size:15px;margin-top:8px">${t} (${g.length})</div>${g.map(x=>tarjetaPedido(x,{conProyecto:true})).join('')}`:'').join('')
+    el.innerHTML=ban+res+(ls.length?grupos.map(([t,g])=>g.length?`<div class="sec-title" style="font-size:15px;margin-top:8px">${t} (${g.length})</div>${g.map(x=>tarjetaPedido(x,{conProyecto:true})).join('')}`:'').join('')
       :`<div class="empty"><div class="em">🪚</div><h3>Todavía no hay pedidos</h3><p>Cuando el líder o un supervisor te mande un pedido, aparece acá.</p></div>`);
     return;
   }
   const f=pcFiltro, sel=ls.filter(x=>f==='cerrados'?!PC_ABIERTO.includes(x.estado):f==='atrasados'?PC_ABIERTO.includes(x.estado)&&avisoPedido(x)&&avisoPedido(x).c!=='verde'
     :PC_ABIERTO.includes(x.estado)&&(f==='activos'||x.taller===f));
-  el.innerHTML=res+chips+(sel.length?sel.map(x=>tarjetaPedido(x,{conProyecto:true})).join('')
+  el.innerHTML=ban+res+chips+(sel.length?sel.map(x=>tarjetaPedido(x,{conProyecto:true})).join('')
     :`<div class="empty"><div class="em">🪚</div><h3>No hay pedidos acá</h3><p>Los pedidos se mandan desde el detalle de cada proyecto en ejecución.</p></div>`);
+}
+
+// ── avisos al instante: pedido nuevo para el taller, respuesta del taller para la obra ──
+// Se comparan los pedidos con lo último que vio este usuario en este equipo. Con la app abierta
+// (aunque esté en otra pestaña o minimizada) sale la notificación del sistema si la activó;
+// si no, un cartel en la app. Los cambios que hizo el propio usuario no avisan.
+const PC_VISTO_KEY=()=>'pc_visto_'+(myId||'');
+function pcAvisar(){
+  if(MODO!=='nube'||!myId) return;
+  let visto=null; try{visto=JSON.parse(localStorage.getItem(PC_VISTO_KEY())||'null');}catch(e){}
+  const ahora={}; pedidosCarp.forEach(x=>{ahora[x.id]=x.estado+'|'+(x.comp||'');});
+  try{localStorage.setItem(PC_VISTO_KEY(),JSON.stringify(ahora));}catch(e){}
+  if(!visto) return; // primera vez en este equipo: no se avisa lo viejo
+  const taller=miTaller(), avisos=[];
+  pedidosCarp.forEach(x=>{
+    const antes=visto[x.id], [ea,ca]=(antes||'').split('|');
+    if(antes===ahora[x.id]) return;
+    const ult=x.hist[x.hist.length-1]; if(ult&&ult.por===myId) return;
+    const T=TALLER[x.taller]||{}, col=T.coloca;
+    if(taller){
+      if(x.taller!==taller) return;
+      if(x.estado==='enviado') avisos.push({t:(ea==='rechazado'?'✏️ Pedido corregido #':'📥 Pedido nuevo #')+x.num,b:`${x.proy}. Lo pidió ${x.por}${x.para?', lo necesitan el '+fmtFecha(x.para):''}.`});
+      else if(x.estado==='cancelado'&&antes) avisos.push({t:'✖️ Pedido cancelado #'+x.num,b:x.proy});
+      return;
+    }
+    const p=todos[x.pid]; if(!(x.porId===myId||(p&&p.supId===myId))||!antes) return;
+    if(x.estado!==ea&&['aceptado','rechazado','en_fabricacion','listo'].includes(x.estado))
+      avisos.push({t:`${T.t||''} #${x.num}: ${estPC(x).t}`,b:x.proy+(x.estado==='rechazado'?'. Motivo: '+(x.nota||'—'):x.comp&&x.estado==='aceptado'?'. Fecha: '+fmtFecha(x.comp):''),pid:x.pid});
+    else if(x.estado===ea&&x.comp!==ca&&x.comp) avisos.push({t:`📅 ${T.t||''} #${x.num}: ${col?'cambió la fecha de colocación':'corrió la fecha'}`,b:`${x.proy}. Nueva fecha: ${fmtFecha(x.comp)}${x.nota?' · '+x.nota:''}`,pid:x.pid});
+  });
+  avisos.slice(0,5).forEach(pcNotificar);
+  if(avisos.length>5) pcNotificar({t:`Y ${avisos.length-5} avisos más de pedidos`,b:'Miralos en la pestaña de pedidos.'});
+}
+function pcNotificar(a){
+  toast(a.t);
+  if(!('Notification' in window)||Notification.permission!=='granted') return;
+  try{
+    const n=new Notification(a.t,{body:a.b,icon:'logo.png',tag:'pc-'+a.t});
+    n.onclick=()=>{window.focus();n.close();if(a.pid&&todos[a.pid]) verDetalle(a.pid); else showView('pedidos');};
+  }catch(e){console.warn(e);} // algunos celulares solo permiten avisos desde una app instalada
+}
+function pcBannerAvisos(){
+  if(!('Notification' in window)||Notification.permission==='granted') return '';
+  if(Notification.permission==='denied') return `<div class="card" style="font-size:13px">🔕 Los avisos están bloqueados en este navegador. Para recibirlos, habilitá las notificaciones de este sitio en la configuración del navegador.</div>`;
+  return `<div class="card" style="font-size:13px;display:flex;gap:10px;align-items:center;justify-content:space-between">
+    <span>🔔 Activá los avisos para enterarte al instante de ${esTaller()?'cada pedido nuevo':'las respuestas a tus pedidos'}.</span>
+    <button class="btn btn-nar btn-sm" onclick="pcActivarAvisos()">Activar</button></div>`;
+}
+async function pcActivarAvisos(){
+  try{const r=await Notification.requestPermission();
+    toast(r==='granted'?'🔔 Avisos activados en este equipo':'🔕 No se activaron los avisos');
+    if(r==='granted') pcNotificar({t:'🔔 Avisos activados',b:'Así te va a llegar cada aviso de pedidos.'});
+  }catch(e){toast('⚠️ Este navegador no permite avisos');}
+  renderPedidosCarp();
 }
 
 // ── avisos para la pestaña Alertas ──
