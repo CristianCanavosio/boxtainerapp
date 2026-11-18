@@ -494,29 +494,50 @@ async function adjuntosPDF(extra){
   return [...(ya||[]),...archivos.map(f=>({nombre:'Croquis del cliente: '+f.name,blob:f}))];
 }
 const latin=t=>String(t).replace(/[^\x20-\x7E\xA0-\xFF]/g,'?');
-function aPNG(blob){return new Promise((ok,mal)=>{const im=new Image(),u=URL.createObjectURL(blob);
-  im.onload=()=>{const c=document.createElement('canvas');c.width=im.naturalWidth;c.height=im.naturalHeight;c.getContext('2d').drawImage(im,0,0);URL.revokeObjectURL(u);c.toBlob(b=>b?b.arrayBuffer().then(ok,mal):mal(new Error('imagen')),'image/png')};
+// Pasa cualquier imagen que el navegador sepa abrir (jpg, png, webp, heic en iPhone...) a JPEG por un canvas:
+// respeta la rotación de la foto del celular y la achica a 2400 px como máximo para que el PDF no pese de más.
+function aJPG(blob,max=2400){return new Promise((ok,mal)=>{const im=new Image(),u=URL.createObjectURL(blob);
+  im.onload=()=>{const k=Math.min(1,max/Math.max(im.naturalWidth,im.naturalHeight));const c=document.createElement('canvas');c.width=Math.round(im.naturalWidth*k);c.height=Math.round(im.naturalHeight*k);
+    const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(im,0,0,c.width,c.height);URL.revokeObjectURL(u);
+    c.toBlob(b=>b?b.arrayBuffer().then(ok,mal):mal(new Error('imagen')),'image/jpeg',0.85)};
   im.onerror=()=>{URL.revokeObjectURL(u);mal(new Error('formato de imagen no soportado'))};im.src=u})}
-// Suma al PDF de la nota las páginas de cada plano: los PDF se copian tal cual (sin perder calidad) y las imágenes van una por hoja
+// PDF que no se puede copiar tal cual (protegido o dañado): se dibuja cada hoja como imagen con pdf.js
+async function pdfAImagenes(buf){
+  await cargarJS('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
+  const lib=window.pdfjsLib;lib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const pdf=await lib.getDocument({data:new Uint8Array(buf)}).promise;const out=[];
+  for(let n=1;n<=Math.min(pdf.numPages,10);n++){const pg=await pdf.getPage(n);const v0=pg.getViewport({scale:1});const vp=pg.getViewport({scale:Math.min(3,2400/Math.max(v0.width,v0.height))});
+    const c=document.createElement('canvas');c.width=vp.width;c.height=vp.height;const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);
+    await pg.render({canvasContext:g,viewport:vp}).promise;out.push(await new Promise((ok,mal)=>c.toBlob(b=>b?b.arrayBuffer().then(ok,mal):mal(new Error('pdf')),'image/jpeg',0.85)))}
+  return out;
+}
+let faltaronPDF=[]; // planos que no se pudieron sumar en el último PDF
+// Suma al PDF de la nota las páginas de cada plano: los PDF se copian tal cual (sin perder calidad) y las imágenes van una por hoja.
+// Si alguno no entra, queda una hoja que lo dice (para que no pase desapercibido) y se avisa al terminar.
 async function sumarPlanos(blob,adj){
+  faltaronPDF=[];
   const conArchivo=adj.filter(a=>a.blob);if(!conArchivo.length)return blob;
   await cargarJS('https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js');
   const {PDFDocument,StandardFonts,rgb}=window.PDFLib;
   const doc=await PDFDocument.load(await blob.arrayBuffer());const font=await doc.embedFont(StandardFonts.HelveticaBold);
-  const fallaron=[];
-  for(const a of conArchivo){
-    try{const tipo=a.blob.type||'',nom=a.nombre||'';
-      if(tipo==='application/pdf'||/\.pdf$/i.test(nom)){const src=await PDFDocument.load(await a.blob.arrayBuffer(),{ignoreEncryption:true});
-        (await doc.copyPages(src,src.getPageIndices())).forEach(pg=>doc.addPage(pg));continue}
-      const buf=await a.blob.arrayBuffer();
-      const img=/jpe?g/i.test(tipo)||/\.jpe?g$/i.test(nom)?await doc.embedJpg(buf):/png/i.test(tipo)||/\.png$/i.test(nom)?await doc.embedPng(buf):await doc.embedPng(await aPNG(a.blob));
-      const hor=img.width>img.height,W=hor?841.89:595.28,H=hor?595.28:841.89,M=28,T=22;
-      const pg=doc.addPage([W,H]);pg.drawText(latin(nom).slice(0,110),{x:M,y:H-M-10,size:11,font,color:rgb(.12,.14,.19)});
-      const k=Math.min((W-2*M)/img.width,(H-2*M-T)/img.height);
-      pg.drawImage(img,{x:(W-img.width*k)/2,y:M+(H-2*M-T-img.height*k)/2,width:img.width*k,height:img.height*k});
-    }catch(e){console.error(e);fallaron.push(a.nombre)}
+  const hoja=(nom,img)=>{const hor=img.width>img.height,W=hor?841.89:595.28,H=hor?595.28:841.89,M=28,T=22;
+    const pg=doc.addPage([W,H]);pg.drawText(latin(nom).slice(0,110),{x:M,y:H-M-10,size:11,font,color:rgb(.12,.14,.19)});
+    const k=Math.min((W-2*M)/img.width,(H-2*M-T)/img.height);
+    pg.drawImage(img,{x:(W-img.width*k)/2,y:M+(H-2*M-T-img.height*k)/2,width:img.width*k,height:img.height*k})};
+  for(const a of conArchivo){const tipo=a.blob.type||'',nom=a.nombre||'';
+    try{const buf=await a.blob.arrayBuffer();
+      if(tipo==='application/pdf'||/\.pdf$/i.test(nom)){
+        let copiado=false;
+        try{const src=await PDFDocument.load(buf);(await doc.copyPages(src,src.getPageIndices())).forEach(pg=>doc.addPage(pg));copiado=true}catch(e){console.warn('PDF no copiable, se pasa a imagen',e)}
+        if(!copiado){const imgs=await pdfAImagenes(buf);if(!imgs.length)throw new Error('PDF vacío');for(const b of imgs)hoja(nom,await doc.embedJpg(b))}
+        continue}
+      hoja(nom,await doc.embedJpg(await aJPG(a.blob)));
+    }catch(e){console.error(e);faltaronPDF.push(nom);
+      const pg=doc.addPage([595.28,841.89]);
+      pg.drawText(latin('No se pudo incluir este archivo en el PDF:'),{x:40,y:780,size:13,font,color:rgb(.83,.23,.17)});
+      pg.drawText(latin(nom).slice(0,90),{x:40,y:758,size:11,font,color:rgb(.12,.14,.19)});
+      pg.drawText(latin('Se manda aparte al cliente.'),{x:40,y:738,size:11,font,color:rgb(.37,.4,.46)})}
   }
-  if(fallaron.length)toast('⚠️ No se pudo sumar al PDF: '+fallaron.join(', '));
   return new Blob([await doc.save()],{type:'application/pdf'});
 }
 async function descargarPDF(btn,extra){
@@ -527,8 +548,8 @@ async function descargarPDF(btn,extra){
     blob=await sumarPlanos(blob,adj);
     const nombre=`Nota de pedido - ${(d.cli||'cliente').trim()}.pdf`;
     if(window.claude){const dl=await claude.use('downloads');if(!dl){toast('En esta vista no se puede descargar. Abrí el enlace en el navegador.');return}
-      try{await dl.save({filename:nombre,data:blob});toast('PDF listo: mandalo por WhatsApp al cliente')}catch(e){if(e&&e.code!=='declined')toast('No se pudo descargar el PDF')}}
-    else{const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=nombre;document.body.appendChild(a);a.click();a.remove();toast('PDF listo: mandalo por WhatsApp al cliente')}
+      try{await dl.save({filename:nombre,data:blob});toast(faltaronPDF.length?'⚠️ PDF listo, pero no se pudo sumar: '+faltaronPDF.join(', ')+'. Mandalo aparte.':'PDF listo: mandalo por WhatsApp al cliente')}catch(e){if(e&&e.code!=='declined')toast('No se pudo descargar el PDF')}}
+    else{const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=nombre;document.body.appendChild(a);a.click();a.remove();toast(faltaronPDF.length?'⚠️ PDF listo, pero no se pudo sumar: '+faltaronPDF.join(', ')+'. Mandalo aparte.':'PDF listo: mandalo por WhatsApp al cliente')}
   }catch(e){toast('No se pudo armar el PDF: '+e.message)}
   finally{btn.textContent=txt;btn.disabled=false}
 }
@@ -544,7 +565,7 @@ function modelo(m){
   render();toast('Modelo cargado: revisá y cambiá lo que haga falta');
 }
 function limpio(o){return JSON.parse(JSON.stringify(o))}
-function toast(t){let el=document.getElementById('np-tt');if(!el){el=document.createElement('div');el.id='np-tt';document.body.appendChild(el)}el.textContent=t;el.style.opacity=1;clearTimeout(toast.t);toast.t=setTimeout(()=>el.style.opacity=0,2400)}
+function toast(t){let el=document.getElementById('np-tt');if(!el){el=document.createElement('div');el.id='np-tt';document.body.appendChild(el)}el.textContent=t;el.style.opacity=1;clearTimeout(toast.t);toast.t=setTimeout(()=>el.style.opacity=0,/^⚠️/.test(t)?7000:2400)}
 function conectar(R0){
 R0.addEventListener('click',e=>{
   const bp=e.target.closest('#np-b-pdf');if(bp){descargarPDF(bp);return}
