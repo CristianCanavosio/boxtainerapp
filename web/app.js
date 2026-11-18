@@ -462,7 +462,7 @@ function entrarApp(u){
   const t=tabsPermitidas();
   document.querySelectorAll('.nav-btn').forEach(b=>b.style.display=t.includes(b.dataset.view)?'':'none');
   document.querySelectorAll('.admin-only').forEach(el=>el.style.display=rol()==='admin'?'':'none');
-  pintarTituloPC();
+  pintarBurbujaPC();
   document.querySelectorAll('.solo-local').forEach(el=>el.style.display='none');
   document.querySelectorAll('.solo-nube').forEach(el=>el.style.display='');
   document.getElementById('fab-proy').style.display=puedeCrear()?'':'none';
@@ -747,7 +747,7 @@ async function iniciarNube(){
 const RENDERS={
   dashboard:()=>renderDash(), proyectos:()=>renderProyectos(), kanban:()=>renderKanban(),
   alertas:()=>renderAlertas(), personal:()=>renderPersonal(), contenedores:()=>{updContSel();renderContenedores()},
-  materiales:()=>{updMatSel();renderMateriales();renderRecetas()}, pedidos:()=>{pintarTituloPC();renderPedidosCarp()}, usuarios:()=>renderUsuarios(), costos:()=>renderCostos(), reportes:()=>renderReportes(), sugerencias:()=>renderSugerencias(), recursos:()=>renderRecursos()
+  materiales:()=>{updMatSel();renderMateriales();renderRecetas()}, pedidos:()=>{pintarBurbujaPC();renderPedidosCarp()}, usuarios:()=>renderUsuarios(), costos:()=>renderCostos(), reportes:()=>renderReportes(), sugerencias:()=>renderSugerencias(), recursos:()=>renderRecursos()
 };
 function showView(name){
   const t=tabsPermitidas();

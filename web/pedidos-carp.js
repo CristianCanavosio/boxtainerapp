@@ -49,6 +49,7 @@ async function cargarPedidosCarp(T){
     pcListo=true;
   }catch(e){console.warn('Pedidos a carpinterías no disponibles (¿falta la migración 0009?)',e);return;}
   try{pcAvisar();}catch(e){console.warn('Avisos de pedidos',e);}
+  pintarBurbujaPC();
   // la carpintería no ve los proyectos, pero sí los planos de los proyectos con pedido suyo
   const pids=[...new Set(pedidosCarp.map(x=>x.pid))].filter(pid=>!T[pid]);
   if(pids.length){
@@ -412,6 +413,24 @@ function alertasPedidosCarp(){
   });
   return out;
 }
+// ── burbuja con contador en la pestaña de pedidos ──
+// Taller: pedidos nuevos sin responder. Obra: pedidos suyos rechazados o listos (piden una acción).
+function pcPendientes(){
+  if(!pcListo||!currentUser) return 0;
+  const t=miTaller();
+  if(t) return pedidosCarp.filter(x=>x.taller===t&&x.estado==='enviado').length;
+  return pedidosCarp.filter(x=>{const p=todos[x.pid];return (x.porId===myId||(p&&p.supId===myId))&&(x.estado==='rechazado'||x.estado==='listo');}).length;
+}
+function pintarBurbujaPC(){
+  const n=pcPendientes();
+  pintarTituloPC();
+  const b=document.getElementById('nav-pedidos');
+  if(b&&n) b.insertAdjacentHTML('beforeend',` <b class="nav-burbuja">${n>9?'9+':n}</b>`);
+  if(typeof pintarBnav==='function') pintarBnav();
+  // en el celular, con la app instalada en la pantalla de inicio, el número sale también sobre el ícono
+  try{if(miTaller()&&navigator.setAppBadge) n?navigator.setAppBadge(n):navigator.clearAppBadge();}catch(e){}
+}
+
 // La carpintería / los técnicos ven la pestaña como "Pedidos"; la obra, como "Carpinterías"
 function pintarTituloPC(){
   const t=miTaller(), b=document.getElementById('nav-pedidos'), h=document.getElementById('pedcarp-titulo');
