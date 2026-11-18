@@ -3,7 +3,7 @@ module.exports={
   usuario:'lider', titulo:'LÍDER DE OPERACIONES · Asignar y seguir',
   async guion(g){
     await g.decir('El líder de operaciones valida los materiales, asigna supervisor y fechas, y sigue cada proyecto hasta la entrega.');
-    await g.decir('En el Tablero aparecen primero los faltantes de material que avisaron los supervisores, y los proyectos que esperan asignación.',
+    await g.decir('En Hoy aparecen primero los faltantes de material que avisaron los supervisores, y los proyectos que esperan asignación.',
       ()=>g.mostrar('#dash-content .card'));
     await g.decir('Abrimos un proyecto que espera asignación.',()=>g.abrirProyecto(g.P.asig));
     await g.decir('Revisá la nota de pedido. Si hay que corregirla, tocá Corregir nota: el cambio queda en el historial y ventas lo tiene que reconfirmar con el cliente.',
@@ -18,7 +18,7 @@ module.exports={
       await g.arriba('#m-det .modal');
       await g.elegir('#as-sup',g.U.supervisor.id);
       await g.valor('#as-ent',g.dia(20));
-      await g.tocar('#det-content button[onclick^="asignar"]',{espera:1600});
+      await g.tocar('#det-pie button[onclick^="asignar"]',{espera:1600});
     });
     await g.decir('Ahora el proyecto está en ejecución. Desde el proyecto le pedís a la carpintería de aluminio o de madera.',async()=>{
       await g.abrirProyecto(g.P.asig);

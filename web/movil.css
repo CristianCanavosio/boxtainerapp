@@ -1,0 +1,136 @@
+/* ════════════════════════════════════════════════
+   USO EN EL CELULAR (va después de los estilos de index.html y nota.css)
+   - botones de al menos 40-44 px de alto, letra mínima de 12 px
+   - campos con letra de 16 px: así el iPhone no hace zoom solo al tocarlos
+   - barra de navegación abajo y acciones fijas abajo, al alcance del pulgar
+   ════════════════════════════════════════════════ */
+
+/* ── encabezado más bajo, con el nombre de la pantalla ── */
+.header{padding:8px 14px;padding-top:max(8px,env(safe-area-inset-top))}
+.header-logo{width:34px;height:34px}
+.header-info h1{font-size:18px}
+.header-info p{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:62vw}
+.header-user{width:42px;height:42px;border-radius:50%;padding:0;font-size:14px;font-weight:800;flex:none;background:rgba(255,255,255,.25)}
+
+/* ── barra de navegación de abajo ── */
+#bnav{display:none}
+@media(max-width:759px){
+  .nav{display:none}
+  body.con-bnav #bnav{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:160;background:#fff;
+    border-top:1px solid var(--borde);box-shadow:0 -2px 12px rgba(0,0,0,.08);padding-bottom:env(safe-area-inset-bottom)}
+  body.con-bnav #screen-app{padding-bottom:calc(84px + env(safe-area-inset-bottom))}
+  body.con-bnav .fab{bottom:calc(78px + env(safe-area-inset-bottom))}
+  body.con-bnav .toast{bottom:calc(84px + env(safe-area-inset-bottom))}
+}
+.bn-btn{flex:1;min-height:62px;border:none;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:2px;color:var(--gris-m);font-size:12px;font-weight:700;cursor:pointer;padding:6px 2px}
+.bn-btn .bn-i{font-size:22px;line-height:1;position:relative}
+.bn-btn .bn-i i{font-style:normal;filter:grayscale(1);opacity:.75}
+.bn-btn.on{color:var(--nar)}
+.bn-btn.on .bn-i i{filter:none;opacity:1}
+.bn-badge{position:absolute;top:-6px;right:-12px;background:var(--rojo);color:#fff;font-size:11px;font-weight:800;
+  min-width:18px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center;padding:0 4px;font-style:normal}
+
+/* ── "Más": perfil, resto de las pestañas y salir ── */
+.mas-perfil{display:flex;gap:12px;align-items:center;padding-bottom:14px;margin-bottom:6px;border-bottom:1px solid var(--borde)}
+.mas-lista{display:flex;flex-direction:column}
+.mas-item{display:flex;align-items:center;gap:14px;min-height:54px;border:none;background:none;border-bottom:1px solid var(--borde);
+  font-size:16px;font-weight:600;color:var(--gris);text-align:left;cursor:pointer;padding:0 4px}
+.mas-item span{font-size:22px;width:28px;text-align:center}
+.mas-item.on{color:var(--nar)}
+
+/* ── pantalla Hoy ── */
+.hoy-saludo{font-size:22px;font-weight:800;margin:4px 2px 14px}
+.hoy-saludo span{display:block;font-size:13px;font-weight:600;color:var(--gris-m);margin-top:2px;text-transform:capitalize}
+.hoy-nueva{min-height:54px;font-size:17px;margin-bottom:14px;box-shadow:0 4px 14px rgba(232,118,26,.3)}
+.hoy-ok{font-size:15px;text-align:center;padding:18px}
+.hoy-stats .stat-box{cursor:pointer}
+.hoy-stats .stat-num{font-size:26px}
+.fila-click{min-height:52px;gap:10px}
+.fh-t{font-size:14px;font-weight:700}
+.fh-s{font-size:12px;color:var(--gris-m);margin-top:2px}
+.sec-sub{font-size:13px;font-weight:600;color:var(--gris-m);margin-left:auto}
+.obra-hoy{background:#fff;border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 1px 5px rgba(0,0,0,.07);border-left:5px solid var(--verde)}
+.obra-hoy.desviado{border-left-color:var(--rojo)}
+.oh-top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.oh-meta{font-size:13px;color:var(--gris-m);margin-top:4px}
+.oh-av{display:flex;justify-content:space-between;font-size:13px;color:var(--gris-m);margin-top:10px}
+.oh-btns{display:flex;gap:8px;margin-top:12px}
+.oh-btns .btn{min-height:50px;font-size:16px}
+.oh-btns .oh-chico{flex:none;width:56px;font-size:22px}
+
+/* ── filtros ── */
+.chip{min-height:40px;padding:8px 14px;font-size:13px;display:inline-flex;align-items:center;gap:6px;color:var(--gris);font-family:inherit}
+.chip-n{font-size:12px;font-weight:800;background:rgba(0,0,0,.07);border-radius:10px;padding:1px 7px}
+.chip.active .chip-n{background:rgba(255,255,255,.3)}
+
+/* ── tamaños para el dedo y letra mínima ── */
+.btn{min-height:48px}
+.btn-sm{min-height:40px;padding:9px 14px;font-size:13px}
+.badge{font-size:12px;white-space:nowrap}
+.stat-lbl{font-size:12px}
+.flujo-paso span{font-size:11px}
+.proy-cliente{font-size:13px}
+.update-fecha{font-size:12px}
+.mp-n small,.mp-r small{font-size:12px}
+.mp-b{min-height:40px;padding:8px 12px;font-size:13px}
+.mp-c input,.mp-r input{width:76px;height:40px;font-size:16px}
+.mp-add summary{min-height:44px;display:flex;align-items:center}
+.check{min-height:40px;align-items:center}
+.check input{width:22px;height:22px}
+.dsec a.lbl{display:inline-block;padding:8px 0}
+.drow .val .btn-sm{min-height:36px}
+@media(max-width:759px){
+  .fg input,.fg select,.fg textarea,.accion input,.accion select,.accion textarea,.dsec textarea,.dsec select,.dsec input,
+  .consulta textarea,.search-wrap input,.add-row input,.add-row select,#filtro-emp,.login-input{font-size:16px!important}
+  .modal{max-height:92dvh;padding-bottom:0}
+}
+
+/* ── proyecto: encabezado y barra de acciones fijos ── */
+.det-top{position:sticky;top:-20px;margin:-20px -20px 8px;padding:10px 20px 4px;min-height:58px;background:#fff;z-index:6;border-radius:20px 20px 0 0}
+.det-top .modal-handle{margin:0 auto 6px}
+.det-x{position:absolute;right:12px;top:8px;width:42px;height:42px;border-radius:50%;border:none;background:var(--gris-l);
+  font-size:18px;color:var(--gris);cursor:pointer}
+.det-pie{position:sticky;bottom:0;margin:14px -20px 0;padding:10px 14px calc(10px + env(safe-area-inset-bottom));background:#fff;
+  box-shadow:0 -4px 14px rgba(0,0,0,.08);display:flex;gap:8px;z-index:6}
+.det-pie .btn{flex:1;min-height:52px;font-size:16px}
+.det-pie .det-seg{flex:none;width:auto;padding:0 16px}
+.det-pie .det-mas{flex:none;width:56px;font-size:22px;padding:0}
+.det-menu{display:none;position:absolute;right:12px;bottom:calc(100% + 6px);background:#fff;border-radius:14px;
+  box-shadow:0 8px 30px rgba(0,0,0,.22);overflow:hidden;min-width:250px;z-index:7}
+.det-menu.on{display:block}
+.det-menu button{display:block;width:100%;min-height:52px;border:none;background:none;text-align:left;padding:0 16px;
+  font-size:15px;font-weight:600;color:var(--gris);border-bottom:1px solid var(--borde);cursor:pointer}
+.det-menu button:last-child{border-bottom:none;color:var(--gris-m)}
+.det-menu button.rojo{color:var(--rojo)}
+@media(min-width:760px){.det-top{top:-20px}.det-pie{margin-bottom:-20px}}
+
+/* ── secciones que se abren y cierran ── */
+.dsec.plegable>h3{cursor:pointer;display:flex;align-items:center;gap:6px;min-height:28px;user-select:none}
+.dsec.plegable>h3::after{content:'▾';margin-left:auto;font-size:16px;color:var(--nar);transition:transform .15s}
+.dsec.plegada>h3{margin-bottom:0}
+.dsec.plegada>h3::after{transform:rotate(-90deg)}
+.dsec.plegada>*:not(h3){display:none!important}
+.dsec.plegada{padding-top:14px;padding-bottom:14px}
+
+/* ── parte diario ── */
+.fg input#upd-av-r{width:100%;height:36px;accent-color:var(--verde);margin:2px 0 6px;padding:0;border:none;background:none;-webkit-appearance:auto;appearance:auto;box-shadow:none}
+.upd-pasos{display:grid;grid-template-columns:1fr 1.3fr 1fr 1fr;gap:8px}
+.upd-pasos .btn{min-height:46px;font-size:16px;padding:0}
+.upd-pasos input{text-align:center;font-weight:800}
+.upd-fotos{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.upd-fotos:empty{display:none}
+.uf{position:relative;width:76px;height:76px}
+.uf img{width:100%;height:100%;object-fit:cover;border-radius:10px}
+.uf button{position:absolute;top:-6px;right:-6px;width:28px;height:28px;border-radius:50%;border:none;background:var(--rojo);color:#fff;font-size:13px;cursor:pointer}
+.upd-fotos-ver{display:flex;gap:12px;flex-wrap:wrap;margin-top:6px}
+.upd-fotos-ver a{font-size:13px;font-weight:700;color:var(--azul);padding:6px 0}
+.pie-fijo{position:sticky;bottom:0;background:#fff;margin:12px -20px 0!important;padding:10px 14px calc(10px + env(safe-area-inset-bottom));box-shadow:0 -4px 14px rgba(0,0,0,.08)}
+
+/* ── materiales por excepción ── */
+.mp-todo{margin-bottom:6px}
+.mp-ayuda{font-size:12px;color:var(--gris-m);margin-bottom:10px;text-align:center}
+.mp-ok{margin-top:10px}
+.mp-ok summary{min-height:44px;display:flex;align-items:center;font-size:14px;font-weight:700;color:#1E7A48;cursor:pointer;
+  background:#E6F6EE;border-radius:10px;padding:0 12px}
+.mp-ok .mp-lista{margin-top:8px}

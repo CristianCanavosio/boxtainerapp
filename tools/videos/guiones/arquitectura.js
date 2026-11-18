@@ -3,7 +3,7 @@ module.exports={
   usuario:'arquitectura', titulo:'ARQUITECTURA · Plano y verificación',
   async guion(g){
     await g.decir('Arquitectura hace el plano de cada proyecto que lo necesita y lo verifica contra la nota de pedido.');
-    await g.decir('En el Tablero ves los proyectos que esperan plano. Tocá uno para abrirlo.',async()=>{
+    await g.decir('En Hoy ves los proyectos que esperan plano. Tocá uno para abrirlo.',async()=>{
       await g.mostrar('#dash-content');
       await g.abrirProyecto(g.P.arq);
     });
@@ -27,7 +27,7 @@ module.exports={
     await g.decir('Tildá que verificaste que el plano coincide con la nota: medidas, puertas, ventanas e instalaciones.',
       ()=>g.tocar('#det-verif'));
     await g.decir('Y tocá Enviar a Líder de Operaciones. Si a la nota le falta algo, podés devolverla a ventas.',
-      ()=>g.tocar('#det-content button[onclick*="\'asignacion\'"]',{espera:1600}));
+      ()=>g.tocar('#det-pie button[onclick*="\'asignacion\'"]',{espera:1600}));
     await g.decir('Listo: el proyecto pasa al líder de operaciones para que valide materiales y asigne supervisor.');
   },
 };

@@ -6,7 +6,7 @@ module.exports={
     await g.decir('Entrás desde el celular con tu correo y tu contraseña. La primera vez, tocá Crear cuenta y esperá a que el administrador te asigne el rol.');
     await g.decir('Arriba ves tu nombre y tu rol. Cada rol ve solo las pestañas y los proyectos que le tocan.',
       ()=>g.mostrar('#header-user-info'));
-    await g.decir('En el Tablero aparece primero lo que espera algo de vos: consultas para responder, proyectos de tu área y avisos.',
+    await g.decir('En Hoy aparece primero lo que espera algo de vos: consultas para responder, proyectos de tu área y avisos.',
       ()=>g.mostrar('#dash-content'));
     await g.decir('En Proyectos tocá una tarjeta para ver el detalle.',()=>g.abrirProyecto(g.P.obra));
     await g.decir('Ahí está la etapa, la información, los planos, la nota de pedido, las consultas y el recorrido del proyecto.',async()=>{

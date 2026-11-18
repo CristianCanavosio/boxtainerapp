@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#E8761A">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -317,6 +317,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .sla{font-weight:800}.sla.rojo{color:var(--rojo)}.sla.amar{color:var(--amarillo)}.sla.verde{color:var(--verde)}
 </style>
 <link rel="stylesheet" href="nota.css">
+<link rel="stylesheet" href="movil.css">
 </head>
 <body>
 <!-- SPLASH -->
@@ -361,16 +362,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <div class="header">
     <div class="header-logo"><img src="logo.png" style="width:34px;height:34px;object-fit:contain;border-radius:6px"></div>
     <div class="header-info">
-      <h1>BoxTainer Argentina SAS</h1>
+      <h1 id="header-tit">BoxTainer</h1>
       <p id="header-user-info">Gestión de Proyectos</p>
     </div>
-    <button class="header-user" id="btn-salir" onclick="doLogout()">🚪 Salir</button>
+    <button class="header-user" id="btn-salir" onclick="abrirMas()" aria-label="Tu perfil y más opciones">👤</button>
   </div>
   <div class="nav">
-    <button class="nav-btn active" data-view="dashboard" onclick="showView('dashboard')">🏠 Tablero</button>
+    <button class="nav-btn active" data-view="dashboard" onclick="showView('dashboard')">🏠 Hoy</button>
     <button class="nav-btn" data-view="proyectos" onclick="showView('proyectos')">📋 Proyectos</button>
     <button class="nav-btn" data-view="kanban" onclick="showView('kanban')">📊 Kanban</button>
-    <button class="nav-btn" data-view="alertas" onclick="showView('alertas')">🚨 Alertas</button>
+    <button class="nav-btn" data-view="alertas" onclick="showView('alertas')">🚨 Avisos</button>
     <button class="nav-btn" data-view="pedidos" onclick="showView('pedidos')" id="nav-pedidos">🪚 Carpinterías</button>
     <button class="nav-btn" data-view="personal" onclick="showView('personal')">👷 Personal</button>
     <button class="nav-btn" data-view="contenedores" onclick="showView('contenedores')">📦 Contenedores</button>
@@ -392,17 +393,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <div style="margin-top:12px">
       <div class="search-wrap"><input type="text" placeholder="Buscar proyecto o cliente..." id="search-p" oninput="renderProyectos()"></div>
       <select id="filtro-emp" class="solo-nube" onchange="setFiltroEmpresa(this.value)" style="width:100%;padding:10px;border:1.5px solid var(--borde);border-radius:10px;font-size:14px;margin-bottom:10px;background:white"></select>
-      <div class="chips">
-        <div class="chip active" onclick="setFiltro('todos',this)">Todos</div>
-        <div class="chip solo-nube" onclick="setFiltro('ventas',this)">💼 Ventas</div>
-        <div class="chip solo-nube" onclick="setFiltro('arquitectura',this)">📐 Arquitectura</div>
-        <div class="chip solo-nube" onclick="setFiltro('asignacion',this)">🧭 Por asignar</div>
-        <div class="chip solo-local" onclick="setFiltro('presupuesto',this)">Presupuesto</div>
-        <div class="chip" onclick="setFiltro('en-curso',this)">En curso</div>
-        <div class="chip" onclick="setFiltro('finalizado',this)">Finalizados</div>
-        <div class="chip" onclick="setFiltro('pausado',this)">Pausados</div>
-        <div class="chip" onclick="setFiltro('desviado',this)">⚠️ Desviados</div>
-      </div>
+      <div class="chips" id="chips-proy"></div>
       <div id="lista-proyectos"></div>
     </div>
     <button class="fab" id="fab-proy" onclick="abrirNuevoProy()">+</button>
@@ -555,6 +546,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   </div>
 </div>
 
+<!-- BARRA DE NAVEGACIÓN DE ABAJO (celular): la arma movil.js según el rol -->
+<nav id="bnav" aria-label="Navegación"></nav>
+<!-- MÁS: el resto de las pestañas, el perfil y salir -->
+<div class="overlay" id="m-mas" onclick="if(event.target===this)closeOverlay('m-mas')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div id="mas-content"></div>
+  </div>
+</div>
+
 <!-- ══ MODAL: NUEVO / EDITAR PROYECTO ══ -->
 <div class="overlay" id="m-proy">
   <div class="modal">
@@ -657,22 +658,31 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <div class="modal-handle"></div>
     <div class="modal-title">📝 Actualización diaria</div>
     <input type="hidden" id="upd-proy-id">
-    <div class="fg"><label>Avance actual %</label>
-      <input type="number" id="upd-av" placeholder="0" min="0" max="100"></div>
+    <div class="fg"><label>Avance actual: <b id="upd-av-lbl">0%</b> <span id="upd-av-ant" style="font-weight:400;color:var(--gris-m)"></span></label>
+      <input type="range" id="upd-av-r" min="0" max="100" step="1" oninput="avanceUpd(this.value)">
+      <div class="upd-pasos">
+        <button type="button" class="btn btn-sec" onclick="avanceUpd(+document.getElementById('upd-av').value-5)">−5</button>
+        <input type="number" id="upd-av" placeholder="0" min="0" max="100" inputmode="numeric" oninput="avanceUpd(this.value,true)">
+        <button type="button" class="btn btn-sec" onclick="avanceUpd(+document.getElementById('upd-av').value+5)">+5</button>
+        <button type="button" class="btn btn-sec" onclick="avanceUpd(+document.getElementById('upd-av').value+10)">+10</button>
+      </div></div>
     <div class="form-2"><div class="fg"><label>Personas que trabajaron hoy</label>
       <input type="number" id="upd-pers" placeholder="Ej: 3" min="0" max="200" step="1" inputmode="numeric"></div>
     <div class="fg"><label>Horas de trabajo en el día</label>
       <input type="number" id="upd-hs" placeholder="Ej: 8" min="0" max="24" step="0.5" inputmode="decimal"></div></div>
     <div class="fg"><label>Comentario / Novedad</label>
-      <textarea id="upd-text" placeholder="¿Qué se hizo hoy? ¿Hay problemas?"></textarea></div>
+      <textarea id="upd-text" placeholder="¿Qué se hizo hoy? ¿Hay problemas? (podés dictarlo con el micrófono del teclado)"></textarea></div>
+    <div class="fg"><label>Fotos del avance <span style="font-weight:400;color:var(--gris-m)">(opcional, hasta 4)</span></label>
+      <div id="upd-fotos" class="upd-fotos"></div>
+      <label class="btn btn-sec" id="upd-foto-btn" style="cursor:pointer">📷 Sacar o elegir foto
+        <input type="file" accept="image/*" capture="environment" multiple style="display:none" onchange="fotosUpd(this)"></label></div>
     <div class="fg"><label>Estado</label>
       <select id="upd-est">
         <option value="en-curso">🔨 En curso</option>
         <option value="finalizado">✅ Finalizado</option>
         <option value="pausado">⏸️ Pausado</option>
-        <option value="presupuesto">💬 Presupuesto</option>
       </select></div>
-    <div class="flex-btns" style="margin-top:8px">
+    <div class="flex-btns pie-fijo" style="margin-top:8px">
       <button class="btn btn-sec" onclick="closeOverlay('m-update')">Cancelar</button>
       <button class="btn btn-verde" onclick="guardarUpdate()">✅ Guardar actualización</button>
     </div>
@@ -796,12 +806,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 <div class="overlay" id="m-det">
   <div class="modal">
-    <div class="modal-handle"></div>
+    <div class="det-top"><div class="modal-handle"></div>
+      <button class="det-x" onclick="closeOverlay('m-det')" aria-label="Cerrar">✕</button></div>
     <div id="det-content"></div>
-    <div class="flex-btns" style="margin-top:12px">
-      <button class="btn btn-sec" onclick="closeOverlay('m-det')">Cerrar</button>
-      <button class="btn btn-nar" id="btn-edit-det">✏️ Editar</button>
-    </div>
+    <div class="det-pie" id="det-pie"></div>
   </div>
 </div>
 
@@ -817,5 +825,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <script src="sugerencias.js"></script>
 <script src="recursos.js"></script>
 <script src="app.js"></script>
+<script src="movil.js"></script>
 </body>
 </html>

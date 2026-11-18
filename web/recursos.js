@@ -12,15 +12,15 @@ const REC_BASE=[
   {clave:'inicio',orden:1,roles:[],titulo:'Primeros pasos en la app',
     descripcion:'Cómo entrar, qué hay en cada pestaña y cómo mandar una sugerencia. Para todos.',
     pasos:`Entrá desde el celular a la dirección de la app con tu correo y contraseña. Si es la primera vez, tocá "Crear cuenta" y esperá a que el administrador te asigne el rol.
-Arriba ves tu nombre y tu rol. Cada rol ve solo las pestañas y los proyectos que le tocan.
-En Tablero aparece primero lo que espera algo de vos: consultas para responder, proyectos de tu área y avisos.
-En Proyectos tocá una tarjeta para ver el detalle: etapa, información, planos, nota de pedido, consultas y recorrido.
+Abajo tenés la barra con lo que más usás. El resto de las pestañas, tu perfil y "Salir" están en "☰ Más".
+En Hoy aparece primero lo que espera algo de vos: consultas para responder, proyectos de tu área y avisos.
+En Proyectos tocá una tarjeta para ver el detalle. Las secciones se abren y cierran tocando el título, y el botón principal queda fijo abajo; las otras acciones están en "⋯".
 Las consultas entre áreas tienen semáforo: verde hasta 4 horas, amarillo hasta 24 horas y rojo después. Respondé desde el proyecto.
 En Sugerencias podés mandar una idea de mejora con texto, foto o audio.
 En Recursos tenés esta guía y el video de tu rol. Si algo cambió en la app, el video se actualiza acá.`},
   {clave:'ventas',orden:10,roles:['ventas'],titulo:'Ventas: cargar la nota de pedido',
     descripcion:'Desde el pedido del cliente hasta que el proyecto pasa a arquitectura o al líder de operaciones.',
-    pasos:`Tocá el botón naranja "+" para cargar una nota de pedido nueva. Son 7 pasos y el dibujo del contenedor se arma solo.
+    pasos:`En Hoy tocá "+ Nueva nota de pedido" (o el botón naranja "+" en Proyectos) para cargar una nota de pedido nueva. Son 7 pasos y el dibujo del contenedor se arma solo.
 Paso 1: empresa que vende, tipo de solicitud, cliente, teléfono, dirección de entrega verificada en el mapa y fecha de entrega. La fecha tiene un plazo mínimo: 5 días corridos para productos Company y 15 para el resto.
 Indicá si necesita plano de arquitectura. Si no lo necesita, el proyecto va directo al líder de operaciones.
 Pasos 2 a 6: producto y tamaño, distribución de espacios, terminaciones, aberturas e instalaciones. Lo que el cliente todavía no definió marcalo "A confirmar".
@@ -30,29 +30,29 @@ Si el líder corrige una nota ya confirmada, te aparece el aviso: mostrale el ca
 Respondé rápido las consultas de arquitectura y operaciones: el semáforo mide cuánto tarda la respuesta.`},
   {clave:'arquitectura',orden:20,roles:['arquitectura'],titulo:'Arquitectura: plano y verificación',
     descripcion:'Subir el plano, verificarlo contra la nota de pedido y pasarlo al líder de operaciones.',
-    pasos:`En Tablero ves los proyectos que esperan plano. Tocá uno para abrirlo.
+    pasos:`En Hoy ves los proyectos que esperan plano. Tocá uno para abrirlo.
 Leé la nota de pedido del proyecto: medidas, espacios, aberturas e instalaciones.
 Subí el plano en PDF o imagen con "Subir plano". Si pesa más de 50 MB, pegá el enlace de Drive, OneDrive o Dropbox.
 Escribí una nota para operaciones si hace falta (medidas, materiales, observaciones).
-Tildá que verificaste que el plano coincide con la ficha técnica y tocá "Enviar a Líder de Operaciones".
+Tildá que verificaste que el plano coincide con la ficha técnica y tocá "Enviar al líder", abajo.
 Si a la nota le falta información, mandá una consulta a ventas o devolvé el proyecto con "Devolver a Ventas".`},
   {clave:'lider',orden:30,roles:['lider'],titulo:'Líder de operaciones: stock, asignación y seguimiento',
     descripcion:'Validar materiales, asignar supervisor y fechas, pedir a carpinterías y seguir los desvíos.',
-    pasos:`En Tablero ves los proyectos que esperan asignación, los faltantes de material y las consultas para vos.
+    pasos:`En Hoy ves los proyectos que esperan asignación, los faltantes de material y las consultas para vos.
 Abrí el proyecto y revisá la nota de pedido. Si hay que corregirla, el cambio queda en el historial y ventas tiene que reconfirmarlo con el cliente.
-En "Materiales del proyecto" marcá cada ítem como Hay, Pedido o Falta. Sin el stock validado no se puede asignar.
-Elegí el supervisor, la fecha de inicio y la de entrega, y tocá "Asignar y comenzar".
+En "Materiales del proyecto" marcá solo lo que está Pedido o en Falta, y después tocá "Hay stock de los … sin validar" para el resto. Sin el stock validado no se puede asignar.
+Elegí el supervisor, la fecha de inicio y la de entrega, y tocá "Asignar y comenzar", abajo.
 Desde el proyecto pedí a la carpintería de aluminio o de madera: la lista sale de la nota y la podés corregir.
-En Alertas y Kanban seguí los proyectos atrasados o desviados. Cuando un supervisor avisa que falta material, resolvelo y marcalo "Resuelto".
+En Avisos y Kanban seguí los proyectos atrasados o desviados. Cuando un supervisor avisa que falta material, resolvelo y marcalo "Resuelto".
 En Materiales cargás la receta de cada tipología: los materiales que se suman solos a cada proyecto de ese tipo.`},
   {clave:'supervisor',orden:40,roles:['supervisor'],titulo:'Supervisor: parte diario y materiales',
     descripcion:'Cargar el avance del día, los materiales usados, faltantes y errores de la obra.',
-    pasos:`En Proyectos ves solo los proyectos que te asignaron.
-Todos los días abrí el proyecto y tocá "Actualizar hoy": porcentaje de avance, cuántas personas trabajaron, cuántas horas y un comentario.
+    pasos:`En Hoy ves tus obras. Todos los días tocá "Cargar parte de hoy": avance (con los botones +5 y +10), personas y horas (vienen las del día anterior), un comentario y, si querés, fotos del avance.
+En Proyectos ves solo los proyectos que te asignaron.
 En "Materiales: planificado vs usado" cargá cuánto se usó de cada material (el total acumulado). Si te pasás de lo planificado, se marca el desvío.
 Si usaste algo que no estaba previsto, agregalo con "Agregar material no previsto".
-Si falta un material, tocá "Falta material": le llega al líder con la fecha en que lo necesitás y si frena el trabajo.
-Si encontrás un error en medidas o planos, tocá "Reportar error" y elegí de qué área vino.
+Si falta un material, tocá "📦 Falta" (abajo en el proyecto, o el 📦 en Hoy): le llega al líder con la fecha en que lo necesitás y si frena el trabajo.
+Si encontrás un error en medidas o planos, tocá "⋯" → "Reportar error" y elegí de qué área vino.
 Para aberturas o muebles, pedí a la carpintería desde el proyecto y marcá "Lo recibimos" cuando llegue.`},
   {clave:'carpinteria',orden:50,roles:['carp_aluminio','carp_madera'],titulo:'Carpinterías: responder y avisar los pedidos',
     descripcion:'Aceptar con fecha, fabricar y avisar cuando el pedido está listo.',

@@ -123,7 +123,12 @@ function resumenDesvios(p){
 
 function pintarMateriales(pid){
   const el=document.getElementById('mp-sec'), p=todos[pid];
-  if(el&&p) el.outerHTML=seccionMateriales(p);
+  if(!el||!p) return;
+  const abierta=!el.classList.contains('plegada'), okAbierto=el.querySelector('details.mp-ok')?.open;
+  el.outerHTML=seccionMateriales(p);
+  const nuevo=document.getElementById('mp-sec');
+  if(nuevo&&typeof plegarSecciones==='function'){plegarSecciones(nuevo.parentElement,p,{mp:abierta});}
+  if(okAbierto){const d=document.querySelector('#mp-sec details.mp-ok');if(d)d.open=true;}
 }
 function seccionMateriales(p){
   const e=etapaDe(p), r=rol();
@@ -134,17 +139,24 @@ function seccionMateriales(p){
   const op=esOp()&&r!=='lectura';
   if(e==='asignacion'){
     const falta=problemaStock(p);
+    const nSin=it.filter(x=>!x.stock&&!x.fuera).length, nOk=it.filter(x=>x.stock==='hay'&&!x.fuera).length;
+    const fila=(x,i)=>`<div class="mp-f${x.fuera?' mp-fuera':''}">
+        <div class="mp-n">${esc(x.clave)}${x.det?`<small>${esc(x.det)}</small>`:''}${x.pend?'<small style="color:var(--amarillo)">a confirmar con el cliente</small>':''}${x.receta?'<small>receta de la tipología</small>':''}${x.fuera?'<small>ya no está en la nota</small>':''}</div>
+        <div class="mp-c">${op?`<input type="number" inputmode="decimal" step="0.01" min="0" value="${x.plan}" onchange="planItem('${id}',${i},this.value)">`:mpFmt(x.plan)} <span>${esc(x.unidad)}</span></div>
+        <div class="mp-s">${Object.keys(STOCK).map(k=>op?`<button class="mp-b ${x.stock===k?'on '+STOCK[k].c:''}" onclick="stockItem('${id}',${i},'${k}')">${STOCK[k].t}</button>`
+          :(x.stock===k?`<span class="mp-b on ${STOCK[k].c}">${STOCK[k].t}</span>`:'')).join('')}</div>
+      </div>`;
+    const pares=it.map((x,i)=>[x,i]);
+    const aMirar=pares.filter(([x])=>x.stock!=='hay'||x.fuera), conStock=pares.filter(([x])=>x.stock==='hay'&&!x.fuera);
     return `<div class="dsec" id="mp-sec"><h3>📦 Materiales del proyecto</h3>
       <div style="font-size:12px;color:var(--gris-m);margin-bottom:8px">Salen de la nota de pedido y de la receta de la tipología. Validá el stock de cada uno: sin eso no se puede asignar. Si hace falta, corregí la cantidad.</div>
       ${falta?`<div class="cst-aviso amar">${esc(falta)}</div>`:'<div class="nota-ok" style="margin-bottom:8px">✅ Stock validado de todos los materiales</div>'}
-      <div class="mp-lista">${it.map((x,i)=>`<div class="mp-f${x.fuera?' mp-fuera':''}">
-        <div class="mp-n">${esc(x.clave)}${x.det?`<small>${esc(x.det)}</small>`:''}${x.pend?'<small style="color:var(--amarillo)">a confirmar con el cliente</small>':''}${x.receta?'<small>receta de la tipología</small>':''}${x.fuera?'<small>ya no está en la nota</small>':''}</div>
-        <div class="mp-c">${op?`<input type="number" step="0.01" min="0" value="${x.plan}" onchange="planItem('${id}',${i},this.value)">`:mpFmt(x.plan)} <span>${esc(x.unidad)}</span></div>
-        <div class="mp-s">${Object.keys(STOCK).map(k=>op?`<button class="mp-b ${x.stock===k?'on '+STOCK[k].c:''}" onclick="stockItem('${id}',${i},'${k}')">${STOCK[k].t}</button>`
-          :(x.stock===k?`<span class="mp-b on ${STOCK[k].c}">${STOCK[k].t}</span>`:'')).join('')}</div>
-      </div>`).join('')}</div>
-      ${op?`<div class="flex-btns" style="margin-top:8px">${it.some(x=>!x.stock&&!x.fuera)?`<button class="btn btn-sec btn-sm" onclick="todoHay('${id}')">✅ Marcar el resto como "hay"</button>`:''}</div>
-      ${formAgregarMat(id,false)}`:''}
+      ${op&&nSin?`<button class="btn btn-verde mp-todo" onclick="todoHay('${id}')">✅ Hay stock de los ${nSin} sin validar</button>
+        <div class="mp-ayuda">Primero marcá abajo lo que está pedido o en falta; con este botón el resto queda como "hay".</div>`:''}
+      ${aMirar.length?`<div class="mp-lista">${aMirar.map(([x,i])=>fila(x,i)).join('')}</div>`:''}
+      ${nOk?`<details class="mp-ok"${aMirar.length?'':' open'}><summary>✅ ${nOk} con stock · tocá para ver o cambiar</summary>
+        <div class="mp-lista">${conStock.map(([x,i])=>fila(x,i)).join('')}</div></details>`:''}
+      ${op?formAgregarMat(id,false):''}
     </div>`;
   }
   const puedeCargar=(esSupDe(p)||esOp())&&r!=='lectura'&&p.estado!=='finalizado';
@@ -158,7 +170,7 @@ function seccionMateriales(p){
         return `<div class="mp-r">
           <span>${esc(x.clave)}${x.det?`<small>${esc(x.det)}</small>`:''}${x.extra&&!x.plan?'<small>no previsto</small>':''}${x.usadaPor?`<small>${esc(x.usadaPor)} · ${esc(x.usadaEn||'')}</small>`:''}</span>
           <span>${mpFmt(x.plan)} <small>${esc(x.unidad)}</small></span>
-          <span>${puedeCargar?`<input type="number" step="0.01" min="0" value="${x.usada==null?'':x.usada}" placeholder="—" onchange="usadaItem('${id}',${i},this.value)">`:mpFmt(x.usada)}</span>
+          <span>${puedeCargar?`<input type="number" inputmode="decimal" step="0.01" min="0" value="${x.usada==null?'':x.usada}" placeholder="—" onchange="usadaItem('${id}',${i},this.value)">`:mpFmt(x.usada)}</span>
           <span class="${dv?(dv.d>0?(dv.pct===null||dv.pct>10?'rojo':'amar'):'verde'):''}">${dv?(dv.d>0?'+':'')+mpFmt(dv.d)+(dv.pct!==null?` <small>${dv.pct>0?'+':''}${Math.round(dv.pct)}%</small>`:''):'—'}
             ${dv&&pr&&pr.costo?`<small>🔒 ${dv.d>0?'+':''}${usd(dv.d*pr.costo)}</small>`:''}</span>
         </div>`}).join('')}
