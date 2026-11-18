@@ -35,7 +35,7 @@ let vistaActual='dashboard';
 
 const ROLES={admin:'👑 Administrador',lider:'🧭 Líder de operaciones',supervisor:'🔨 Supervisor',
   ventas:'💼 Ventas',arquitectura:'📐 Arquitectura',lectura:'👁️ Solo lectura',
-  carp_aluminio:'🪟 Carpintería de aluminio',carp_madera:'🪵 Carpintería de madera'};
+  carp_aluminio:'🪟 Carpintería de aluminio',carp_madera:'🪵 Carpintería de madera',tecnico_aires:'❄️ Técnico de aire'};
 const TABS={
   admin:['dashboard','proyectos','kanban','alertas','pedidos','personal','contenedores','materiales','costos','usuarios','reportes','sugerencias','recursos'],
   lider:['dashboard','proyectos','kanban','alertas','pedidos','personal','contenedores','materiales','reportes','sugerencias','recursos'],
@@ -46,6 +46,7 @@ const TABS={
   // las carpinterías ven solo sus pedidos (y los planos de esos proyectos)
   carp_aluminio:['pedidos','alertas','sugerencias','recursos'],
   carp_madera:['pedidos','alertas','sugerencias','recursos'],
+  tecnico_aires:['pedidos','alertas','sugerencias','recursos'],
 };
 const ETAPA={
   ventas:{label:'💼 En ventas',cls:'b-azul'},
@@ -364,7 +365,7 @@ function pantallaLogin(estado,msg){
       <button class="login-btn" onclick="pantallaLogin('login')">Ir a iniciar sesión</button>`;
   } else if(estado==='pendiente'){
     box.innerHTML=`<h2>Cuenta creada ✅</h2>
-      <p>Hola <b>${esc(miNombre||miEmail)}</b>. El administrador tiene que asignarte un rol (ventas, arquitectura, líder de operaciones, supervisor o carpintería). Cuando lo haga, esta pantalla se actualiza sola.</p>
+      <p>Hola <b>${esc(miNombre||miEmail)}</b>. El administrador tiene que asignarte un rol (ventas, arquitectura, líder de operaciones, supervisor, carpintería o técnico de aire). Cuando lo haga, esta pantalla se actualiza sola.</p>
       <button class="btn btn-sec" style="width:100%" onclick="programarRecarga(0)">🔄 Revisar de nuevo</button>
       <button class="btn btn-sec" style="width:100%;margin-top:8px" onclick="doLogout()">🚪 Salir</button>`;
   } else if(estado==='error'){
@@ -508,7 +509,7 @@ async function abrirPlano(ev,ruta){
 // ════════════════════════════════════════════════
 function selectRol(id,actual){
   return `<select id="${id}" style="padding:7px;border:1.5px solid var(--borde);border-radius:8px;font-size:12px">
-    ${['ventas','arquitectura','lider','supervisor','carp_aluminio','carp_madera','admin','lectura'].map(r=>`<option value="${r}" ${r===actual?'selected':''}>${ROLES[r]}</option>`).join('')}</select>`;
+    ${['ventas','arquitectura','lider','supervisor','carp_aluminio','carp_madera','tecnico_aires','admin','lectura'].map(r=>`<option value="${r}" ${r===actual?'selected':''}>${ROLES[r]}</option>`).join('')}</select>`;
 }
 function renderUsuarios(){
   const lista=document.getElementById('lista-usuarios');
@@ -931,7 +932,7 @@ function renderDash(){
   // pedidos a carpinterías que piden algo de la obra (atrasados, rechazados, listos para retirar)
   if((r==='supervisor'||op)&&typeof pedidosCarp!=='undefined'){
     const pc=pedidosCarp.filter(x=>PC_ABIERTO.includes(x.estado)&&esObraDe(x)).map(x=>({x,a:avisoPedido(x)})).filter(o=>o.a);
-    bloques.push(bloqueLista('azul','🪚 Pedidos a carpinterías',pc.map(({x,a})=>filaHoy(x.pid,`${TALLER[x.taller]?.t||''} · N° ${esc(x.num)}`,esc(x.proy.slice(0,30))+' · '+esc(a.t),`<span class="badge ${a.c==='rojo'?'b-rojo':a.c==='amar'?'b-amar':'b-verde'}">${PC_EST[x.estado]?.t.split(' ')[0]||''}</span>`))));
+    bloques.push(bloqueLista('azul','🪚 Pedidos a carpinterías y aires',pc.map(({x,a})=>filaHoy(x.pid,`${TALLER[x.taller]?.t||''} · N° ${esc(x.num)}`,esc(x.proy.slice(0,30))+' · '+esc(a.t),`<span class="badge ${a.c==='rojo'?'b-rojo':a.c==='amar'?'b-amar':'b-verde'}">${estPC(x).t.split(' ')[0]||''}</span>`))));
   }
   if(op&&desv.length) bloques.push(bloqueLista('rojo','🚨 Obras desviadas',desv.map(p=>filaHoy(p.id,esc(p.nombre.slice(0,30)),`Avance ${p.avance||0}% (debería ${calcAvanceEsperado(p)}%) · Sup: ${esc(supNombre(p))||'—'}${costoDesviado(p)?' · costo excedido':''}`,'<span class="badge b-rojo">⚠️</span>'))));
   if(op||r==='lectura'){
@@ -1201,7 +1202,7 @@ function verDetalle(id){
     }
     if(e==='asignacion'&&esOp()){
       const pr=p.presup||{}, conMat=mpListo&&esNota(p);
-      acciones+=`<div class="accion"><p><b>Líder de operaciones:</b> ${conMat?'validá el stock de los materiales (abajo), asigná un supervisor y las fechas. Con eso arranca la medición de avance y de desvíos de materiales.':'asigná un supervisor y las fechas'+(esAdmin()?' y el presupuesto de costos':'')+'. Con eso arranca la medición de avance y desvíos.'}</p>
+      acciones+=`<div class="accion"><p><b>Líder de operaciones:</b> ${conMat?'validá el stock de los materiales (abajo), pedí las aberturas a la fábrica y la colocación de aires, asigná un supervisor y las fechas. Con eso arranca la medición de avance y de desvíos de materiales.':'asigná un supervisor y las fechas'+(esAdmin()?' y el presupuesto de costos':'')+'. Con eso arranca la medición de avance y desvíos.'}</p>
         <div class="fg"><label>Supervisor</label><select id="as-sup">${opcionesSupervisores(p.supId||'')}</select></div>
         <div class="form-2"><div class="fg"><label>Inicio</label><input type="date" id="as-ini" value="${esc(p.inicio||hoyISO())}"></div>
           <div class="fg"><label>Entrega</label><input type="date" id="as-ent" value="${esc(p.entrega||'')}"></div></div>
@@ -1216,6 +1217,7 @@ function verDetalle(id){
           return pm.length?`<p style="color:var(--rojo);font-size:12px;margin-bottom:6px">Materiales de este proyecto sin comprar: ${pm.map(m=>esc(m.nom)).join(', ')}</p>`:'';})()}
         ${conMat?(()=>{const ps=problemaStock(p);return `<p style="font-size:12px;margin-bottom:8px;color:${ps?'var(--rojo)':'var(--verde)'}">${ps?'📦 '+esc(ps)+'. Validalo en la lista de materiales.':'📦 Stock validado de todos los materiales.'}</p>`})()
           :`<label class="check" style="margin-bottom:10px"><input type="checkbox" id="as-stock"> Verifiqué que hay stock (o compra confirmada) de los materiales críticos para arrancar</label>`}
+        ${typeof bloquePedidosLider==='function'?bloquePedidosLider(p,conMat?!problemaStock(p):true):''}
         <div class="flex-btns">
           ${pasoPorArq(p)?`<button class="btn btn-sec" onclick="moverEtapa('${esc(id)}','arquitectura')">↩️ Devolver a Arq.</button>`
             :`<button class="btn btn-sec" onclick="moverEtapa('${esc(id)}','ventas')">↩️ Devolver a Ventas</button>`}
@@ -1350,6 +1352,8 @@ async function asignar(id){
   const conMat=mpListo&&esNota(p);
   if(conMat){const ps=problemaStock(p); if(ps){toast('⚠️ '+ps+'. Validalo en la lista de materiales');return;}}
   else if(!document.getElementById('as-stock').checked){toast('⚠️ Confirmá el stock de materiales críticos antes de arrancar');return;}
+  const fp=typeof faltaPedir==='function'?faltaPedir(todos[id]):[];
+  if(fp.length&&!await confirmar('Todavía no se pidió: '+fp.map(k=>NOMBRE_NEC[k].toLowerCase()).join(', ')+'. ¿Asignar igual? Lo podés pedir después desde el proyecto.')) return;
   p.stockVerif={fecha:hoyISO(),autor:currentUser.nombre};
   p.supId=s; p.sup=nombreDe(s);
   p.inicio=document.getElementById('as-ini').value||hoyISO(); p.entrega=ent;

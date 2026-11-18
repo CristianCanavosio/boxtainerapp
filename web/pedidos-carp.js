@@ -1,6 +1,8 @@
 // ════════════════════════════════════════════════
-// PEDIDOS A LAS CARPINTERÍAS (aluminio y madera)
-// El supervisor del proyecto (o el líder / admin) manda el pedido desde el proyecto.
+// PEDIDOS A LAS CARPINTERÍAS (aluminio y madera) Y A LOS TÉCNICOS DE AIRE
+// El líder, después de validar el stock, pide las aberturas a la fábrica (aluminio), lo de madera
+// y la colocación de los aires a los técnicos. El supervisor también puede pedir durante la obra.
+// Los aires usan el mismo circuito (migración 0017): aceptan con fecha, colocan y avisan.
 // Cada carpintería entra con su usuario, ve solo sus pedidos y los planos de esos proyectos,
 // acepta con fecha comprometida y va marcando el estado. El supervisor confirma cuando lo
 // recibe. Los permisos y los pasos válidos los controla la base (migración 0009).
@@ -10,7 +12,12 @@ let pcListo=false;            // false si todavía no se corrió la migración 0
 let pedidosCarp=[];           // todos los pedidos que este usuario puede ver
 let pcPlanos={};              // proyecto_id -> planos (para la carpintería, que no ve el proyecto)
 let pcFiltro='activos';
-const TALLER={aluminio:{t:'🪟 Carpintería de aluminio',c:'aluminio'},madera:{t:'🪵 Carpintería de madera',c:'madera'}};
+const TALLER={
+  aluminio:{t:'🪟 Carpintería de aluminio',c:'aluminio',a:'la carpintería de aluminio',corto:'Aluminio',pedir:'🪟 Aberturas a la fábrica'},
+  madera:{t:'🪵 Carpintería de madera',c:'madera',a:'la carpintería de madera',corto:'Madera',pedir:'🪵 Pedir a madera'},
+  aires:{t:'❄️ Técnicos de aire',c:'aires',a:'los técnicos de aire',corto:'Aires',pedir:'❄️ Colocación de aires',coloca:true},
+};
+const TALLERES=Object.keys(TALLER);
 const PC_EST={
   enviado:{t:'📨 Enviado',cls:'b-azul'},
   aceptado:{t:'👍 Aceptado',cls:'b-morado'},
@@ -20,8 +27,12 @@ const PC_EST={
   rechazado:{t:'⛔ Rechazado',cls:'b-rojo'},
   cancelado:{t:'✖️ Cancelado',cls:'b-gris'},
 };
+// los técnicos de aire no fabrican: colocan en la obra
+const PC_EST_AIRE={en_fabricacion:{t:'🔧 Colocando',cls:'b-nar'},listo:{t:'✅ Colocado',cls:'b-verde'},entregado:{t:'👌 Revisado en obra',cls:'b-gris'}};
+const estPC=(x,e)=>(TALLER[x.taller]?.coloca&&PC_EST_AIRE[e||x.estado])||PC_EST[e||x.estado]||{t:e||x.estado,cls:''};
+const aQuien=x=>TALLER[x.taller]?.a||'la carpintería';
 const PC_ABIERTO=['enviado','aceptado','en_fabricacion','listo','rechazado'];
-const miTaller=()=>({carp_aluminio:'aluminio',carp_madera:'madera'})[rol()]||null;
+const miTaller=()=>({carp_aluminio:'aluminio',carp_madera:'madera',tecnico_aires:'aires'})[rol()]||null;
 const esTaller=()=>!!miTaller();
 
 async function cargarPedidosCarp(T){
@@ -53,17 +64,17 @@ function diasHasta(iso){if(!iso) return null;const [y,m,d]=iso.split('-').map(Nu
 function fmtFecha(iso){if(!iso) return '—';const [y,m,d]=iso.split('-');return `${d}/${m}/${y}`;}
 function avisoPedido(x){
   if(x.estado==='enviado'){const h=horasDesde(x.ts);
-    if(h>24) return {c:'rojo',t:`Sin respuesta de la carpintería hace ${fmtHoras(h)}`};
+    if(h>24) return {c:'rojo',t:`Sin respuesta de ${aQuien(x)} hace ${fmtHoras(h)}`};
     if(h>SLA_HORAS) return {c:'amar',t:`Sin respuesta hace ${fmtHoras(h)}`};
     return null;}
   if(x.estado==='rechazado') return {c:'rojo',t:'Rechazado: '+(x.nota||'sin motivo')};
   if(x.estado==='aceptado'||x.estado==='en_fabricacion'){
     const dc=diasHasta(x.comp);
     if(dc!==null&&dc<0) return {c:'rojo',t:`Atrasado: tenía que estar el ${fmtFecha(x.comp)}`};
-    if(x.para&&x.comp&&x.comp>x.para) return {c:'amar',t:`La carpintería lo tiene el ${fmtFecha(x.comp)}, la obra lo necesita el ${fmtFecha(x.para)}`};
+    if(x.para&&x.comp&&x.comp>x.para) return {c:'amar',t:`${TALLER[x.taller]?.coloca?'Los técnicos colocan':'La carpintería lo tiene'} el ${fmtFecha(x.comp)}, la obra lo necesita el ${fmtFecha(x.para)}`};
     if(dc!==null&&dc<=2) return {c:'amar',t:dc===0?'Vence hoy':`Vence en ${dc} día${dc>1?'s':''}`};
   }
-  if(x.estado==='listo') return {c:'verde',t:'Listo: coordinar retiro o entrega'};
+  if(x.estado==='listo') return {c:'verde',t:TALLER[x.taller]?.coloca?'Colocado: revisalo en la obra':'Listo: coordinar retiro o entrega'};
   return null;
 }
 
@@ -83,7 +94,7 @@ function histHTML(x){
   if(!x.hist.length) return '';
   return `<details class="pc-hist"><summary>Historial (${x.hist.length})</summary>${x.hist.map(h=>{
     const quien=h.por?nombreDe(h.por):'', cuando=h.en?new Date(h.en).toLocaleString('es-AR',{dateStyle:'short',timeStyle:'short'}):'';
-    const que=h.estado?(PC_EST[h.estado]?.t||h.estado):`📅 Fecha corrida a ${fmtFecha(h.fecha)}${h.antes?' (antes '+fmtFecha(h.antes)+')':''}`;
+    const que=h.estado?estPC(x,h.estado).t:`📅 Fecha corrida a ${fmtFecha(h.fecha)}${h.antes?' (antes '+fmtFecha(h.antes)+')':''}`;
     return `<div>${esc(cuando)} · ${esc(quien)}: ${que}${h.nota?` <small>“${esc(h.nota)}”</small>`:''}</div>`;}).join('')}</details>`;
 }
 function tarjetaPedido(x,{conProyecto}={}){
@@ -93,28 +104,29 @@ function tarjetaPedido(x,{conProyecto}={}){
   if(taller){
     if(x.estado==='enviado') acc=`<button class="btn btn-verde btn-sm" onclick="pcResponder('${id}','aceptado')">👍 Aceptar</button>
       <button class="btn btn-rojo btn-sm" onclick="pcResponder('${id}','rechazado')">⛔ Rechazar</button>`;
-    if(x.estado==='aceptado') acc=`<button class="btn btn-nar btn-sm" onclick="pcEstado('${id}','en_fabricacion')">🔨 Empezamos a fabricar</button>`;
-    if(x.estado==='aceptado'||x.estado==='en_fabricacion') acc+=`<button class="btn btn-verde btn-sm" onclick="pcEstado('${id}','listo')">✅ Está listo</button>
+    const col=TALLER[x.taller]?.coloca;
+    if(x.estado==='aceptado') acc=`<button class="btn btn-nar btn-sm" onclick="pcEstado('${id}','en_fabricacion')">${col?'🔧 Empezamos a colocar':'🔨 Empezamos a fabricar'}</button>`;
+    if(x.estado==='aceptado'||x.estado==='en_fabricacion') acc+=`<button class="btn btn-verde btn-sm" onclick="pcEstado('${id}','listo')">${col?'✅ Está colocado':'✅ Está listo'}</button>
       <button class="btn btn-sec btn-sm" onclick="pcResponder('${id}','fecha')">📅 Correr la fecha</button>`;
   }else if(obra){
     if(x.estado==='rechazado') acc=`<button class="btn btn-nar btn-sm" onclick="abrirPedidoCarp('${esc(x.pid)}','${esc(x.taller)}','${id}')">✏️ Corregir y reenviar</button>`;
-    if(['aceptado','en_fabricacion','listo'].includes(x.estado)) acc+=`<button class="btn btn-verde btn-sm" onclick="pcEstado('${id}','entregado')">📦 Lo recibimos</button>`;
+    if(['aceptado','en_fabricacion','listo'].includes(x.estado)) acc+=`<button class="btn btn-verde btn-sm" onclick="pcEstado('${id}','entregado')">${TALLER[x.taller]?.coloca?'👌 Quedó bien':'📦 Lo recibimos'}</button>`;
     if(x.estado==='enviado') acc+=`<button class="btn btn-sec btn-sm" onclick="pcWhatsapp('${id}')">📲 Avisar por WhatsApp</button>`;
     if(PC_ABIERTO.includes(x.estado)) acc+=`<button class="btn btn-sec btn-sm" onclick="pcEstado('${id}','cancelado')">✖️ Cancelar</button>`;
   }
   return `<div class="pc-card ${av?'pc-'+av.c:''}">
     <div class="pc-top"><div><b>Pedido #${esc(x.num)}</b> · ${TALLER[x.taller]?.t||esc(x.taller)}
       ${conProyecto?`<div class="pc-proy"${!taller&&todos[x.pid]?` onclick="verDetalle('${esc(x.pid)}')"`:''}>📋 ${esc(x.proy)}</div>`:''}</div>
-      <span class="badge ${PC_EST[x.estado]?.cls||''}">${PC_EST[x.estado]?.t||esc(x.estado)}</span></div>
+      <span class="badge ${estPC(x).cls}">${esc(estPC(x).t)}</span></div>
     ${av?`<div class="pc-aviso ${av.c}">${esc(av.t)}</div>`:''}
     ${itemsHTML(x)}
     <div class="pc-datos">
       <span>Pedido por <b>${esc(x.por)}</b> el ${esc(fmtFecha(x.fecha))}</span>
       <span>La obra lo necesita: <b>${esc(fmtFecha(x.para))}</b></span>
-      ${x.comp?`<span>Fecha de la carpintería: <b>${esc(fmtFecha(x.comp))}</b></span>`:''}
-      ${x.donde?`<span>Entregar en: <b>${esc(x.donde)}</b></span>`:''}
+      ${x.comp?`<span>${TALLER[x.taller]?.coloca?'Fecha de colocación':'Fecha de la carpintería'}: <b>${esc(fmtFecha(x.comp))}</b></span>`:''}
+      ${x.donde?`<span>${TALLER[x.taller]?.coloca?'Dónde se coloca':'Entregar en'}: <b>${esc(x.donde)}</b></span>`:''}
       ${x.obs?`<span>Notas: ${esc(x.obs)}</span>`:''}
-      ${x.nota&&x.estado!=='rechazado'?`<span>Carpintería: “${esc(x.nota)}”</span>`:''}
+      ${x.nota&&x.estado!=='rechazado'?`<span>${TALLER[x.taller]?.coloca?'Técnicos':'Carpintería'}: “${esc(x.nota)}”</span>`:''}
     </div>
     ${planos.length?`<div class="pc-planos">${planos.map(pl=>`<a href="${esc(pl.url||'#')}" ${pl.archivo?`onclick="abrirPlano(event,'${esc(pl.archivo)}')"`:''} target="_blank" rel="noopener noreferrer">${pl.archivo?'📄':'🔗'} ${esc(pl.nombre)}</a>`).join('')}</div>`:''}
     ${histHTML(x)}
@@ -127,13 +139,46 @@ function seccionPedidosCarp(p){
   if(MODO!=='nube') return '';
   if(!(esOp()||rol()==='lectura'||(rol()==='supervisor'&&p.supId===myId))) return '';
   const e=etapaDe(p); if(!(e==='asignacion'||e==='ejecucion')) return '';
-  if(!pcListo) return esOp()?`<div class="dsec"><h3>🪚 Pedidos a carpinterías</h3><div style="font-size:13px">Para activarlo hay que correr la migración <b>0009_pedidos_a_carpinterias.sql</b> en Supabase.</div></div>`:'';
+  if(!pcListo) return esOp()?`<div class="dsec"><h3>🪚 Pedidos a carpinterías y técnicos</h3><div style="font-size:13px">Para activarlo hay que correr la migración <b>0009_pedidos_a_carpinterias.sql</b> en Supabase.</div></div>`:'';
   const ls=p.pedidosCarp||[], pid=esc(p.id);
-  return `<div class="dsec" id="pc-sec"><h3>🪚 Pedidos a carpinterías (${ls.length})</h3>
-    ${ls.length?ls.map(x=>tarjetaPedido(x)).join(''):'<div style="font-size:13px;color:var(--gris-m);margin-bottom:8px">Todavía no se pidió nada a las carpinterías.</div>'}
+  return `<div class="dsec" id="pc-sec"><h3>🪚 Pedidos a carpinterías y técnicos (${ls.length})</h3>
+    ${ls.length?ls.map(x=>tarjetaPedido(x)).join(''):'<div style="font-size:13px;color:var(--gris-m);margin-bottom:8px">Todavía no se pidió nada.</div>'}
     ${puedePedirCarp(p)?`<div class="flex-btns" style="flex-wrap:wrap;margin-top:6px">
-      <button class="btn btn-sec btn-sm" onclick="abrirPedidoCarp('${pid}','aluminio')">🪟 Pedir a aluminio</button>
-      <button class="btn btn-sec btn-sm" onclick="abrirPedidoCarp('${pid}','madera')">🪵 Pedir a madera</button></div>`:''}
+      ${tallersDisponibles().map(k=>`<button class="btn btn-sec btn-sm" onclick="abrirPedidoCarp('${pid}','${k}')">${TALLER[k].pedir}</button>`).join('')}</div>`:''}
+  </div>`;
+}
+// los aires necesitan la migración 0017: si falta, el pedido a aires da error y se avisa
+const pcAires=true;
+const tallersDisponibles=()=>TALLERES.filter(k=>k!=='aires'||pcAires);
+
+// ── paso del líder: después de validar el stock, pedir aberturas y aires ──
+// Qué hay que pedir según la nota: aberturas a la fábrica (aluminio), lo de madera y la colocación
+// de los aires. Para cada uno: el pedido que ya salió, o el botón para mandarlo.
+function pedidosNecesarios(p){
+  if(!esNota(p)) return [];
+  return tallersDisponibles().filter(k=>sugerenciasCarp(p,k).length);
+}
+function pedidoVigente(p,k){return (p.pedidosCarp||[]).find(x=>x.taller===k&&x.estado!=='cancelado');}
+function faltaPedir(p){
+  if(MODO!=='nube'||!pcListo) return [];
+  return pedidosNecesarios(p).filter(k=>!pedidoVigente(p,k));
+}
+const NOMBRE_NEC={aluminio:'Aberturas a la fábrica',madera:'Carpintería de madera',aires:'Colocación de aires'};
+function bloquePedidosLider(p,stockOk){
+  if(MODO!=='nube') return '';
+  if(!pcListo) return `<p style="font-size:12px;color:var(--gris-m);margin-bottom:8px">📨 Para pedir aberturas y aires desde acá hay que correr las migraciones 0009 y 0017 en Supabase.</p>`;
+  const nec=pedidosNecesarios(p), pid=esc(p.id);
+  const otros=tallersDisponibles().filter(k=>!nec.includes(k)&&pedidoVigente(p,k));
+  const filas=[...nec,...otros].map(k=>{const x=pedidoVigente(p,k);
+    return `<div class="drow"><span class="lbl">${esc(NOMBRE_NEC[k])}</span><span class="val">${x
+      ?`<span class="badge ${estPC(x).cls}">${esc(estPC(x).t)}</span> N° ${esc(x.num)}`
+      :`<button class="btn btn-nar btn-sm" ${stockOk?'':'disabled title="Primero validá el stock"'} onclick="abrirPedidoCarp('${pid}','${k}')">📨 Pedir</button>`}</span></div>`;}).join('');
+  const falta=nec.filter(k=>!pedidoVigente(p,k));
+  const extra=tallersDisponibles().filter(k=>!nec.includes(k)&&!pedidoVigente(p,k)); // pedidos que la nota no sugiere
+  return `<div style="margin-bottom:10px"><div style="font-size:13px;font-weight:700;margin-bottom:4px">📨 Pedidos${stockOk?'':' <span style="font-weight:400;color:var(--gris-m)">(primero validá el stock)</span>'}</div>
+    ${filas||`<div style="font-size:12px;color:var(--gris-m)">La nota no tiene aberturas ni aires para pedir.</div>`}
+    ${falta.length&&stockOk?`<div style="font-size:12px;color:var(--nar,#c66a00);margin-top:4px">Falta pedir: ${falta.map(k=>esc(NOMBRE_NEC[k].toLowerCase())).join(', ')}. Revisá la lista antes de mandarla.</div>`:''}
+    ${extra.length?`<div class="flex-btns" style="flex-wrap:wrap;margin-top:6px">${extra.map(k=>`<button class="btn btn-sec btn-sm" ${stockOk?'':'disabled'} onclick="abrirPedidoCarp('${pid}','${k}')">${TALLER[k].pedir}</button>`).join('')}</div>`:''}
   </div>`;
 }
 
@@ -142,6 +187,7 @@ function seccionPedidosCarp(p){
 const SUGERIR={
   aluminio:c=>/^Ventana|^Puerta exterior · (?!Original)|^Mosquitero/.test(c),
   madera:c=>/^Puerta interior · Madera|Bajo mesada|Alacena|^Sanitario · Mueble/.test(c),
+  aires:c=>/^Aire acondicionado|^Pre-instalación de aire/.test(c),
 };
 function sugerenciasCarp(p,taller){
   if(!esNota(p)) return [];
@@ -151,6 +197,7 @@ function sugerenciasCarp(p,taller){
 let pcForm=null; // {pid,taller,editId,items}
 function abrirPedidoCarp(pid,taller,editId){
   const p=todos[pid]; if(!p) return;
+  if(!TALLER[taller]) return;
   const prev=editId?pedidosCarp.find(x=>x.id===editId):null;
   const sug=sugerenciasCarp(p,taller);
   pcForm={pid,taller,editId:editId||null,sug,
@@ -161,14 +208,15 @@ function abrirPedidoCarp(pid,taller,editId){
 }
 function pintarFormPedido(){
   const f=pcForm, p=todos[f.pid];
-  document.getElementById('m-pedcarp-title').textContent=(f.editId?'✏️ Reenviar a la ':TALLER[f.taller].t.split(' ')[0]+' Pedido a la ')+TALLER[f.taller].t.replace(/^\S+ /,'').toLowerCase();
+  const T=TALLER[f.taller], col=T.coloca;
+  document.getElementById('m-pedcarp-title').textContent=(f.editId?'✏️ Reenviar a ':T.t.split(' ')[0]+' Pedido a ')+T.a;
   document.getElementById('pc-form').innerHTML=`
     <div style="font-size:13px;color:var(--gris-m);margin-bottom:10px">📋 ${esc(p.nombre)}${f.sug.length&&!f.editId?' · Cargamos lo que dice la nota de pedido: revisalo, sacá lo que no va y agregá lo que falte.':''}</div>
     <div class="fg"><label>Qué se pide</label>
       ${f.items.map((it,i)=>`<div class="pc-fila">
-        <input placeholder="Descripción (ej: Ventana Módena corrediza)" value="${esc(it.desc)}" oninput="pcForm.items[${i}].desc=this.value">
+        <input placeholder="Descripción (ej: ${col?'Split 3.000 fg frío/calor':'Ventana Módena corrediza'})" value="${esc(it.desc)}" oninput="pcForm.items[${i}].desc=this.value">
         <div class="pc-fila2">
-          <input placeholder="Medida (ej: 120 × 100 cm)" value="${esc(it.medida)}" oninput="pcForm.items[${i}].medida=this.value">
+          <input placeholder="${col?'Dónde va (ej: dormitorio, pared frontal)':'Medida (ej: 120 × 100 cm)'}" value="${esc(it.medida)}" oninput="pcForm.items[${i}].medida=this.value">
           <input type="number" min="0" step="0.01" placeholder="Cant." value="${esc(it.cant)}" oninput="pcForm.items[${i}].cant=this.value" style="width:80px">
           <input placeholder="c/u" value="${esc(it.unidad)}" oninput="pcForm.items[${i}].unidad=this.value" style="width:64px">
           <button class="btn btn-rojo btn-sm" onclick="pcQuitarItem(${i})" ${f.items.length<2?'disabled':''}>✕</button>
@@ -178,10 +226,10 @@ function pintarFormPedido(){
     </div>
     <div class="form-2">
       <div class="fg"><label>¿Para cuándo lo necesita la obra?</label><input type="date" value="${esc(f.para)}" min="${hoyISO()}" oninput="pcForm.para=this.value"></div>
-      <div class="fg"><label>Dónde se entrega</label><input value="${esc(f.donde)}" placeholder="Depósito, obra…" oninput="pcForm.donde=this.value"></div>
+      <div class="fg"><label>${col?'Dónde se coloca':'Dónde se entrega'}</label><input value="${esc(f.donde)}" placeholder="Depósito, obra…" oninput="pcForm.donde=this.value"></div>
     </div>
-    <div class="fg"><label>Notas para la carpintería</label><textarea placeholder="Color, línea, vidrio, herrajes, contacto en obra…" oninput="pcForm.obs=this.value">${esc(f.obs)}</textarea></div>
-    <div style="font-size:12px;color:var(--gris-m)">La carpintería ve este pedido y los planos del proyecto. No ve precios ni el resto del proyecto.</div>`;
+    <div class="fg"><label>Notas para ${esc(T.a)}</label><textarea placeholder="${col?'Equipo provisto por nosotros o por ellos, altura, desagüe, contacto en obra…':'Color, línea, vidrio, herrajes, contacto en obra…'}" oninput="pcForm.obs=this.value">${esc(f.obs)}</textarea></div>
+    <div style="font-size:12px;color:var(--gris-m)">${col?'Los técnicos ven':'La carpintería ve'} este pedido y los planos del proyecto. No ${col?'ven':'ve'} precios ni el resto del proyecto.</div>`;
 }
 function pcAgregarItem(){pcForm.items.push({desc:'',medida:'',cant:'1',unidad:'c/u'});pintarFormPedido();}
 function pcQuitarItem(i){pcForm.items.splice(i,1);pintarFormPedido();}
@@ -198,10 +246,10 @@ async function enviarPedidoCarp(btn){
   try{
     if(f.editId) chk(await sb.from('pedidos_carpinteria').update({...fila,estado:'enviado'}).eq('id',f.editId));
     else chk(await sb.from('pedidos_carpinteria').insert({...fila,proyecto_id:f.pid,taller:f.taller,creado_por:myId}));
-    closeOverlay('m-pedcarp'); toast('✅ Pedido enviado a la '+TALLER[f.taller].t.replace(/^\S+ /,'').toLowerCase());
+    closeOverlay('m-pedcarp'); toast('✅ Pedido enviado a '+TALLER[f.taller].a);
     const pid=f.pid; pcForm=null;
     await cargarPedidosCarp(todos); verDetalle(pid);
-  }catch(e){toast(msgError(e));}
+  }catch(e){toast(/taller_check/.test(e?.message||'')?'⚠️ Para pedir a los técnicos de aire hay que correr la migración 0017_pedidos_de_aires.sql en Supabase':msgError(e));}
   finally{btn.disabled=false;}
 }
 
@@ -218,10 +266,13 @@ function pcRepintar(){
   rerender();
 }
 async function pcEstado(id,estado){
-  const msg={en_fabricacion:null,listo:'¿Confirmás que el pedido está listo para retirar o entregar?',
-    entregado:'¿Confirmás que lo recibieron completo en la obra?',cancelado:'¿Cancelar el pedido? La carpintería lo va a ver cancelado.'}[estado];
+  const x=pedidosCarp.find(y=>y.id===id); if(!x) return;
+  const col=TALLER[x.taller]?.coloca;
+  const msg={en_fabricacion:null,listo:col?'¿Confirmás que los aires quedaron colocados?':'¿Confirmás que el pedido está listo para retirar o entregar?',
+    entregado:col?'¿Confirmás que revisaste la colocación y quedó bien?':'¿Confirmás que lo recibieron completo en la obra?',
+    cancelado:`¿Cancelar el pedido? ${col?'Los técnicos lo van':'La carpintería lo va'} a ver cancelado.`}[estado];
   if(msg&&!await confirmar(msg)) return;
-  pcActualizar(id,{estado},estado==='cancelado'?'Pedido cancelado':'✅ '+PC_EST[estado].t);
+  pcActualizar(id,{estado},estado==='cancelado'?'Pedido cancelado':'✅ '+estPC(x,estado).t);
 }
 // Aceptar (con fecha), rechazar (con motivo) o correr la fecha: lo hace la carpintería
 let pcResp=null;
@@ -231,7 +282,7 @@ function pcResponder(id,que){
   const t={aceptado:'👍 Aceptar pedido',rechazado:'⛔ Rechazar pedido',fecha:'📅 Correr la fecha'}[que];
   document.getElementById('m-pcresp-title').textContent=t+' #'+x.num;
   document.getElementById('pcresp-form').innerHTML=`
-    ${que!=='rechazado'?`<div class="fg"><label>¿Para cuándo lo tienen listo?</label><input type="date" id="pcr-fecha" value="${esc(x.comp||x.para||'')}" min="${hoyISO()}">
+    ${que!=='rechazado'?`<div class="fg"><label>${TALLER[x.taller]?.coloca?'¿Qué día lo colocan?':'¿Para cuándo lo tienen listo?'}</label><input type="date" id="pcr-fecha" value="${esc(x.comp||x.para||'')}" min="${hoyISO()}">
       ${x.para?`<div style="font-size:12px;color:var(--gris-m);margin-top:4px">La obra lo necesita el ${esc(fmtFecha(x.para))}</div>`:''}</div>`:''}
     <div class="fg"><label>${que==='rechazado'?'Motivo (obligatorio)':que==='fecha'?'Por qué se corre (recomendado)':'Comentario (opcional)'}</label>
       <textarea id="pcr-nota" placeholder="${que==='rechazado'?'Ej: falta la medida de la ventana 2':'Ej: falta vidrio, llega el martes'}"></textarea></div>`;
@@ -264,19 +315,19 @@ function renderPedidosCarp(){
   const ls=pedidosCarp.filter(x=>!taller||x.taller===taller);
   const grupos=taller?[
     ['📥 Nuevos: aceptalos o rechazalos',ls.filter(x=>x.estado==='enviado')],
-    ['🔨 En curso',ls.filter(x=>x.estado==='aceptado'||x.estado==='en_fabricacion')],
-    ['✅ Listos, esperando retiro',ls.filter(x=>x.estado==='listo')],
+    [TALLER[taller].coloca?'🔧 Por colocar':'🔨 En curso',ls.filter(x=>x.estado==='aceptado'||x.estado==='en_fabricacion')],
+    [TALLER[taller].coloca?'✅ Colocados, esperando revisión':'✅ Listos, esperando retiro',ls.filter(x=>x.estado==='listo')],
     ['🗂️ Cerrados',ls.filter(x=>!PC_ABIERTO.includes(x.estado)||x.estado==='rechazado').slice(0,30)],
   ]:null;
-  const chips=!taller?`<div class="chips">${[['activos','Abiertos'],['aluminio','🪟 Aluminio'],['madera','🪵 Madera'],['atrasados','⚠️ Con aviso'],['cerrados','Cerrados']]
+  const chips=!taller?`<div class="chips">${[['activos','Abiertos'],['aluminio','🪟 Aluminio'],['madera','🪵 Madera'],...(pcAires?[['aires','❄️ Aires']]:[]),['atrasados','⚠️ Con aviso'],['cerrados','Cerrados']]
     .map(([k,t])=>`<div class="chip ${pcFiltro===k?'active':''}" onclick="setFiltroPC('${k}')">${t}</div>`).join('')}</div>`:'';
   const abiertos=ls.filter(x=>PC_ABIERTO.includes(x.estado));
-  const res=`<div class="stats-4 pc-res">${Object.keys(TALLER).filter(k=>!taller||k===taller).map(k=>{
+  const res=`<div class="stats-4 pc-res">${tallersDisponibles().filter(k=>!taller||k===taller).map(k=>{
       const a=abiertos.filter(x=>x.taller===k), atr=a.filter(x=>avisoPedido(x)?.c==='rojo').length;
-      return `<div class="stat-box"><div class="stat-num">${a.length}</div><div class="stat-lbl">${taller?'Pedidos abiertos':TALLER[k].t.replace('Carpintería de ','')+' abiertos'}${atr?` · <b style="color:var(--rojo)">${atr} con problema</b>`:''}</div></div>`;}).join('')}</div>`;
+      return `<div class="stat-box"><div class="stat-num">${a.length}</div><div class="stat-lbl">${taller?'Pedidos abiertos':TALLER[k].corto+' abiertos'}${atr?` · <b style="color:var(--rojo)">${atr} con problema</b>`:''}</div></div>`;}).join('')}</div>`;
   if(taller){
     el.innerHTML=res+(ls.length?grupos.map(([t,g])=>g.length?`<div class="sec-title" style="font-size:15px;margin-top:8px">${t} (${g.length})</div>${g.map(x=>tarjetaPedido(x,{conProyecto:true})).join('')}`:'').join('')
-      :`<div class="empty"><div class="em">🪚</div><h3>Todavía no hay pedidos</h3><p>Cuando un supervisor te mande un pedido, aparece acá.</p></div>`);
+      :`<div class="empty"><div class="em">🪚</div><h3>Todavía no hay pedidos</h3><p>Cuando el líder o un supervisor te mande un pedido, aparece acá.</p></div>`);
     return;
   }
   const f=pcFiltro, sel=ls.filter(x=>f==='cerrados'?!PC_ABIERTO.includes(x.estado):f==='atrasados'?PC_ABIERTO.includes(x.estado)&&avisoPedido(x)&&avisoPedido(x).c!=='verde'
@@ -301,13 +352,13 @@ function alertasPedidosCarp(){
     }
     if(!esObraDe(x)&&rol()!=='lectura') return;
     const av=avisoPedido(x); if(!av||av.c==='verde'&&x.estado!=='listo') return;
-    out.push({tipo:av.c==='rojo'?'error':'warn',icon:'🪚',titulo:`${TALLER[x.taller].t.replace('Carpintería de ','Carpintería ')} #${esc(x.num)}: ${esc(x.proy)}`,texto:esc(av.t),id:x.pid});
+    out.push({tipo:av.c==='rojo'?'error':'warn',icon:TALLER[x.taller]?.coloca?'❄️':'🪚',titulo:`${TALLER[x.taller]?.t.replace(/^\S+ /,'').replace('Carpintería de ','Carpintería ')||''} #${esc(x.num)}: ${esc(x.proy)}`,texto:esc(av.t),id:x.pid});
   });
   return out;
 }
-// La carpintería ve la pestaña como "Pedidos"; la obra, como "Carpinterías"
+// La carpintería / los técnicos ven la pestaña como "Pedidos"; la obra, como "Carpinterías"
 function pintarTituloPC(){
   const t=miTaller(), b=document.getElementById('nav-pedidos'), h=document.getElementById('pedcarp-titulo');
   if(b) b.textContent=t?'📥 Pedidos':'🪚 Carpinterías';
-  if(h) h.textContent=t?'📥 Pedidos a la '+TALLER[t].t.replace(/^\S+ /,'').toLowerCase():'🪚 Pedidos a carpinterías';
+  if(h) h.textContent=t?'📥 Pedidos a '+TALLER[t].a:'🪚 Pedidos a carpinterías y técnicos';
 }

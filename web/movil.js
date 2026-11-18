@@ -22,6 +22,7 @@ const BNAV={
   lectura:['dashboard','proyectos','reportes'],
   carp_aluminio:['pedidos','alertas','recursos'],
   carp_madera:['pedidos','alertas','recursos'],
+  tecnico_aires:['pedidos','alertas','recursos'],
 };
 function barraDeRol(){const t=tabsPermitidas();return (BNAV[rol()]||t.slice(0,3)).filter(v=>t.includes(v));}
 const sinPlano=p=>!!(p&&p.ficha&&p.ficha.arq==='No');
