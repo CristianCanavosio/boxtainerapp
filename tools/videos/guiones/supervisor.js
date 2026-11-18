@@ -6,8 +6,8 @@ module.exports={
     await g.decir('En Proyectos ves solo los que te asignaron. Tocá uno para abrirlo.',()=>g.abrirProyecto(g.P.obra));
     await g.decir('Arriba ves el avance real contra el esperado según las fechas. Si se atrasa, el proyecto se marca como desviado.',
       ()=>g.mostrar('#det-content .prog-bar'));
-    await g.decir('Al final de la jornada tocá Actualizar hoy.',async()=>{
-      await g.tocar('#det-content button[onclick^="abrirUpdate"]',{espera:900});
+    await g.decir('Al final de la jornada tocá Parte de hoy, abajo.',async()=>{
+      await g.tocar('#det-pie button[onclick^="abrirUpdate"]',{espera:900});
     });
     await g.decir('Poné el porcentaje de avance, cuántas personas trabajaron, cuántas horas y qué se hizo. Con eso se calculan las horas hombre.',async()=>{
       await g.valor('#upd-av','45');
@@ -30,14 +30,15 @@ module.exports={
       await g.tocar('#mp-sec button[onclick^="agregarMatProy"]',{espera:1200});
     });
     await g.decir('Si falta un material, tocá Falta material. Le llega al líder con la fecha en que lo necesitás y si frena el trabajo.',async()=>{
-      await g.tocar('#det-content button[onclick^="abrirFaltante"]',{espera:900});
+      await g.tocar('#det-pie button[onclick^="abrirFaltante"]',{espera:900});
       await g.escribir('#fa-mat','Perfil C 100');
       await g.escribir('#fa-cant','6 barras');
       await g.elegir('#fa-frena','no');
       await g.tocar('#m-falt button[onclick="guardarFaltante()"]',{espera:1200});
     });
     await g.decir('Si encontrás un error en las medidas o en el plano, tocá Reportar error y elegí de qué área vino. Le llega como consulta urgente.',async()=>{
-      await g.tocar('#det-content button[onclick^="abrirIncidencia"]',{espera:900});
+      await g.tocar('#det-pie .det-mas');
+      await g.tocar('#det-menu button[onclick*="abrirIncidencia"]',{espera:900});
       await g.elegir('#inc-tipo','Medida incorrecta');
       await g.elegir('#inc-origen','arquitectura');
       await g.escribir('#inc-desc','La ventana del baño en el plano mide 60 por 60, la nota dice 60 por 40.');

@@ -57,7 +57,7 @@ module.exports={
       await g.mostrar('#nota .op[data-k="arq"][data-v="Sí"]');
       await g.tocar('#np-b-sig',{espera:1500});
     });
-    await g.decir('Las consultas de otras áreas te aparecen en el Tablero, con semáforo: respondé antes de las cuatro horas.',async()=>{
+    await g.decir('Las consultas de otras áreas te aparecen en Hoy, con semáforo: respondé antes de las cuatro horas.',async()=>{
       await g.pestana('dashboard');
       await g.tocar('#dash-content .fila-click',{espera:900});
       await g.escribir('#det-content textarea[id^="resp-"]','Va con reja.');

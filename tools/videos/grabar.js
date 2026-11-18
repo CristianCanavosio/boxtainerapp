@@ -109,7 +109,9 @@ function crearG(page,voz){
     },
     async pausa(ms){await page.waitForTimeout(ms??700);},
     loc(s){return typeof s==='string'?page.locator(s+' >> visible=true').first():s;},
-    async mostrar(s){const l=g.loc(s); await l.scrollIntoViewIfNeeded(); await page.waitForTimeout(200);
+    // si lo que hay que mostrar está en una sección cerrada del proyecto, se abre primero
+    async abrirSecciones(s){if(typeof s!=='string') return; await page.evaluate(sel=>{try{document.querySelectorAll(sel).forEach(e=>{const d=e.closest('.dsec.plegada');if(d)d.classList.remove('plegada');});}catch(e){}},s);},
+    async mostrar(s){await g.abrirSecciones(s); const l=g.loc(s); await l.scrollIntoViewIfNeeded(); await page.waitForTimeout(200);
       const b=await l.boundingBox(); if(b) await page.evaluate(([x,y])=>{const d=document.getElementById('__dedo');if(d){d.style.left=x+'px';d.style.top=y+'px';}},[b.x+b.width/2,b.y+b.height/2]);
       await page.waitForTimeout(450); return l;},
     async tocar(s,{espera=550}={}){
@@ -122,7 +124,8 @@ function crearG(page,voz){
     async elegir(s,v){const l=await g.mostrar(s); await l.selectOption(v); await page.waitForTimeout(500);},
     async deslizar(px){await page.mouse.wheel(0,px); await page.waitForTimeout(600);},
     async arriba(sel){await page.evaluate(s=>{const e=s?document.querySelector(s):document.scrollingElement;if(e)e.scrollTo({top:0,behavior:'smooth'});},sel||null); await page.waitForTimeout(500);},
-    async pestana(v){await g.tocar(`.nav-btn[data-view="${v}"]`);},
+    // en el celular las pestañas están en la barra de abajo o en "Más"
+    async pestana(v){const b=`#bnav [data-bview="${v}"]`;if(await page.locator(b).count()) await g.tocar(b); else {await page.evaluate(v=>showView(v),v);await g.pausa(500);}},
     // opción de la nota de pedido (botones .op)
     async op(k,v,o){await g.tocar(`#nota .op[data-k="${k}"][data-v="${v}"]`,o);},
     async siguiente(){

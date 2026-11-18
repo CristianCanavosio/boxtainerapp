@@ -40,6 +40,7 @@ Correr en orden, una sola vez cada uno:
 13. `supabase/migrations/0013_parte_diario_y_pintura.sql` (personas y horas en el parte diario, pintura en tachos de 20 l y receta de materiales por tipología)
 14. `supabase/migrations/0014_buzon_de_sugerencias.sql` (buzón de sugerencias de mejora con texto, fotos y audio, que llegan por correo; ver "Buzón de sugerencias" abajo)
 15. `supabase/migrations/0015_recursos.sql` (pestaña Recursos: el administrador puede reemplazar los videos y guías desde la app; ver "Recursos" abajo)
+16. `supabase/migrations/0016_fotos_del_parte_diario.sql` (el supervisor puede adjuntar hasta 4 fotos del avance en el parte diario)
 
 ### 2. Publicar la app (Vercel, gratis)
 
