@@ -23,6 +23,9 @@ const CONT={
   'Cortado 20 DV puerta original':{prod:'Contenedor cortado',tam:'20 DV',lado:'Puertas originales'},
   'Cortado 40 HC parte trasera':{prod:'Contenedor cortado',tam:'40 HC',lado:'Parte trasera'},
   'Cortado 40 HC puerta original':{prod:'Contenedor cortado',tam:'40 HC',lado:'Puertas originales'},
+  'Cortado 20 (3mts)':{prod:'Contenedor cortado',tam:'20 DV',corte:300},
+  'Cortado 40 DV PT':{prod:'Contenedor cortado',tam:'40 ST',lado:'Parte trasera'},
+  'Cortado 40 DV PO':{prod:'Contenedor cortado',tam:'40 ST',lado:'Puertas originales'},
   'Contenedor 20 DV':{prod:'Contenedor',tam:'20 DV',ot:false},
   'Contenedor 20 DV OT':{prod:'Contenedor',tam:'20 DV',ot:true},
   'Contenedor 40 HC':{prod:'Contenedor',tam:'40 HC',ot:false},
@@ -30,15 +33,15 @@ const CONT={
   'Contenedor reefers':{prod:'Reefer'}};
 const esSolo=p=>p==='Contenedor'; // venta del contenedor sin transformar
 // Notas guardadas antes de las opciones de contenedor: se les asigna la opción que corresponde
-function contDe(x){if(x.cont&&CONT[x.cont])return x.cont;return Object.keys(CONT).find(k=>{const c=CONT[k];return c.prod===x.prod&&(!c.tam||c.tam===x.tam)&&(!c.lado||c.lado===x.lado)&&(c.ot==null||c.ot===!!x.ot)})||''}
+function contDe(x){if(x.cont&&CONT[x.cont])return x.cont;return Object.keys(CONT).find(k=>{const c=CONT[k];return c.prod===x.prod&&(!c.tam||c.tam===x.tam)&&(!c.lado||c.lado===x.lado)&&(c.corte==null||Number(x.corte)===c.corte)&&(c.ot==null||c.ot===!!x.ot)})||''}
 const normProd=x=>{if(x.prod==='Módulo habitacional')x.prod='Módulo habitable';if(x.prod&&!PROD_MOD.includes(x.prod))x.cont=contDe(x);else x.cont='';return x};
 const nomProd=()=>d.cont||d.prod;
 const ESP={bano:'Baño',cocina:'Cocina',habitacion:'Habitación',oficina:'Oficina'};
 const UBI=['Extremo izquierdo','Centro','Extremo derecho'];
 const PAREDES=['Lateral A','Lateral B','Lado puertas','Lado opuesto'];
 const REV_HUM=['Símil mármol','PVC','Melamina','Cerámico'];
-const REV_INT=['PVC','Durlock','Fenólico','Melamina','Solo pintura','Sin revestimiento'];
-const REV_EXT=['Sin revestimiento','Megacold','Chapa prepintada negra','Chapa prepintada blanca','PVC','Siding'];
+const REV_INT=['PVC','Durlock','Fenólico','Melamina','WPC Varillado','Solo pintura','Sin revestimiento'];
+const REV_EXT=['Sin revestimiento','Megacold','Chapa prepintada negra','Chapa prepintada blanca','PVC','Siding','WPC Varillado'];
 const nuevaPuerta=()=>({tipo:'',med:'',ancho:'',alto:'',pared:'',pos:'',mano:'',prot:''});
 const ITEMS={bano:['Inodoro','Mingitorio','Bidet','Lavamatic','Bacha','Ducha','Mueble','Espejo'],cocina:['Bacha monocomando','Bajo mesada','Alacena','Cocina eléctrica']};
 const COLORES=['Blanco','Gris claro','Gris grafito','Negro','Azul','Verde inglés','Otro'];
@@ -142,7 +145,7 @@ function render(){
     <div class="card"><div class="lbl">¿Qué se fabrica?</div>${ops('prod',PROD_MOD,d.cont?'':d.prod)}
       <div class="lbl" style="margin-top:12px">Contenedores</div>${ops('cont',Object.keys(CONT),d.cont)}
       ${esSolo(d.prod)?`<div class="auto">Venta del contenedor: los pasos de distribución, terminaciones, aberturas e instalaciones son opcionales.</div>`:''}</div>
-    <div class="card"><div class="lbl">Tamaño de contenedor</div>${CONT[d.cont]&&CONT[d.cont].tam?`<div class="auto">Tamaño <b>${esc(d.tam)}</b>${d.ot?' open top':''}, según el contenedor elegido.</div>`:ops('tam',['20 DV','40 ST','40 HC'],d.tam)}
+    <div class="card"><div class="lbl">Tamaño de contenedor</div>${CONT[d.cont]&&CONT[d.cont].tam?`<div class="auto">Tamaño <b>${esc(d.tam==='40 ST'?'40 DV':d.tam)}</b>${d.ot?' open top':''}, según el contenedor elegido.</div>`:ops('tam',['20 DV','40 ST','40 HC'],d.tam)}
       ${d.tam?`<div class="auto">📏 Medidas exteriores: <b>${d.largo} × ${d.ancho} × ${d.alto} cm</b> (largo × ancho × alto)</div>`:''}</div>
     <div class="card"><div class="lbl">¿Cuántas unidades iguales? <small>si el cliente lleva varias idénticas, cargala una sola vez</small></div>
       <div class="cnt"><button data-um="1" aria-label="Una menos">−</button><input type="number" inputmode="numeric" min="1" max="${MAX_U}" data-i="unidades" value="${esc(d.unidades)}" style="width:80px;text-align:center;font-weight:800"><button data-up="1" aria-label="Una más">+</button></div>
@@ -150,7 +153,7 @@ function render(){
     ${d.prod==='Reefer'?`<div class="card"><div class="lbl">Motor</div>${ops('motor',['Con motor','Sin motor'],d.motor)}</div>`:''}
     ${d.prod==='Contenedor cortado'?`<div class="card"><div class="lbl">Corte</div>
       <div class="unidad"><input type="number" inputmode="numeric" data-i="corte" placeholder="Largo final" value="${esc(d.corte)}"><b>cm</b></div>
-      ${d.cont?`<div class="auto" style="margin-top:12px">Se conserva: <b>${esc(d.lado.toLowerCase())}</b>.</div>`:`<div class="lbl" style="margin-top:12px">¿Qué parte se conserva?</div>${ops('lado',['Puertas originales','Parte trasera'],d.lado)}`}</div>`:''}`;
+      ${CONT[d.cont]&&CONT[d.cont].lado?`<div class="auto" style="margin-top:12px">Se conserva: <b>${esc(d.lado.toLowerCase())}</b>.</div>`:`<div class="lbl" style="margin-top:12px">¿Qué parte se conserva?</div>${ops('lado',['Puertas originales','Parte trasera'],d.lado)}`}</div>`:''}`;
   }
   if(paso===2){
     h=`<div class="paso-t">Distribución</div><div class="paso-s">Cada espacio se personaliza por separado. Elegí qué querés poner y tocá en el dibujo dónde va.</div><div class="card">${barraEsp()}${planoSVG(true)}</div><div class="card">
@@ -592,7 +595,7 @@ R0.addEventListener('click',e=>{
   if(k.startsWith('ra.')){d.revAsig[k.slice(3)]=v;render();return}
   if(k.startsWith('elec.')){const p=k.slice(5).split('.');const c=p.pop();d.elec[p.join('.')][c]=v;render();return}
   if(k.startsWith('ubi.')){d.espacios.find(y=>y.id===k.slice(4)).ubi=v;render();return}
-  if(k==='cont'){const c=CONT[v];d.cont=v;d.prod=c.prod;d.ot=!!c.ot;if(c.lado)d.lado=c.lado;if(c.tam){const [l,a,h]=MED[c.tam];d.tam=c.tam;d.largo=l;d.ancho=a;d.alto=h}render();return}
+  if(k==='cont'){const c=CONT[v];d.cont=v;d.prod=c.prod;d.ot=!!c.ot;d.lado=c.lado||'';if(c.corte)d.corte=String(c.corte);if(c.tam){const [l,a,h]=MED[c.tam];d.tam=c.tam;d.largo=l;d.ancho=a;d.alto=h}render();return}
   if(k==='prod')d.cont='',d.ot=false;
   setPath(k,v);
   if(k==='tam'){const [l,a,h]=MED[v];d.largo=l;d.ancho=a;d.alto=h}
