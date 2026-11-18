@@ -57,7 +57,7 @@ Para aberturas o muebles, pedí a la carpintería desde el proyecto y marcá "Lo
   {clave:'carpinteria',orden:50,roles:['carp_aluminio','carp_madera','tecnico_aires'],titulo:'Carpinterías y técnicos de aire: responder y avisar los pedidos',
     descripcion:'Aceptar con fecha, fabricar o colocar y avisar cuando el pedido está listo.',
     pasos:`En la pestaña de pedidos ves solo los pedidos que te mandaron, con los planos del proyecto.
-Tocá "Activar" en el cartel 🔔 para que te avise cada pedido nuevo mientras tenés la app abierta.
+Tocá "Activar" en el cartel 🔔 para que te avise cada pedido nuevo, aunque tengas la app cerrada. En iPhone, primero agregá la app a la pantalla de inicio (Compartir → Agregar a inicio).
 Pedido nuevo: tocá "Aceptar" y poné la fecha en que lo vas a tener, o "Rechazar" con el motivo.
 Cuando empiecen a fabricar, tocá "Empezamos a fabricar".
 Si no llegás a la fecha, tocá "Correr la fecha" y explicá por qué: la obra se entera al instante.

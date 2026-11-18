@@ -50,6 +50,9 @@ async function cargarPedidosCarp(T){
   }catch(e){console.warn('Pedidos a carpinterías no disponibles (¿falta la migración 0009?)',e);return;}
   try{pcAvisar();}catch(e){console.warn('Avisos de pedidos',e);}
   pintarBurbujaPC();
+  if(!pcArrancado){pcArrancado=true;
+    if('Notification' in window&&Notification.permission==='granted') pcSuscribirPush(true);
+    setTimeout(()=>pcAbrirDesdeAviso(location.href),0);}
   // la carpintería no ve los proyectos, pero sí los planos de los proyectos con pedido suyo
   const pids=[...new Set(pedidosCarp.map(x=>x.pid))].filter(pid=>!T[pid]);
   if(pids.length){
@@ -372,6 +375,7 @@ function pcAvisar(){
 }
 function pcNotificar(a){
   toast(a.t);
+  if(pcPush) return; // con avisos al celular activos, el aviso del sistema ya llega por ahí
   if(!('Notification' in window)||Notification.permission!=='granted') return;
   try{
     const n=new Notification(a.t,{body:a.b,icon:'logo.png',tag:'pc-'+a.t});
@@ -379,6 +383,8 @@ function pcNotificar(a){
   }catch(e){console.warn(e);} // algunos celulares solo permiten avisos desde una app instalada
 }
 function pcBannerAvisos(){
+  const ios=/iPhone|iPad|iPod/.test(navigator.userAgent), instalada=navigator.standalone||matchMedia('(display-mode: standalone)').matches;
+  if(ios&&!instalada) return `<div class="card" style="font-size:13px">📲 Para recibir los avisos en el iPhone, instalá la app: tocá <b>Compartir</b> → <b>Agregar a inicio</b>, abrila desde ese ícono y tocá "Activar" acá.</div>`;
   if(!('Notification' in window)||Notification.permission==='granted') return '';
   if(Notification.permission==='denied') return `<div class="card" style="font-size:13px">🔕 Los avisos están bloqueados en este navegador. Para recibirlos, habilitá las notificaciones de este sitio en la configuración del navegador.</div>`;
   return `<div class="card" style="font-size:13px;display:flex;gap:10px;align-items:center;justify-content:space-between">
@@ -387,11 +393,36 @@ function pcBannerAvisos(){
 }
 async function pcActivarAvisos(){
   try{const r=await Notification.requestPermission();
-    toast(r==='granted'?'🔔 Avisos activados en este equipo':'🔕 No se activaron los avisos');
-    if(r==='granted') pcNotificar({t:'🔔 Avisos activados',b:'Así te va a llegar cada aviso de pedidos.'});
+    if(r==='granted'){const ok=await pcSuscribirPush();
+      toast(ok?'🔔 Avisos activados: te llegan aunque la app esté cerrada':'🔔 Avisos activados mientras la app esté abierta');
+      if(!ok) pcNotificar({t:'🔔 Avisos activados',b:'Así te va a llegar cada aviso de pedidos.'});}
+    else toast('🔕 No se activaron los avisos');
   }catch(e){toast('⚠️ Este navegador no permite avisos');}
   renderPedidosCarp();
 }
+
+// ── avisos al celular con la app cerrada (Web Push, migración 0018 + función avisar-pedido) ──
+let pcPush=false, pcArrancado=false;
+function b64aBytes(b){const p='='.repeat((4-b.length%4)%4), r=atob((b+p).replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from(r,c=>c.charCodeAt(0));}
+async function pcSuscribirPush(silencioso){
+  if(!('serviceWorker' in navigator)||!('PushManager' in window)||!window.VAPID_PUBLIC||MODO!=='nube') return false;
+  try{
+    const reg=await navigator.serviceWorker.register('sw.js'); await navigator.serviceWorker.ready;
+    const sub=await reg.pushManager.getSubscription()||await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64aBytes(window.VAPID_PUBLIC)});
+    const j=sub.toJSON();
+    chk(await sb.rpc('anotar_push',{p_endpoint:j.endpoint,p_p256dh:j.keys.p256dh,p_auth:j.keys.auth,p_equipo:navigator.userAgent.slice(0,120)}));
+    pcPush=true; return true;
+  }catch(e){console.warn('Avisos al celular no disponibles (¿falta la migración 0018?)',e);if(!silencioso&&/anotar_push/.test(e?.message||'')) toast('⚠️ Para avisos con la app cerrada falta correr la migración 0018');return false;}
+}
+// al tocar un aviso: abre la pestaña de pedidos o el proyecto
+function pcAbrirDesdeAviso(url){
+  try{const u=new URL(url,location.href), v=u.searchParams.get('vista'), pid=u.searchParams.get('proy');
+    if(!v) return;
+    history.replaceState(null,'',location.pathname);
+    if(pid&&todos[pid]) verDetalle(pid); else if(tabsPermitidas().includes('pedidos')) showView('pedidos');
+  }catch(e){}
+}
+if('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message',e=>{if(e.data&&e.data.abrir) pcAbrirDesdeAviso(e.data.abrir);});
 
 // ── avisos para la pestaña Alertas ──
 function alertasPedidosCarp(){
