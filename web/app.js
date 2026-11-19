@@ -1215,9 +1215,9 @@ function verDetalle(id){
         </div>`}
         ${(()=>{const pm=materiales.filter(m=>String(m.proyId)===String(id)&&m.est!=='comprado');
           return pm.length?`<p style="color:var(--rojo);font-size:12px;margin-bottom:6px">Materiales de este proyecto sin comprar: ${pm.map(m=>esc(m.nom)).join(', ')}</p>`:'';})()}
-        ${conMat?(()=>{const ps=problemaStock(p);return `<p style="font-size:12px;margin-bottom:8px;color:${ps?'var(--rojo)':'var(--verde)'}">${ps?'📦 '+esc(ps)+'. Validalo en la <a href="#" onclick="event.preventDefault();pcIrAMateriales()" style="color:inherit;text-decoration:underline">lista de materiales</a>.':'📦 Stock validado de todos los materiales.'}</p>`})()
-          :`<label class="check" style="margin-bottom:10px"><input type="checkbox" id="as-stock"> Verifiqué que hay stock (o compra confirmada) de los materiales críticos para arrancar</label>`}
-        ${typeof bloquePedidosLider==='function'?bloquePedidosLider(p,conMat?!problemaStock(p):true):''}
+        ${conMat?`<div id="as-stock-ped">${stockYPedidosHTML(p)}</div>`
+          :`<label class="check" style="margin-bottom:10px"><input type="checkbox" id="as-stock"> Verifiqué que hay stock (o compra confirmada) de los materiales críticos para arrancar</label>
+            ${typeof bloquePedidosLider==='function'?bloquePedidosLider(p,true):''}`}
         <div class="flex-btns">
           ${pasoPorArq(p)?`<button class="btn btn-sec" onclick="moverEtapa('${esc(id)}','arquitectura')">↩️ Devolver a Arq.</button>`
             :`<button class="btn btn-sec" onclick="moverEtapa('${esc(id)}','ventas')">↩️ Devolver a Ventas</button>`}
@@ -1340,6 +1340,17 @@ async function moverEtapa(id,a){
   await guardarProyecto(p);
   closeOverlay('m-det'); refrescar();
   toast({arquitectura:'📐 Enviado a Arquitectura',asignacion:'🧭 Enviado al Líder de Operaciones',ventas:'↩️ Devuelto a Ventas'}[a]||'✅ Listo');
+}
+// Aviso de stock y pedidos del líder. Se vuelve a pintar cada vez que cambia el stock de un material,
+// para que el botón "Pedir" se habilite sin cerrar el proyecto.
+function stockYPedidosHTML(p){
+  const ps=problemaStock(p);
+  return `<p style="font-size:12px;margin-bottom:8px;color:${ps?'var(--rojo)':'var(--verde)'}">${ps?'📦 '+esc(ps)+'. Validalo en la <a href="#" onclick="event.preventDefault();pcIrAMateriales()" style="color:inherit;text-decoration:underline">lista de materiales</a>.':'📦 Stock validado de todos los materiales.'}</p>
+    ${typeof bloquePedidosLider==='function'?bloquePedidosLider(p,!ps):''}`;
+}
+function repintarStockYPedidos(pid){
+  const el=document.getElementById('as-stock-ped'), p=todos[pid];
+  if(el&&p&&etapaDe(p)==='asignacion') el.innerHTML=stockYPedidosHTML(p);
 }
 async function asignar(id){
   const p=limpiar(todos[id]); if(!p) return;

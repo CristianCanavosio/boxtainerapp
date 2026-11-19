@@ -129,6 +129,7 @@ function pintarMateriales(pid){
   const nuevo=document.getElementById('mp-sec');
   if(nuevo&&typeof plegarSecciones==='function'){plegarSecciones(nuevo.parentElement,p,{mp:abierta});}
   if(okAbierto){const d=document.querySelector('#mp-sec details.mp-ok');if(d)d.open=true;}
+  if(typeof repintarStockYPedidos==='function') repintarStockYPedidos(pid);
 }
 function seccionMateriales(p){
   const e=etapaDe(p), r=rol();
