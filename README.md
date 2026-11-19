@@ -13,11 +13,12 @@ App móvil de gestión de proyectos de BoxTainer Argentina SAS: ventas carga la 
 | --- | --- | --- |
 | Ventas | Sus proyectos (sin costos) | Cargar pedido y ficha técnica, enviar a arquitectura, responder consultas |
 | Arquitectura | Proyectos en su etapa y los que planificó (sin costos) | Subir planos, verificar contra la ficha, enviar al líder |
-| Líder de operaciones | Todo | Asignar supervisor, fechas, presupuesto y stock; resolver faltantes |
-| Supervisor | Solo sus proyectos asignados | Avance, gastos reales, faltantes, reportar errores, consultas |
-| Administrador | Todo | Lo mismo que el líder y asignar roles |
+| Líder de operaciones | Todo, sin plata | Asignar supervisor y fechas, validar stock de materiales, pedir aberturas y colocación de aires, resolver faltantes |
+| Supervisor | Solo sus proyectos asignados, sin plata | Parte diario (avance, personas, horas, fotos), materiales usados, faltantes, reportar errores, consultas |
+| Administrador | Todo, incluida la plata (costos, costeo, márgenes, presupuesto de obra) | Lo mismo que el líder y asignar roles |
 | Solo lectura | Todo | Nada |
 | Carpintería de aluminio / de madera | Solo los pedidos que le mandaron y los planos de esos proyectos (sin precios ni el resto del proyecto) | Aceptar con fecha, rechazar con motivo, correr la fecha, marcar en fabricación y listo |
+| Técnico de aire | Solo los pedidos de colocación de aires que le mandaron y los planos de esos proyectos (sin precios) | Aceptar con fecha, rechazar, marcar colocando y colocado |
 
 ## Puesta en marcha
 
@@ -41,6 +42,10 @@ Correr en orden, una sola vez cada uno:
 14. `supabase/migrations/0014_buzon_de_sugerencias.sql` (buzón de sugerencias de mejora con texto, fotos y audio, que llegan por correo; ver "Buzón de sugerencias" abajo)
 15. `supabase/migrations/0015_recursos.sql` (pestaña Recursos: el administrador puede reemplazar los videos y guías desde la app; ver "Recursos" abajo)
 16. `supabase/migrations/0016_fotos_del_parte_diario.sql` (el supervisor puede adjuntar hasta 4 fotos del avance en el parte diario)
+17. `supabase/migrations/0017_pedidos_de_aires.sql` (pedidos de colocación de aires a los técnicos y rol Técnico de aire)
+18. `supabase/migrations/0018_avisos_al_celular.sql` (avisos al celular con la app cerrada; antes hay que publicar la función `avisar-pedido` y cargar sus claves)
+
+Para ver cuáles ya están corridas, `tools/verificar-migraciones.sql` (solo lee, no cambia nada).
 
 ### 2. Publicar la app (Vercel, gratis)
 

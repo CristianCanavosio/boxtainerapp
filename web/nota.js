@@ -662,7 +662,8 @@ function faltantes(f){return conD(f,()=>{const out=[];revisandoGuardada=true;try
 // Agrega las claves que la base ya exige para pasar a arquitectura (largo/ancho/alto, puerta, elec, sani, confirmada).
 // largo, ancho, alto y elec ya vienen de la nota (en cm y por espacio); solo se suman las que faltan.
 function compat(f){return conD(f,()=>({v:2,...limpio(d),
-    puerta:d.puertaP?'A confirmar':(d.puertas.map(p=>p.tipo).filter(Boolean).join(' + ')||''),
+    // la base exige 'puerta' para pasar de ventas: la venta del contenedor sin aberturas y "tal cual plano" también cuentan
+    puerta:d.puertaP?'A confirmar':(d.puertas.map(p=>p.tipo).filter(Boolean).join(' + ')||(d.segunPlano?'Según plano':esSolo(d.prod)?'Sin puertas nuevas':'')),
     sani:d.espacios.some(x=>ITEMS[x.tipo])?'Sí':'No',confirmada:!!d.confirmado}))}
 function nombreSugerido(f){const M={oficina:'Oficina',vivienda:'Vivienda',sanitario:'Sanitario'};const u=Math.floor(Number(f.unidades))||1;const pr=normProd({prod:f.prod}).prod;const c=normProd(limpio(f)).cont;if(c)return (u>1?u+' × ':'')+c+(c==='Contenedor reefers'&&f.tam?' '+f.tam:'')+(f.cli?' — '+f.cli:'');return (u>1?u+' × ':'')+[(pr&&pr!=='Módulo habitable'?pr:(M[f.modelo]||pr||'Pedido')),f.tam].filter(Boolean).join(' ')+(f.cli?' — '+f.cli:'')}
 function tipoTrabajo(f){if(f.prod==='Contenedor')return 'Contenedor '+(/^40/.test(f.tam||'')?'40':'20')+' pies';if(f.prod==='Reefer')return 'Reefer';if(f.prod==='Contenedor cortado')return 'Modificación contenedor';const pr=normProd({prod:f.prod}).prod;if(pr&&pr!=='Módulo habitable')return pr;return f.modelo==='oficina'?'Oficina':'Módulo habitable'}
