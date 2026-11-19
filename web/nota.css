@@ -203,3 +203,14 @@
 #nota .croq-t{font-size:13px;margin-bottom:8px;color:var(--tx)}
 #nota svg [data-croq]{cursor:pointer;-webkit-tap-highlight-color:transparent}
 #nota svg .croq-z:active{fill:rgba(232,101,10,.12)}
+
+/* Importar recetas de la planilla */
+.rt-hoja{display:flex;gap:8px;justify-content:space-between;align-items:flex-start;padding:8px 0;border-top:1px solid var(--borde);font-size:13px}
+.rt-hoja.rt-off .rt-hn b{color:var(--gris-m)}
+.rt-hn{flex:1;min-width:0}.rt-hn small{display:block;color:var(--gris-m);font-size:11px}
+.rt-hn details{font-size:11px;margin-top:2px}.rt-hn summary{cursor:pointer;color:var(--nar)}
+.rt-ins{color:var(--gris);margin-top:4px;line-height:1.4}
+.rt-hs{display:flex;flex-direction:column;gap:4px;max-width:48%}
+.rt-hs select,.rt-pr select{padding:6px;border:1.5px solid var(--borde);border-radius:8px;font-size:12px;max-width:100%}
+.rt-pr{display:flex;gap:8px;justify-content:space-between;align-items:center;padding:6px 0;border-top:1px solid var(--borde);font-size:12px}
+.rt-pr span{flex:1}.rt-pr small{display:block;color:var(--gris-m)}
