@@ -28,8 +28,8 @@ function itemsMateriales(p){
   // lo de la nota + la receta de su tipología (si un material está en las dos, manda la receta).
   // La receta se toma hasta que se asigna: en obra queda lo que se fijó.
   let base=esNota(p)?NotaPedido.lineasCosteo(p.ficha).filter(x=>x.rubro==='mat'):[];
-  const rec=etapaDe(p)==='ejecucion'?[]:lineasReceta(p);
-  if(rec.length){const k=new Set(rec.map(x=>x.clave));base=base.filter(x=>!k.has(x.clave)).concat(rec);}
+  const rec=etapaDe(p)==='ejecucion'?[]:lineasReceta(p).filter(x=>x.rubro==='mat');
+  base=baseConReceta(p,base,rec);
   base.forEach(x=>{
     const s=g.find(y=>key(y.clave,y.det)===key(x.clave,x.det)); if(s) usados.add(s);
     out.push(s?{...s,pend:x.pend,receta:x.receta}:{id:null,clave:x.clave,det:x.det||'',unidad:x.unidad,plan:x.cant,extra:false,stock:null,usada:null,pend:x.pend,receta:x.receta});

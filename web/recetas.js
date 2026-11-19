@@ -26,7 +26,26 @@ function lineasReceta(p){
   const m={};
   recetas.filter(r=>r.tipo===t.prod&&r.tam==='').forEach(r=>m[r.clave]=r);
   recetas.filter(r=>r.tipo===t.prod&&r.tam&&r.tam===t.tam).forEach(r=>m[r.clave]=r);
-  return Object.values(m).map(r=>({clave:r.clave,det:'',unidad:r.unidad,cant:Math.round(r.cant*t.unidades*100)/100,rubro:'mat',receta:true}));
+  return Object.values(m).map(r=>({clave:r.clave,det:'',unidad:r.unidad,cant:Math.round(r.cant*t.unidades*100)/100,rubro:rubroReceta(r.clave),receta:true}));
+}
+// La receta no guarda el rubro: lo que no es material (mano de obra, instalación, comisión…) se reconoce por el nombre
+function rubroReceta(clave){
+  const c=normTxt(clave);
+  if(/mano de obra|colocar|colocacion|instalacion electrica/.test(c)) return 'mo';
+  if(/flete/.test(c)) return 'ter';
+  if(/comision|amortizacion/.test(c)) return 'otr';
+  return 'mat';
+}
+// Lo que se costea y se controla de un proyecto: la nota de pedido + la receta de su tipología.
+// Si un material está en las dos, manda la receta. Los productos Company son producción estándar:
+// si su tipología tiene receta, manda la receta completa y de la nota quedan solo el contenedor,
+// el corte, el flete, la comisión y la amortización (pedido de Cristian 19/11).
+function baseConReceta(p,nota,rec){
+  if(!rec.length) return nota;
+  const k=new Set(rec.map(x=>x.clave));
+  const company=/Company$/.test(NotaPedido.tipologia(p.ficha).prod||'');
+  const queda=x=>!k.has(x.clave)&&(!company||/^(Contenedor |Corte de contenedor|Flete$|Comisión de venta$|Amortización de planta)/.test(x.clave));
+  return nota.filter(queda).concat(rec);
 }
 
 function renderRecetas(){
@@ -58,7 +77,9 @@ function renderRecetas(){
     <div class="form-2" style="margin-top:8px"><div class="fg"><label>Material</label><input id="rt-nom" list="rt-claves" placeholder="Ej: Lana de vidrio 50 mm"></div>
       <div class="fg"><label>Unidad</label><input id="rt-uni" placeholder="c/u, m², rollo, kg"></div></div>
     <div class="fg"><label>Cantidad por unidad fabricada</label><input type="number" step="0.01" min="0" id="rt-cant"></div>
-    <button class="btn btn-nar btn-sm" onclick="agregarReceta()">+ Agregar a la receta</button>
+    <div class="flex-btns" style="flex-wrap:wrap"><button class="btn btn-nar btn-sm" onclick="agregarReceta()">+ Agregar a la receta</button>
+      <label class="btn btn-sec btn-sm" style="cursor:pointer">📥 Importar desde la planilla<input type="file" accept=".xlsx,.xls,.ods" style="display:none" onchange="leerRecetaExcel(this)"></label></div>
+    ${rtImp?importRecetaHTML():''}
   </div>`;
 }
 async function agregarReceta(){
@@ -85,4 +106,84 @@ async function quitarReceta(id){
   try{chk(await sb.from('recetas_tipologia').delete().eq('id',id));recetas=recetas.filter(x=>x.id!==id);}
   catch(e){toast('⚠️ No se pudo sacar: '+(e.message||'error'));}
   renderRecetas();
+}
+
+// ── Importar una receta desde la planilla de cotización (una solapa por modelo) ──
+// Lee la columna de insumos y la de cantidad; toma las filas con cantidad mayor a 0 hasta la fila
+// de "COSTO". El contenedor y el flete ya salen de la nota, así que vienen destildados.
+// Si entra el administrador y la solapa trae el precio unitario, también actualiza la lista de costos.
+let rtImp=null; // {wb, hoja, filas:[{clave,cant,unidad,costo,usar,motivo}]}
+async function leerRecetaExcel(input){
+  const f=input.files[0]; input.value=''; if(!f) return;
+  try{
+    await cargarLib(LIB_XLSX);
+    const wb=XLSX.read(await f.arrayBuffer(),{type:'array'});
+    const sug=wb.SheetNames.find(n=>normTxt(n).includes(normTxt(rtSel.tipo).replace(/^modulo habitable /,'modulo ')))
+      ||wb.SheetNames.find(n=>/company/i.test(n)&&/company/i.test(rtSel.tipo))||wb.SheetNames[0];
+    rtImp={wb,archivo:f.name,hoja:sug,filas:[]};
+    leerHojaReceta();
+  }catch(e){console.error(e);toast('⚠️ No se pudo leer la planilla: '+(e.message||e));rtImp=null;}
+  renderRecetas();
+}
+function leerHojaReceta(){
+  const mat=XLSX.utils.sheet_to_json(rtImp.wb.Sheets[rtImp.hoja],{header:1,raw:true,defval:''});
+  // encabezado: la fila que tiene "cant" y una columna de nombres (insumos / descripción / material)
+  let cab=-1,cN=0,cC=null,cU=null;
+  for(let i=0;i<Math.min(20,mat.length);i++){const h=mat[i].map(normTxt);
+    const c=h.findIndex(x=>/^cant/.test(x)); if(c<0) continue;
+    cab=i;cC=c;cN=Math.max(0,h.findIndex(x=>/insumo|desc|material|detalle|item/.test(x)));
+    cU=h.findIndex(x=>/unitario|precio|costo u/.test(x)); if(cU<0) cU=null; break;}
+  rtImp.filas=[];
+  if(cab<0){rtImp.error='No encontré la columna de cantidad (CANT.) en esta solapa.';return;}
+  rtImp.error='';
+  for(const r of mat.slice(cab+1)){
+    let nom=String(r[cN]??'').replace(/[´`]/g,'').replace(/\s+/g,' ').trim();
+    // la comisión y la amortización ya van en todos los pedidos: se usan los mismos nombres para no duplicarlas
+    if(/amortizaci/i.test(nom)) nom='Amortización de planta y máquinas';
+    else if(/comisi[oó]n de venta/i.test(nom)) nom='Comisión de venta';
+    if(!nom) continue;
+    if(/^costo|^total|^margen|^precio/i.test(nom)) break;
+    const cant=Number(String(r[cC]).replace(',','.'));
+    if(!(cant>0)) continue;
+    const costo=cU==null?null:Number(String(r[cU]).replace(',','.'));
+    const deNota=/^contenedor|^flete/i.test(nom);
+    rtImp.filas.push({clave:nom,cant,unidad:'c/u',costo:costo>0?costo:null,usar:!deNota,motivo:deNota?'ya sale de la nota de pedido':''});
+  }
+}
+function importRecetaHTML(){
+  const r=rtImp, n=r.filas.filter(x=>x.usar).length, ya=recetas.filter(x=>x.tipo===rtSel.tipo&&x.tam===rtSel.tam).length;
+  return `<div class="card" style="border-left:5px solid var(--nar);margin-top:10px">
+    <div class="card-title">📄 ${esc(r.archivo)}</div>
+    <div class="fg"><label>Solapa</label><select onchange="rtImp.hoja=this.value;leerHojaReceta();renderRecetas()">${r.wb.SheetNames.map(h=>`<option ${h===r.hoja?'selected':''}>${esc(h)}</option>`).join('')}</select></div>
+    ${r.error?`<div style="color:var(--rojo);font-size:13px">${esc(r.error)}</div>`:`
+    <div style="font-size:12px;color:var(--gris-m);margin-bottom:6px">Se carga en <b>${esc(rtSel.tipo)}${rtSel.tam?' '+esc(rtSel.tam):' (cualquier tamaño)'}</b>${ya?` y <b>reemplaza</b> los ${ya} materiales que tiene hoy`:''}. Cantidades por unidad fabricada.${esAdmin()&&r.filas.some(x=>x.costo)?' Como sos administrador, los precios unitarios también pasan a la lista de costos.':''}</div>
+    <div class="mp-lista">${r.filas.map((x,i)=>`<div class="mp-f${x.usar?'':' mp-fuera'}">
+      <div class="mp-n"><label style="display:flex;gap:6px;align-items:flex-start"><input type="checkbox" ${x.usar?'checked':''} onchange="rtImp.filas[${i}].usar=this.checked;renderRecetas()"><span>${esc(x.clave)}${x.motivo?`<small>${esc(x.motivo)}</small>`:''}</span></label></div>
+      <div class="mp-c">${mpFmt(x.cant)} <span>${esc(x.unidad)}</span></div></div>`).join('')}</div>
+    <div class="flex-btns" style="margin-top:8px"><button class="btn btn-verde btn-sm" ${n?'':'disabled'} onclick="guardarRecetaImp(this)">✅ Cargar ${n} materiales</button>
+      <button class="btn btn-sec btn-sm" onclick="rtImp=null;renderRecetas()">Cancelar</button></div>`}
+  </div>`;
+}
+async function guardarRecetaImp(btn){
+  const r=rtImp; if(!r) return;
+  const filas=r.filas.filter(x=>x.usar), ya=recetas.filter(x=>x.tipo===rtSel.tipo&&x.tam===rtSel.tam);
+  if(ya.length&&!await confirmar(`Se reemplazan los ${ya.length} materiales de la receta de ${rtSel.tipo}${rtSel.tam?' '+rtSel.tam:''} por ${filas.length} de la planilla. Los proyectos ya asignados no cambian. ¿Seguimos?`)) return;
+  btn.disabled=true;
+  try{
+    if(ya.length) chk(await sb.from('recetas_tipologia').delete().eq('tipologia',rtSel.tipo).eq('tam',rtSel.tam));
+    const nuevas=[...new Map(filas.map(x=>[x.clave,x])).values()].map(x=>({id:nuevoId(),tipologia:rtSel.tipo,tam:rtSel.tam,clave:x.clave,unidad:x.unidad,cant:x.cant}));
+    chk(await sb.from('recetas_tipologia').insert(nuevas));
+    recetas=recetas.filter(x=>!(x.tipo===rtSel.tipo&&x.tam===rtSel.tam)).concat(nuevas.map(f=>({id:f.id,tipo:f.tipologia,tam:f.tam,clave:f.clave,unidad:f.unidad,cant:f.cant})));
+    let np=0;
+    if(esAdmin()&&costeoListo){
+      for(const x of filas.filter(y=>y.costo)){
+        const prev=listaCostos[x.clave]||{};
+        const fila={clave:x.clave,costo:Math.round(x.costo*100)/100,rubro:prev.rubro||rubroReceta(x.clave),unidad:prev.unidad||x.unidad};
+        if(proveedoresListo) Object.assign(fila,{proveedor:'Planilla '+r.hoja.trim(),fuente:'excel',referencia:null});
+        chk(await sb.from('lista_costos').upsert(fila,{onConflict:'clave'})); listaCostos[x.clave]={...prev,...fila}; np++;
+      }
+    }
+    toast(`✅ Receta cargada: ${nuevas.length} materiales${np?` · ${np} precios en Costos`:''}`);
+    rtImp=null; renderRecetas();
+  }catch(e){toast(msgError(e)); btn.disabled=false;}
 }
