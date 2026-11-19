@@ -169,6 +169,18 @@ function faltaPedir(p){
   return pedidosNecesarios(p).filter(k=>!pedidoVigente(p,k));
 }
 const NOMBRE_NEC={aluminio:'Aberturas a la fábrica',madera:'Carpintería de madera',aires:'Colocación de aires'};
+// Sin el stock validado no se pide: explica qué falta y lleva a la lista de materiales
+function pcFaltaStock(){
+  const p=todos[detalleId], ps=p&&typeof problemaStock==='function'?problemaStock(p):null;
+  toast('🔒 Primero validá el stock'+(ps?': '+ps.charAt(0).toLowerCase()+ps.slice(1):'')+'. Te llevo a la lista de materiales.');
+  pcIrAMateriales();
+}
+function pcIrAMateriales(){
+  const sec=document.getElementById('mp-sec'); if(!sec) return;
+  if(sec.classList.contains('plegada')){sec.classList.remove('plegada');sec.querySelector(':scope > h3')?.setAttribute('aria-expanded','true');}
+  sec.scrollIntoView({behavior:'smooth',block:'start'});
+  sec.style.transition='box-shadow .3s';sec.style.boxShadow='0 0 0 3px var(--naranja,#E8761A)';setTimeout(()=>{sec.style.boxShadow='';},1800);
+}
 function bloquePedidosLider(p,stockOk){
   if(MODO!=='nube') return '';
   if(!pcListo) return `<p style="font-size:12px;color:var(--gris-m);margin-bottom:8px">📨 Para pedir aberturas y aires desde acá hay que correr las migraciones 0009 y 0017 en Supabase.</p>`;
@@ -177,13 +189,14 @@ function bloquePedidosLider(p,stockOk){
   const filas=[...nec,...otros].map(k=>{const x=pedidoVigente(p,k);
     return `<div class="drow"><span class="lbl">${esc(NOMBRE_NEC[k])}</span><span class="val">${x
       ?`<span class="badge ${estPC(x).cls}">${esc(estPC(x).t)}</span> N° ${esc(x.num)}`
-      :`<button class="btn btn-nar btn-sm" ${stockOk?'':'disabled title="Primero validá el stock"'} onclick="abrirPedidoCarp('${pid}','${k}')">📨 Pedir</button>`}</span></div>`;}).join('');
+      :stockOk?`<button class="btn btn-nar btn-sm" onclick="abrirPedidoCarp('${pid}','${k}')">📨 Pedir</button>`
+      :`<button class="btn btn-sec btn-sm" style="opacity:.6" onclick="pcFaltaStock()">🔒 Pedir</button>`}</span></div>`;}).join('');
   const falta=nec.filter(k=>!pedidoVigente(p,k));
   const extra=tallersDisponibles().filter(k=>!nec.includes(k)&&!pedidoVigente(p,k)); // pedidos que la nota no sugiere
-  return `<div style="margin-bottom:10px"><div style="font-size:13px;font-weight:700;margin-bottom:4px">📨 Pedidos${stockOk?'':' <span style="font-weight:400;color:var(--gris-m)">(primero validá el stock)</span>'}</div>
+  return `<div style="margin-bottom:10px"><div style="font-size:13px;font-weight:700;margin-bottom:4px">📨 Pedidos${stockOk?'':' <span style="font-weight:400;color:var(--rojo)">🔒 se habilitan cuando el stock esté validado</span>'}</div>
     ${filas||`<div style="font-size:12px;color:var(--gris-m)">La nota no tiene aberturas ni aires para pedir.</div>`}
     ${falta.length&&stockOk?`<div style="font-size:12px;color:var(--nar,#c66a00);margin-top:4px">Falta pedir: ${falta.map(k=>esc(NOMBRE_NEC[k].toLowerCase())).join(', ')}. Revisá la lista antes de mandarla.</div>`:''}
-    ${extra.length?`<div class="flex-btns" style="flex-wrap:wrap;margin-top:6px">${extra.map(k=>`<button class="btn btn-sec btn-sm" ${stockOk?'':'disabled'} onclick="abrirPedidoCarp('${pid}','${k}')">${TALLER[k].pedir}</button>`).join('')}</div>`:''}
+    ${extra.length?`<div class="flex-btns" style="flex-wrap:wrap;margin-top:6px">${extra.map(k=>`<button class="btn btn-sec btn-sm" ${stockOk?'':'style="opacity:.6"'} onclick="${stockOk?`abrirPedidoCarp('${pid}','${k}')`:'pcFaltaStock()'}">${stockOk?'':'🔒 '}${TALLER[k].pedir}</button>`).join('')}</div>`:''}
   </div>`;
 }
 
