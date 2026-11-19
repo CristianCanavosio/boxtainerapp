@@ -726,6 +726,9 @@ function lineasCosteo(){
   // generales
   if(!esSolo(d.prod))add('Mano de obra general','mo','m²',piso);
   add('Flete','ter','c/u',1,d.loc||'');
+  // van en todos los pedidos, sea cual sea el producto (pedido de Cristian 19/11): el administrador carga en Costos cuánto es por unidad
+  add('Comisión de venta','otr','c/u',1);
+  add('Amortización de planta y máquinas','otr','c/u',1);
   // varias unidades iguales: todo se multiplica por la cantidad
   const u=unidades();if(u>1)out.forEach(x=>x.cant=r2(x.cant*u));
   out.forEach(x=>{if(x.unidad===PINT_UNI)x.cant=Math.ceil(x.cant-1e-9)});

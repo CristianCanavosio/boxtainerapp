@@ -33,18 +33,69 @@ function numAR(v){
   return Number(t);
 }
 // sugiere el ítem de la lista más parecido a una descripción de proveedor
+// ── Emparejar nombres: la app dice "Sanitario · Inodoro", la planilla "INODORO ANDINA LARGO" ──
+// Cada ítem de la app tiene una parte general (antes del "·": Sanitario, Cocina, Luz, Piso…) y una
+// parte que lo identifica (Inodoro). Se compara sobre todo la parte que lo identifica, sin tildes,
+// en singular y con algunos sinónimos. Lo que el administrador vincula queda guardado (el vínculo
+// del producto del proveedor) y manda sobre cualquier sugerencia.
+const SINON={aa:'aire',acondicionado:'aire',split:'aire',ac:'aire',led:'led',tubo:'tubo',plafon:'plafon',termotanque:'termotanque',
+  calefon:'termotanque',deposito:'tanque',mochila:'inodoro',vanitory:'bacha',lavatorio:'bacha',pileta:'bacha',griferia:'canilla',
+  monocomando:'canilla',tomacorriente:'toma',enchufe:'toma',llave:'llave',pvc:'pvc',melamina:'melamina',aberturas:'ventana'};
+const VACIAS_EMP=new Set(['de','del','la','el','los','las','con','sin','y','a','en','x','por','para','un','una','c','u','cm','mm','m2','m','lts','l','tipo','linea','company','medida','especial','fg','w']);
+function palabrasEmp(t){
+  return normTxt(String(t||'').replace(/(\d)\.(\d{3})(?!\d)/g,'$1$2').replace(/(\d)\s*[x×*]\s*(?=\d)/gi,'$1 ')).split(' ')
+    .filter(w=>w&&!VACIAS_EMP.has(w))
+    .map(w=>/ces$/.test(w)?w.slice(0,-3)+'z':/ones$/.test(w)?w.slice(0,-2):w.length>3&&/s$/.test(w)?w.slice(0,-1):w)
+    .map(w=>SINON[w]||w);
+}
+// 0 a 1: qué tanto el producto del proveedor (desc) corresponde al ítem de la app (clave).
+// Pesan menos las palabras generales (Sanitario, Cocina, Luz…) y los números (medidas).
+const GENERALES=new Set(['sanitario','cocina','luz','piso','revestimiento','interior','exterior','armado','instalacion','general','ambiente']);
+const pesoEmp=w=>GENERALES.has(w)?0.25:/^\d+$/.test(w)?0.4:1;
+function puntajeEmp(clave,desc){
+  const td=new Set(palabrasEmp(desc)); if(!td.size) return 0;
+  const pc=[...new Set(palabrasEmp(clave))]; if(!pc.length) return 0;
+  const tot=pc.reduce((s,w)=>s+pesoEmp(w),0), ok=pc.filter(w=>td.has(w)).reduce((s,w)=>s+pesoEmp(w),0);
+  // si el producto nombra otro ambiente (dice "cocina" y el ítem es de "sanitario"), baja
+  const otro=[...td].some(w=>GENERALES.has(w)&&!pc.includes(w))&&pc.some(w=>GENERALES.has(w));
+  return Math.round(ok/tot*(otro?0.7:1)*100)/100;
+}
+// los ítems de la app más parecidos a un producto del proveedor
+function sugerenciasClave(desc,n){
+  return catalogoCostos().map(it=>({clave:it.clave,p:puntajeEmp(it.clave,desc)})).filter(x=>x.p>=0.34)
+    .sort((a,b)=>b.p-a.p||a.clave.length-b.clave.length).slice(0,n||3);
+}
+// los productos de proveedores más parecidos a un ítem de la app (el más nuevo de cada uno)
+function sugerenciasProv(clave,n){
+  const vistos=new Set();
+  return preciosProv.slice().sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha))||String(b.creado_en).localeCompare(String(a.creado_en)))
+    .filter(o=>{const k=o.proveedor+'|'+normTxt(o.descripcion);if(vistos.has(k))return false;vistos.add(k);return o.clave!==clave;})
+    .map(o=>({o,p:puntajeEmp(clave,o.descripcion)})).filter(x=>x.p>=0.34).sort((a,b)=>b.p-a.p).slice(0,n||3);
+}
+// vínculos ya hechos para un producto del proveedor (por código o por la misma descripción)
+function claveVinculadas(desc,prov,codigo){
+  return [...new Set(preciosProv.filter(x=>x.clave&&x.proveedor===prov&&((codigo&&x.codigo===codigo)||normTxt(x.descripcion)===normTxt(desc)))
+    .sort((a,b)=>String(b.creado_en).localeCompare(String(a.creado_en))).map(x=>x.clave))];
+}
 function sugerirClave(desc,prov,codigo){
-  const prev=preciosProv.filter(x=>x.clave&&x.proveedor===prov&&((codigo&&x.codigo===codigo)||normTxt(x.descripcion)===normTxt(desc)))
-    .sort((a,b)=>String(b.creado_en).localeCompare(String(a.creado_en)))[0];
-  if(prev) return {clave:prev.clave,por:'vínculo anterior'};
-  const td=new Set(normTxt(desc).split(' ').filter(w=>w.length>1));
-  let mejor=null, pm=0;
-  catalogoCostos().forEach(it=>{
-    const tc=normTxt(it.clave).split(' ').filter(w=>w.length>1); if(!tc.length) return;
-    const s=tc.filter(w=>td.has(w)).length/tc.length;
-    if(s>pm){pm=s;mejor=it.clave;}
-  });
-  return pm>=0.6?{clave:mejor,por:'parecido'}:null;
+  const prev=claveVinculadas(desc,prov,codigo);
+  if(prev.length) return {clave:prev[0],por:'vínculo anterior'};
+  const s=sugerenciasClave(desc,1)[0];
+  return s&&s.p>=0.7?{clave:s.clave,por:'nombre parecido'}:null;
+}
+// Vincular un producto del proveedor a un ítem de la app. Si ese producto ya estaba vinculado a otro
+// ítem (la misma ventana para dos ítems), se guarda una copia, así los dos quedan con precio.
+async function vincularEmp(id,clave){
+  const x=preciosProv.find(y=>y.id===id); if(!x||!clave) return;
+  try{
+    if(x.clave&&x.clave!==clave){
+      const copia={...x,id:nuevoId(),clave}; delete copia.creado_en;
+      chk(await sb.from('precios_proveedor').insert(copia));
+      preciosProv.push({...copia,creado_en:new Date().toISOString()});
+      await usarPrecioProv(copia.id);
+    }else await vincularPrecioProv(id,clave);
+    toast('🔗 '+clave+' ← '+x.descripcion);
+  }catch(e){toast(msgError(e));}
 }
 
 // ── pantalla de importación ──
@@ -184,6 +235,9 @@ async function guardarImport(){
     const nuevas=filas.map(f=>({id:nuevoId(),proveedor:imp.prov,codigo:f.codigo||null,descripcion:String(f.desc).trim(),unidad:f.unidad||null,
       costo:usd(f.costo),costo_original:numAR(f.costo),moneda:imp.moneda,tipo_cambio:imp.moneda==='ARS'?tc:null,
       fuente:imp.fuente,archivo:ruta,fecha:imp.fecha||hoyISO(),clave:f.clave||null}));
+    // si ese producto ya estaba vinculado a más de un ítem, cada ítem recibe el precio nuevo
+    nuevas.slice().forEach(x=>{if(!x.clave) return;
+      claveVinculadas(x.descripcion,x.proveedor,x.codigo).filter(k=>k!==x.clave).forEach(k=>nuevas.push({...x,id:nuevoId(),clave:k}));});
     chk(await sb.from('precios_proveedor').insert(nuevas));
     preciosProv.push(...nuevas.map(x=>({...x,creado_en:new Date().toISOString()})));
     // los vinculados pasan a la lista de costos
@@ -221,4 +275,28 @@ async function verArchivoCosto(ev,ruta){
   const {data,error}=await sb.storage.from('costos').createSignedUrl(ruta,600);
   if(error||!data){if(w)w.close();toast('⚠️ No se pudo abrir el archivo');return;}
   if(w) w.location=data.signedUrl; else location.href=data.signedUrl;
+}
+
+// ── sugerencias en la pestaña Costos ──
+function sugProvHTML(x){
+  if(x.costo||!proveedoresListo) return '';
+  const sg=sugerenciasProv(x.clave,3); if(!sg.length) return '';
+  return `<div class="emp-sug"><small>💡 ¿Es alguno de estos?</small>${sg.map(({o,p})=>`<div class="emp-op"><span>${esc(o.descripcion)}<small>${esc(o.proveedor)} · ${usd(o.costo)} · ${Math.round(p*100)}% parecido</small></span>
+    <button class="btn btn-verde btn-sm" onclick="vincularEmp('${o.id}',${esc(JSON.stringify(x.clave))})">Vincular</button></div>`).join('')}</div>`;
+}
+function sugClaveHTML(o){
+  const sg=sugerenciasClave(o.descripcion,3); if(!sg.length) return '';
+  return `<div class="emp-chips"><small>💡 Puede ser:</small>${sg.map(({clave,p})=>`<button class="chip" title="${Math.round(p*100)}% parecido" onclick="vincularEmp('${o.id}',${esc(JSON.stringify(clave))})">${esc(clave)}</button>`).join('')}</div>`;
+}
+// Vincula de una vez los ítems sin precio que tienen una sugerencia clara (muy parecida y sin otra cerca)
+function sugerenciasSeguras(){
+  if(!proveedoresListo) return [];
+  return catalogoCostos().filter(x=>!x.costo).map(x=>{const sg=sugerenciasProv(x.clave,2);
+    return sg[0]&&sg[0].p>=0.8&&(!sg[1]||sg[0].p-sg[1].p>=0.15)?{clave:x.clave,o:sg[0].o}:null;}).filter(Boolean);
+}
+async function vincularSeguras(){
+  const ls=sugerenciasSeguras(); if(!ls.length) return;
+  if(!await confirmar(`¿Vincular ${ls.length} ítem${ls.length>1?'s':''} con el producto más parecido?\n\n`+ls.slice(0,12).map(x=>`• ${x.clave} ← ${x.o.descripcion}`).join('\n')+(ls.length>12?`\n… y ${ls.length-12} más`:'')+'\n\nDespués podés cambiar cualquiera.')) return;
+  for(const x of ls){await vincularEmp(x.o.id,x.clave);}
+  toast(`🔗 ${ls.length} ítems vinculados`); renderCostos();
 }
