@@ -114,6 +114,12 @@
 .cst-alt>div:last-child{border-bottom:0}
 .cst-alt span{flex:1}.cst-alt small{display:block;color:var(--gris-m)}
 .cst-suelto>div{width:100%}
+.emp-sug{background:#f3faf6;border-radius:8px;padding:6px 8px;margin:-4px 0 8px;font-size:12px}
+.emp-sug>small,.emp-chips>small{display:block;color:var(--gris-m);margin-bottom:2px}
+.emp-op{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:4px 0;border-top:1px solid #e3efe8}
+.emp-op span{flex:1}.emp-op span small{display:block;color:var(--gris-m)}
+.emp-chips{margin-top:6px;display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.emp-chips>small{width:100%}.emp-chips .chip{font-size:11px;padding:4px 8px}
 .cst-suelto select{width:100%;margin-top:6px;padding:6px;border:1.5px solid var(--borde);border-radius:8px;font-size:12px}
 .auto-np{background:var(--nar-l);border-radius:10px;padding:8px 10px;font-size:12px;margin:6px 0}
 .im-cols{display:grid;grid-template-columns:1fr 1fr;gap:0 8px;margin-top:8px}
