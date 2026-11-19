@@ -138,6 +138,9 @@ function seccionMateriales(p){
   if(!mpListo) return `<div class="dsec" id="mp-sec"><h3>📦 Materiales del proyecto</h3><div style="font-size:13px">Para activarlo hay que correr la migración <b>0007_materiales_por_proyecto.sql</b> en Supabase.</div></div>`;
   const id=esc(p.id), R=resumenDesvios(p), it=R.it; mpVista[p.id]=it;
   const op=esOp()&&r!=='lectura';
+  if(e==='asignacion'&&typeof esCompany==='function'&&esCompany(p))
+    return `<div class="dsec" id="mp-sec"><h3>📦 Materiales del proyecto (${it.length})</h3>
+      <div style="font-size:13px;color:var(--gris-m)">🏭 Producto Company: es producción estándar, no hace falta validar el stock. Al asignar, la lista queda fija para que el supervisor cargue lo que usa y se mida el desvío.</div></div>`;
   if(e==='asignacion'){
     const falta=problemaStock(p);
     const nSin=it.filter(x=>!x.stock&&!x.fuera).length, nOk=it.filter(x=>x.stock==='hay'&&!x.fuera).length;

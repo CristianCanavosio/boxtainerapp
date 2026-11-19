@@ -97,6 +97,12 @@
         vs.length&&tabla('nota_versiones').push({id:uuid(),proyecto_id:args.pid,version:vs.length+1,tipo:'reconfirmada',ficha:p&&p.ficha,autor_id:ME.id,creado_en:ahora()});
         avisar();}
       if(fn==='estado_correos_sugerencias') return {data:[],error:null};
+      if(fn==='notas_de_ordenes') return {data:tabla('proyectos').filter(p=>(args.pids||[]).includes(p.id)).map(p=>({proyecto_id:p.id,nombre:p.nombre,
+        cliente:p.cliente,empresa:p.empresa,tipo:p.tipo,entrega:p.entrega,deposito:p.deposito,ficha:p.ficha})),error:null};
+      if(fn==='cargar_stock_taller'){const yo=tabla('perfiles').find(x=>x.id===ME.id)||{}, t={carp_aluminio:'aluminio',carp_madera:'madera'}[yo.rol];
+        DB.stock_taller=tabla('stock_taller').filter(x=>x.taller!==t);
+        (args.filas||[]).forEach(f=>DB.stock_taller.push({id:uuid(),taller:t,codigo:f.codigo||null,descripcion:f.descripcion,cantidad:Number(f.cantidad)||0,unidad:f.unidad||null,cargado_en:ahora()}));
+        avisar(); return {data:(args.filas||[]).length,error:null};}
       return {data:null,error:null};
     },
     auth:{

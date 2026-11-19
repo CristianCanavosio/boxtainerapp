@@ -373,7 +373,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <button class="nav-btn" data-view="proyectos" onclick="showView('proyectos')">📋 Proyectos</button>
     <button class="nav-btn" data-view="kanban" onclick="showView('kanban')">📊 Kanban</button>
     <button class="nav-btn" data-view="alertas" onclick="showView('alertas')">🚨 Avisos</button>
-    <button class="nav-btn" data-view="pedidos" onclick="showView('pedidos')" id="nav-pedidos">🪚 Carpinterías</button>
+    <button class="nav-btn" data-view="pedidos" onclick="showView('pedidos')" id="nav-pedidos">🛠️ Órdenes</button>
+    <button class="nav-btn" data-view="stock" onclick="showView('stock')">🗃️ Stock</button>
     <button class="nav-btn" data-view="personal" onclick="showView('personal')">👷 Personal</button>
     <button class="nav-btn" data-view="contenedores" onclick="showView('contenedores')">📦 Contenedores</button>
     <button class="nav-btn" data-view="materiales" onclick="showView('materiales')">🔧 Materiales</button>
@@ -419,8 +420,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <!-- PEDIDOS A CARPINTERÍAS -->
   <div class="view" id="view-pedidos">
     <div style="margin-top:12px">
-      <div class="sec-title" id="pedcarp-titulo">🪚 Pedidos a carpinterías</div>
+      <div class="sec-title" id="pedcarp-titulo">🛠️ Órdenes de trabajo</div>
       <div id="lista-pedcarp"></div>
+    </div>
+  </div>
+
+  <!-- STOCK DE UTILBOX (supervisor de aberturas / muebles) -->
+  <div class="view" id="view-stock">
+    <div style="margin-top:12px">
+      <div class="sec-title">🗃️ Mi stock</div>
+      <div id="lista-stock"></div>
     </div>
   </div>
 
@@ -822,6 +831,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <script src="versiones.js"></script>
 <script src="materiales-proy.js"></script>
 <script src="pedidos-carp.js"></script>
+<script src="stock-taller.js"></script>
 <script src="recetas.js"></script>
 <script src="sugerencias.js"></script>
 <script src="recursos.js"></script>

@@ -8,7 +8,7 @@
 // ════════════════════════════════════════════════
 const VISTAS={
   dashboard:{i:'🏠',t:'Hoy'}, proyectos:{i:'📋',t:'Proyectos'}, kanban:{i:'📊',t:'Kanban'}, alertas:{i:'🚨',t:'Avisos'},
-  pedidos:{i:'🪚',t:'Carpinterías'}, personal:{i:'👷',t:'Personal'}, contenedores:{i:'📦',t:'Contenedores'},
+  pedidos:{i:'🛠️',t:'Órdenes'}, stock:{i:'🗃️',t:'Stock'}, personal:{i:'👷',t:'Personal'}, contenedores:{i:'📦',t:'Contenedores'},
   materiales:{i:'🔧',t:'Materiales'}, costos:{i:'🔒',t:'Costos'}, usuarios:{i:'👤',t:'Usuarios'}, reportes:{i:'📈',t:'Reportes'},
   sugerencias:{i:'💡',t:'Sugerencias'}, recursos:{i:'🎬',t:'Recursos'},
 };
@@ -20,8 +20,8 @@ const BNAV={
   lider:['dashboard','proyectos','alertas','materiales'],
   admin:['dashboard','proyectos','alertas','costos'],
   lectura:['dashboard','proyectos','reportes'],
-  carp_aluminio:['pedidos','alertas','recursos'],
-  carp_madera:['pedidos','alertas','recursos'],
+  carp_aluminio:['pedidos','stock','alertas'],
+  carp_madera:['pedidos','stock','alertas'],
   tecnico_aires:['pedidos','alertas','recursos'],
 };
 function barraDeRol(){const t=tabsPermitidas();return (BNAV[rol()]||t.slice(0,3)).filter(v=>t.includes(v));}
@@ -32,7 +32,7 @@ function pintarBnav(){
   const el=document.getElementById('bnav'); if(!el||!currentUser) return;
   const barra=barraDeRol(), resto=tabsPermitidas().filter(v=>!barra.includes(v));
   el.innerHTML=barra.map(v=>`<button class="bn-btn${v===vistaActual?' on':''}" onclick="showView('${v}')" data-bview="${v}">
-      <span class="bn-i"><i>${VISTAS[v]?.i||'•'}</i>${(()=>{const n=v==='dashboard'?badgeHoy:v==='pedidos'&&typeof pcPendientes==='function'?pcPendientes():0;return n?`<b class="bn-badge">${n>9?'9+':n}</b>`:''})()}</span><span class="bn-t">${v==='pedidos'&&typeof miTaller==='function'&&miTaller()?'Pedidos':VISTAS[v]?.t||v}</span></button>`).join('')
+      <span class="bn-i"><i>${VISTAS[v]?.i||'•'}</i>${(()=>{const n=v==='dashboard'?badgeHoy:v==='pedidos'&&typeof pcPendientes==='function'?pcPendientes():0;return n?`<b class="bn-badge">${n>9?'9+':n}</b>`:''})()}</span><span class="bn-t">${v==='pedidos'&&typeof miTaller==='function'&&miTaller()?'Órdenes':VISTAS[v]?.t||v}</span></button>`).join('')
     +`<button class="bn-btn${resto.includes(vistaActual)?' on':''}" onclick="abrirMas()"><span class="bn-i"><i>☰</i></span><span class="bn-t">Más</span></button>`;
   document.body.classList.add('con-bnav');
 }
