@@ -147,7 +147,10 @@ function leerHojaReceta(){
     if(!(cant>0)) continue;
     const costo=cU==null?null:Number(String(r[cU]).replace(',','.'));
     const deNota=/^contenedor|^flete/i.test(nom);
-    rtImp.filas.push({clave:nom,cant,unidad:'c/u',costo:costo>0?costo:null,usar:!deNota,motivo:deNota?'ya sale de la nota de pedido':''});
+    // si en Costos ya hay otro precio para ese insumo (lo cargó otra solapa), no se pisa salvo que se elija
+    const ant=typeof listaCostos!=='undefined'&&listaCostos[nom]?Number(listaCostos[nom].costo):null;
+    const choca=costo>0&&ant>0&&Math.abs(ant-costo)>=0.005;
+    rtImp.filas.push({clave:nom,cant,unidad:'c/u',costo:costo>0?costo:null,ant,choca,pisar:false,usar:!deNota,motivo:deNota?'ya sale de la nota de pedido':''});
   }
 }
 function importRecetaHTML(){
@@ -158,7 +161,7 @@ function importRecetaHTML(){
     ${r.error?`<div style="color:var(--rojo);font-size:13px">${esc(r.error)}</div>`:`
     <div style="font-size:12px;color:var(--gris-m);margin-bottom:6px">Se carga en <b>${esc(rtSel.tipo)}${rtSel.tam?' '+esc(rtSel.tam):' (cualquier tamaño)'}</b>${ya?` y <b>reemplaza</b> los ${ya} materiales que tiene hoy`:''}. Cantidades por unidad fabricada.${esAdmin()&&r.filas.some(x=>x.costo)?' Como sos administrador, los precios unitarios también pasan a la lista de costos.':''}</div>
     <div class="mp-lista">${r.filas.map((x,i)=>`<div class="mp-f${x.usar?'':' mp-fuera'}">
-      <div class="mp-n"><label style="display:flex;gap:6px;align-items:flex-start"><input type="checkbox" ${x.usar?'checked':''} onchange="rtImp.filas[${i}].usar=this.checked;renderRecetas()"><span>${esc(x.clave)}${x.motivo?`<small>${esc(x.motivo)}</small>`:''}</span></label></div>
+      <div class="mp-n"><label style="display:flex;gap:6px;align-items:flex-start"><input type="checkbox" ${x.usar?'checked':''} onchange="rtImp.filas[${i}].usar=this.checked;renderRecetas()"><span>${esc(x.clave)}${x.motivo?`<small>${esc(x.motivo)}</small>`:''}${esAdmin()&&x.choca?`<small style="color:#8A5F00">⚠️ En Costos está a ${usd(x.ant)} y esta solapa dice ${usd(x.costo)}. <input type="checkbox" ${x.pisar?'checked':''} onclick="event.stopPropagation()" onchange="rtImp.filas[${i}].pisar=this.checked"> usar el de la solapa (cambia el costo de todos los productos que lo usan)</small>`:''}</span></label></div>
       <div class="mp-c">${mpFmt(x.cant)} <span>${esc(x.unidad)}</span></div></div>`).join('')}</div>
     <div class="flex-btns" style="margin-top:8px"><button class="btn btn-verde btn-sm" ${n?'':'disabled'} onclick="guardarRecetaImp(this)">✅ Cargar ${n} materiales</button>
       <button class="btn btn-sec btn-sm" onclick="rtImp=null;renderRecetas()">Cancelar</button></div>`}
@@ -176,7 +179,7 @@ async function guardarRecetaImp(btn){
     recetas=recetas.filter(x=>!(x.tipo===rtSel.tipo&&x.tam===rtSel.tam)).concat(nuevas.map(f=>({id:f.id,tipo:f.tipologia,tam:f.tam,clave:f.clave,unidad:f.unidad,cant:f.cant})));
     let np=0;
     if(esAdmin()&&costeoListo){
-      for(const x of filas.filter(y=>y.costo)){
+      for(const x of filas.filter(y=>y.costo&&(!y.choca||y.pisar))){
         const prev=listaCostos[x.clave]||{};
         const fila={clave:x.clave,costo:Math.round(x.costo*100)/100,rubro:prev.rubro||rubroReceta(x.clave),unidad:prev.unidad||x.unidad};
         if(proveedoresListo) Object.assign(fila,{proveedor:'Planilla '+r.hoja.trim(),fuente:'excel',referencia:null});
