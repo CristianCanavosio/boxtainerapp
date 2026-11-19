@@ -26,7 +26,7 @@ function costeoDe(p){
   // lo de la nota + la receta de su tipología (si un material está en las dos, manda la receta)
   let base=esNota(p)?NotaPedido.lineasCosteo(p.ficha):[];
   const rec=typeof lineasReceta==='function'?lineasReceta(p):[];
-  if(rec.length){const k=new Set(rec.map(x=>x.clave));base=base.filter(x=>!k.has(x.clave)).concat(rec);}
+  base=typeof baseConReceta==='function'?baseConReceta(p,base,rec):base;
   const lineas=base.map(x=>{
     const k=x.clave+(x.det?' | '+x.det:'');
     const precio=listaCostos[x.clave];
