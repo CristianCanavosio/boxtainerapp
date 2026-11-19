@@ -179,6 +179,17 @@
 .pc-fila2 input:first-child{flex:1;min-width:0}
 .pc-fila2 input{width:auto}
 .pc-res{grid-template-columns:repeat(2,1fr)}
+.pc-st{display:inline-block;font-size:11px;font-weight:700;border-radius:6px;padding:1px 6px;margin-left:4px}
+.pc-st.verde{background:#E6F6EE;color:#1E7A48}.pc-st.amar{background:#FFF6DB;color:#8A5F00}.pc-st.rojo{background:#FDE8E8;color:#C0392B}
+.pc-st-res{font-size:12px;margin:-2px 0 6px;font-weight:700}
+.pc-nota{margin-top:6px;font-size:12px}
+.pc-nota summary{cursor:pointer;font-weight:700;color:var(--nar)}
+.pc-nota .nota-res h4{margin:8px 0 2px;font-size:12px}
+.pc-nota .nota-dib svg{max-width:100%;height:auto}
+/* Stock de Utilbox */
+.st-tabla{width:100%;border-collapse:collapse;font-size:12px}
+.st-tabla th,.st-tabla td{text-align:left;padding:5px 4px;border-bottom:1px solid var(--borde)}
+.st-tabla td.n{text-align:right;white-space:nowrap}
 .cst-pu{text-align:right;font-size:12px}
 /* Croquis táctil */
 #nota .croq-bar{background:var(--chip);border-radius:10px;padding:10px;margin-bottom:10px}

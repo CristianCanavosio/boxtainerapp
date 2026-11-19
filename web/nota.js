@@ -61,7 +61,7 @@ function fechaMin(dias){const f=new Date();f.setDate(f.getDate()+dias);return f.
 // Error si la fecha de entrega no respeta el plazo mínimo del producto (solo al cargar o cambiar la fecha)
 function errPlazo(){if(revisandoGuardada||!d.fecha||!d.prod||sinCambioFecha())return null;const n=plazoMin(d.prod);
   return d.fecha<fechaMin(n)?`Para ${nomProd()} la entrega es como mínimo a ${n} días: poné la fecha desde el ${fechaMin(n).split('-').reverse().join('/')} (paso 1)`:null}
-function nuevo(){return {empresa:'',arq:'Sí',sol:'',cli:'',tel:'',cuit:'',loc:'',maps:'',mapsOk:false,fecha:'',modelo:'',
+function nuevo(){return {empresa:'',arq:'Sí',sol:'',cli:'',tel:'',mail:'',cuit:'',loc:'',maps:'',mapsOk:false,fecha:'',modelo:'',
   unidades:1,prod:'',cont:'',ot:false,tam:'',motor:'',corte:'',lado:'',largo:'',ancho:'',alto:'',
   espacios:[],
   pExt:'',pExtOtro:'',pExtP:false,pInt:'',pIntOtro:'',piso:'',rev:[],revAsig:{},revExt:'',pInterior:'',
@@ -93,7 +93,7 @@ function dondeTxt(o){return o.pared?nomPared(o.pared)+(esLateral(o.pared)&&o.pos
 
 function errores(){
   const e=[];
-  if(paso===0){if(!d.empresa&&!revisandoGuardada)e.push('Elegí la empresa que vende');if(!d.sol)e.push('Elegí el tipo de solicitud');if(!d.cli.trim())e.push('Falta el cliente');if(!d.tel.trim())e.push('Falta el teléfono');if(!d.loc.trim())e.push('Falta la dirección de entrega');else if(!d.mapsOk)e.push('Verificá la dirección en el mapa y tildá la confirmación');if(!d.fecha)e.push('Falta la fecha de entrega');else if(!revisandoGuardada&&!d.prod&&!sinCambioFecha()&&d.fecha<fechaMin(PLAZO_COMPANY))e.push(`La entrega es como mínimo a ${PLAZO_COMPANY} días (productos Company) o ${PLAZO_RESTO} días (el resto)`);else{const ep=errPlazo();if(ep)e.push(ep)}}
+  if(paso===0){if(!d.empresa&&!revisandoGuardada)e.push('Elegí la empresa que vende');if(!d.sol)e.push('Elegí el tipo de solicitud');if(!d.cli.trim())e.push('Falta el cliente');if(!d.tel.trim())e.push('Falta el teléfono');if((d.mail||'').trim()&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.mail.trim()))e.push('Revisá el correo del cliente');if(!d.loc.trim())e.push('Falta la dirección de entrega');else if(!d.mapsOk)e.push('Verificá la dirección en el mapa y tildá la confirmación');if(!d.fecha)e.push('Falta la fecha de entrega');else if(!revisandoGuardada&&!d.prod&&!sinCambioFecha()&&d.fecha<fechaMin(PLAZO_COMPANY))e.push(`La entrega es como mínimo a ${PLAZO_COMPANY} días (productos Company) o ${PLAZO_RESTO} días (el resto)`);else{const ep=errPlazo();if(ep)e.push(ep)}}
   if(paso===1){if(!d.prod)e.push('Elegí el producto');{const ep=errPlazo();if(ep)e.push(ep)}if(!d.tam)e.push('Elegí el tamaño');
     if(d.prod==='Contenedor cortado'){const c=Number(d.corte);if(!c)e.push('Poné el largo final del corte');else if(c>=Number(d.largo))e.push(`El corte (${c} cm) tiene que ser menor que el largo del contenedor (${d.largo} cm)`);if(!d.lado)e.push('Elegí qué lado se conserva')}
     if(d.prod==='Reefer'&&!d.motor)e.push('Indicá si es con o sin motor');
@@ -132,6 +132,7 @@ function render(){
     <div class="card"><div class="lbl">Tipo de solicitud</div>${ops('sol',['Presupuesto','Orden de compra confirmada'],d.sol)}</div>
     <div class="card"><div class="lbl">Cliente</div><input type="text" data-i="cli" placeholder="Nombre o razón social *" value="${esc(d.cli)}">
       <div class="fila"><input type="tel" data-i="tel" placeholder="Teléfono *" value="${esc(d.tel)}"></div>
+      <div class="fila"><input type="email" data-i="mail" placeholder="Correo electrónico (para mandarle el PDF)" autocomplete="off" value="${esc(d.mail||'')}"></div>
       <div class="fila"><input type="text" data-i="cuit" placeholder="CUIT (opcional)" value="${esc(d.cuit)}"></div></div>
     <div class="card"><div class="lbl">Entrega</div><input type="text" data-i="loc" id="np-loc" placeholder="Calle, número, localidad, provincia *" value="${esc(d.loc)}">
       <a class="maps" id="np-maps-a" href="${mapsUrl()}" target="_blank" rel="noopener">📍 Ver en Google Maps</a>
@@ -240,7 +241,7 @@ function render(){
 }
 function resumenCuerpo(){
   const espTxt=d.espacios.map(x=>`${etiqueta(x)} (${(x.ubi||'?').toLowerCase()})${x.items&&x.items.length?' con '+x.items.join(', ').toLowerCase():''}${x.rev?', revestimiento '+x.rev.toLowerCase():''}${x.revT?', techo '+x.revT.toLowerCase():''}`).join('; ')||'sin divisiones';
-  return `      <h4>Pedido</h4><p>${d.empresa?`Vende <b>${esc(d.empresa)}</b>. `:''}<b>${esc(d.sol||'?')}</b> para <b>${esc(d.cli||'?')}</b>, entrega en ${esc(d.loc||'?')}${d.maps?' (<a href="'+esc(d.maps)+'" target="_blank" rel="noopener">ubicación</a>)':''} el ${esc(d.fecha?d.fecha.split('-').reverse().join('/'):'?')}.</p>
+  return `      <h4>Pedido</h4><p>${d.empresa?`Vende <b>${esc(d.empresa)}</b>. `:''}<b>${esc(d.sol||'?')}</b> para <b>${esc(d.cli||'?')}</b>${d.tel||d.mail?` (${esc([d.tel,d.mail].filter(Boolean).join(' · '))})`:''}, entrega en ${esc(d.loc||'?')}${d.maps?' (<a href="'+esc(d.maps)+'" target="_blank" rel="noopener">ubicación</a>)':''} el ${esc(d.fecha?d.fecha.split('-').reverse().join('/'):'?')}.</p>
       <h4>Producto</h4><p>${unidades()>1?`<b>${unidades()} unidades iguales</b>, cada una: `:''}${esc(d.cont||((d.prod||'?')+' '+d.tam))}${d.prod==='Contenedor cortado'?`, cortado a ${esc(d.corte)} cm conservando ${esc(d.lado.toLowerCase())}`:''}${d.prod==='Reefer'&&d.cont?' '+esc(d.tam):''}${d.motor?', '+esc(d.motor.toLowerCase()):''}. Medidas exteriores ${esc(d.largo)} × ${esc(d.ancho)} × ${esc(d.alto)} cm.</p>
       <h4>Distribución</h4><p>${esc(espTxt)}.</p>
       <h4>Terminaciones</h4><p>Pintura exterior ${d.pExtP?'<span class="tag">a confirmar</span>':(d.pExt===SIN_PINT?'no lleva':esc((d.pExt==='Otro'?d.pExtOtro:d.pExt)||'?'))}, revestimiento exterior ${esc((d.revExt||'?').toLowerCase())}, pintura interior ${esc((d.pInt==='Otro'?d.pIntOtro:d.pInt)||'—')}. Piso ${esc(d.piso.toLowerCase()||'?')}, revestimiento interior ${esc(revTexto())}.</p>
