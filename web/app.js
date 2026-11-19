@@ -1215,7 +1215,7 @@ function verDetalle(id){
         </div>`}
         ${(()=>{const pm=materiales.filter(m=>String(m.proyId)===String(id)&&m.est!=='comprado');
           return pm.length?`<p style="color:var(--rojo);font-size:12px;margin-bottom:6px">Materiales de este proyecto sin comprar: ${pm.map(m=>esc(m.nom)).join(', ')}</p>`:'';})()}
-        ${conMat?(()=>{const ps=problemaStock(p);return `<p style="font-size:12px;margin-bottom:8px;color:${ps?'var(--rojo)':'var(--verde)'}">${ps?'📦 '+esc(ps)+'. Validalo en la lista de materiales.':'📦 Stock validado de todos los materiales.'}</p>`})()
+        ${conMat?(()=>{const ps=problemaStock(p);return `<p style="font-size:12px;margin-bottom:8px;color:${ps?'var(--rojo)':'var(--verde)'}">${ps?'📦 '+esc(ps)+'. Validalo en la <a href="#" onclick="event.preventDefault();pcIrAMateriales()" style="color:inherit;text-decoration:underline">lista de materiales</a>.':'📦 Stock validado de todos los materiales.'}</p>`})()
           :`<label class="check" style="margin-bottom:10px"><input type="checkbox" id="as-stock"> Verifiqué que hay stock (o compra confirmada) de los materiales críticos para arrancar</label>`}
         ${typeof bloquePedidosLider==='function'?bloquePedidosLider(p,conMat?!problemaStock(p):true):''}
         <div class="flex-btns">
