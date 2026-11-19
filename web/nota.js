@@ -56,8 +56,9 @@ const hayPlano=()=>!!(archivos.length||opts.croquisPrevios||opts.planosPrevios||
 // Con "seguir tal cual plano adjunto" las aberturas no son obligatorias: solo se revisan las que se empezaron a cargar
 const empezada=p=>!!(p.tipo||p.pared||p.mano||p.med);
 const puertasVal=()=>d.segunPlano?d.puertas.filter(empezada):d.puertas;
-// Equipos de aire por unidad: lo que cargó ventas, o 3 en los módulos Company (pedido de Cristian 19/11) y 1 en el resto
-function aaPorDefecto(){return /Company$/.test(d.prod||'')?3:1}
+// Equipos de aire por unidad: lo que cargó ventas o, si no, lo de la planilla de cotización:
+// Módulo habitable Company 3, Oficina Company 2, el resto 1 (Cristian 19/11)
+function aaPorDefecto(){return d.prod==='Módulo habitable Company'?3:d.prod==='Oficina Company'?2:1}
 function aaCant(){const n=Math.floor(Number(d.aaCant));return n>0?n:aaPorDefecto()}
 function plazoMin(prod){return /Company$/.test(prod||'')?PLAZO_COMPANY:PLAZO_RESTO}
 function fechaMin(dias){const f=new Date();f.setDate(f.getDate()+dias);return f.getFullYear()+'-'+String(f.getMonth()+1).padStart(2,'0')+'-'+String(f.getDate()).padStart(2,'0')}
@@ -220,7 +221,7 @@ function render(){
       <div class="fila">${ops('elec.'+e+'.tipo',['Plafón','Tubo LED'],x.tipo)}</div><div class="fila">${ops('elec.'+e+'.luz',['Fría','Cálida'],x.luz)}</div></div>`}).join('')}</div>
     <div class="card"><div class="lbl">Aire acondicionado</div>${ops('aa',['No','Solo pre-instalación','Sí, con equipo'],d.aa)}
       ${d.aa==='Sí, con equipo'?`<div class="fila">${ops('aaFrig',['2.250 fg','3.000 fg','4.500 fg'],d.aaFrig)}</div>`:''}
-      ${d.aa&&d.aa!=='No'?`<div class="fila"><div class="lbl" style="margin:4px 0">Cantidad de equipos por unidad${/Company$/.test(d.prod||'')?' <small>(Company lleva 3)</small>':''}</div>
+      ${d.aa&&d.aa!=='No'?`<div class="fila"><div class="lbl" style="margin:4px 0">Cantidad de equipos por unidad${/Company$/.test(d.prod||'')?` <small>(${esc(d.prod)} lleva ${aaPorDefecto()})</small>`:''}</div>
         <input type="number" inputmode="numeric" min="1" max="10" step="1" data-i="aaCant" placeholder="${aaPorDefecto()}" value="${esc(d.aaCant||'')}" style="max-width:120px"></div>`:''}</div>
     <div class="card"><div class="lbl">Termotanque</div>${ops('termo',['No','Sí'],d.termo)}
       ${d.termo==='Sí'?`<div class="fila"><div class="unidad"><input type="number" data-i="termoL" placeholder="Capacidad" value="${esc(d.termoL)}"><b>litros</b></div></div><div class="fila">${ops('termoTipo',['Eléctrico','Gas'],d.termoTipo)}</div>`:''}</div>
