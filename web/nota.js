@@ -56,6 +56,9 @@ const hayPlano=()=>!!(archivos.length||opts.croquisPrevios||opts.planosPrevios||
 // Con "seguir tal cual plano adjunto" las aberturas no son obligatorias: solo se revisan las que se empezaron a cargar
 const empezada=p=>!!(p.tipo||p.pared||p.mano||p.med);
 const puertasVal=()=>d.segunPlano?d.puertas.filter(empezada):d.puertas;
+// Equipos de aire por unidad: lo que cargó ventas, o 3 en los módulos Company (pedido de Cristian 19/11) y 1 en el resto
+function aaPorDefecto(){return /Company$/.test(d.prod||'')?3:1}
+function aaCant(){const n=Math.floor(Number(d.aaCant));return n>0?n:aaPorDefecto()}
 function plazoMin(prod){return /Company$/.test(prod||'')?PLAZO_COMPANY:PLAZO_RESTO}
 function fechaMin(dias){const f=new Date();f.setDate(f.getDate()+dias);return f.getFullYear()+'-'+String(f.getMonth()+1).padStart(2,'0')+'-'+String(f.getDate()).padStart(2,'0')}
 // Error si la fecha de entrega no respeta el plazo mínimo del producto (solo al cargar o cambiar la fecha)
@@ -66,7 +69,7 @@ function nuevo(){return {empresa:'',arq:'Sí',sol:'',cli:'',tel:'',mail:'',cuit:
   espacios:[],
   pExt:'',pExtOtro:'',pExtP:false,pInt:'',pIntOtro:'',piso:'',rev:[],revAsig:{},revExt:'',pInterior:'',
   linea:'',puertas:[nuevaPuerta()],puertaP:false,ventanas:[],segunPlano:false,
-  elec:{},aa:'',aaFrig:'',aaEsp:'',termo:'',termoL:'',termoTipo:'',tanque:'',tanqueL:'',
+  elec:{},aa:'',aaFrig:'',aaEsp:'',aaCant:'',termo:'',termoL:'',termoTipo:'',tanque:'',tanqueL:'',
   obs:'',archivos:[],confirmado:false}}
 let d=nuevo();
 const raiz=()=>document.getElementById('nota');
@@ -216,7 +219,9 @@ function render(){
       <div><div class="lbl" style="font-weight:600">Luces</div><div class="cnt"><button data-em="${esc(e)}|luces">−</button><span>${x.luces}</span><button data-ep="${esc(e)}|luces">+</button></div></div></div>
       <div class="fila">${ops('elec.'+e+'.tipo',['Plafón','Tubo LED'],x.tipo)}</div><div class="fila">${ops('elec.'+e+'.luz',['Fría','Cálida'],x.luz)}</div></div>`}).join('')}</div>
     <div class="card"><div class="lbl">Aire acondicionado</div>${ops('aa',['No','Solo pre-instalación','Sí, con equipo'],d.aa)}
-      ${d.aa==='Sí, con equipo'?`<div class="fila">${ops('aaFrig',['2.250 fg','3.000 fg','4.500 fg'],d.aaFrig)}</div>`:''}</div>
+      ${d.aa==='Sí, con equipo'?`<div class="fila">${ops('aaFrig',['2.250 fg','3.000 fg','4.500 fg'],d.aaFrig)}</div>`:''}
+      ${d.aa&&d.aa!=='No'?`<div class="fila"><div class="lbl" style="margin:4px 0">Cantidad de equipos por unidad${/Company$/.test(d.prod||'')?' <small>(Company lleva 3)</small>':''}</div>
+        <input type="number" inputmode="numeric" min="1" max="10" step="1" data-i="aaCant" placeholder="${aaPorDefecto()}" value="${esc(d.aaCant||'')}" style="max-width:120px"></div>`:''}</div>
     <div class="card"><div class="lbl">Termotanque</div>${ops('termo',['No','Sí'],d.termo)}
       ${d.termo==='Sí'?`<div class="fila"><div class="unidad"><input type="number" data-i="termoL" placeholder="Capacidad" value="${esc(d.termoL)}"><b>litros</b></div></div><div class="fila">${ops('termoTipo',['Eléctrico','Gas'],d.termoTipo)}</div>`:''}</div>
     <div class="card"><div class="lbl">Tanque de agua</div>${ops('tanque',['No','Sí'],d.tanque)}
@@ -247,7 +252,7 @@ function resumenCuerpo(){
       <h4>Terminaciones</h4><p>Pintura exterior ${d.pExtP?'<span class="tag">a confirmar</span>':(d.pExt===SIN_PINT?'no lleva':esc((d.pExt==='Otro'?d.pExtOtro:d.pExt)||'?'))}, revestimiento exterior ${esc((d.revExt||'?').toLowerCase())}, pintura interior ${esc((d.pInt==='Otro'?d.pIntOtro:d.pInt)||'—')}. Piso ${esc(d.piso.toLowerCase()||'?')}, revestimiento interior ${esc(revTexto())}.</p>
       <h4>Aberturas</h4><p>${d.segunPlano?'<b>Tal cual plano adjunto.</b> ':''}${d.linea||!d.segunPlano?`Línea ${esc(d.linea||'?')}. `:''}${d.puertaP?'Puertas exteriores <span class="tag">a confirmar</span>.':puertasVal().map((p,i)=>`Puerta ${i+1} (P${i+1}): ${esc(p.tipo.toLowerCase())} de ${p.med==='Otra'?esc(p.ancho)+' × '+esc(p.alto):esc(p.med||'?')} cm en ${esc(dondeTxt(p))}, ${esc(p.mano.toLowerCase())}${p.prot?', '+esc(p.prot.toLowerCase()):''}.`).join(' ')}
         ${d.ventanas.length?d.ventanas.map((v,i)=>` Ventana ${i+1} (V${i+1}): ${esc(v.esp)}, ${esc(v.ancho)} × ${esc(v.alto)} cm en ${esc(dondeTxt(v))}, ${esc([(v.tipo||''),(v.prot||'')].filter(Boolean).join(', ').toLowerCase())}.`).join(''):d.segunPlano?'':' Sin ventanas.'}</p>
-      <h4>Instalaciones</h4><p>${Object.entries(d.elec).map(([e,x])=>`${esc(e)}: ${x.tomas} tomas, ${x.luces} luces ${esc(x.tipo.toLowerCase())} ${esc(x.luz.toLowerCase())}`).join(' · ')||'—'}. Aire: ${esc(d.aa||'?')}${d.aaFrig?' '+esc(d.aaFrig):''}. Termotanque: ${esc(d.termo||'?')}${d.termoL?' '+esc(d.termoL)+' l '+esc(d.termoTipo.toLowerCase()):''}. Tanque: ${esc(d.tanque||'?')}${d.tanqueL?' '+esc(d.tanqueL)+' l':''}.</p>`;
+      <h4>Instalaciones</h4><p>${Object.entries(d.elec).map(([e,x])=>`${esc(e)}: ${x.tomas} tomas, ${x.luces} luces ${esc(x.tipo.toLowerCase())} ${esc(x.luz.toLowerCase())}`).join(' · ')||'—'}. Aire: ${esc(d.aa||'?')}${d.aa&&d.aa!=='No'?' × '+aaCant():''}${d.aaFrig?' '+esc(d.aaFrig):''}. Termotanque: ${esc(d.termo||'?')}${d.termoL?' '+esc(d.termoL)+' l '+esc(d.termoTipo.toLowerCase()):''}. Tanque: ${esc(d.tanque||'?')}${d.tanqueL?' '+esc(d.tanqueL)+' l':''}.</p>`;
 }
 // Íconos de lo que lleva cada baño o cocina, con la pared en y=0 y hacia y positivo
 function icono(n,t,sz){const h=sz,a=sz*.5;switch(n){ // íconos con la pared en y=0, hacia y positivo
@@ -714,8 +719,8 @@ function lineasCosteo(){
   if(!esSolo(d.prod))add('Tablero y disyuntor','mat','c/u',1);
   add('Toma','mat','c/u',el.reduce((s,x)=>s+(x.tomas||0),0));
   ['Plafón','Tubo LED'].forEach(t=>add('Luz · '+t,'mat','c/u',el.filter(x=>x.tipo===t).reduce((s,x)=>s+(x.luces||0),0)));
-  if(d.aa==='Solo pre-instalación')add('Pre-instalación de aire','mat','c/u',1);
-  if(d.aa==='Sí, con equipo')add('Aire acondicionado '+(d.aaFrig||''),'mat','c/u',1);
+  if(d.aa==='Solo pre-instalación')add('Pre-instalación de aire','mat','c/u',aaCant());
+  if(d.aa==='Sí, con equipo')add('Aire acondicionado '+(d.aaFrig||''),'mat','c/u',aaCant());
   if(d.termo==='Sí')add('Termotanque '+(d.termoTipo||'').toLowerCase(),'mat','c/u',1,d.termoL?d.termoL+' l':'');
   if(d.tanque==='Sí')add('Tanque de agua','mat','c/u',1,d.tanqueL?d.tanqueL+' l':'');
   // generales
