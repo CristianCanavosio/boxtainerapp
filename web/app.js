@@ -133,7 +133,7 @@ function aApp(r){
     vendId:r.vendedor_id,vend:r.vendedor||(r.vendedor_id?nombreDe(r.vendedor_id):''),
     supId:r.supervisor_id,sup:r.supervisor_id?nombreDe(r.supervisor_id):'',
     inicio:r.inicio||'',entrega:r.entrega||'',pers:r.personas||0,dep:r.deposito||'',pri:r.prioridad||'normal',obs:r.observaciones||'',
-    ficha:r.ficha&&Object.keys(r.ficha).length?r.ficha:null,notaArq:r.nota_arquitectura||'',
+    ficha:r.ficha&&Object.keys(r.ficha).length?r.ficha:null,notaArq:r.nota_arquitectura||'',pos:r.posicion||'',
     verifArq:verif(r.plano_verificado_por,r.plano_verificado_en),stockVerif:verif(r.stock_verificado_por,r.stock_verificado_en),
     historial:[],costos:[],planos:[],flujo:[],consultas:[],incidencias:[],faltantes:[]};
 }
@@ -173,6 +173,7 @@ async function cargarTodo(){
   await cargarRecetas();
   await cargarCosteo();
   await cargarMetas();
+  await cargarPosiciones();
   personal=pe.map(r=>({id:r.id,nom:r.nombre,rol:r.rol||'',tel:r.telefono||''}));
   contenedores=ct.map(r=>({id:r.id,cod:r.codigo,tipo:r.tipo||'',estado:r.estado||'',proyId:r.proyecto_id,obs:r.observaciones||''}));
   materiales=ma.map(r=>({id:r.id,nom:r.nombre,cant:r.cantidad||'',est:r.estado,proyId:r.proyecto_id}));
@@ -189,7 +190,8 @@ async function cargarTodo(){
 function msgError(e){
   console.error(e);
   const m=(e&&e.message)||'';
-  if(e&&e.code==='P0001') return '⚠️ '+m;                       // reglas de negocio de la base
+  if(e&&e.code==='P0001') return '⚠️ '+m;
+  if(e&&e.code==='23505'&&/posicion/.test(m)) return '⚠️ Esa posición en planta ya está ocupada por otro proyecto activo. Elegí otra';                       // reglas de negocio de la base
   if(e&&(e.code==='42501'||/row-level security|permission/i.test(m))) return '⚠️ No tenés permiso para guardar esto';
   if(/fetch|network|Failed/i.test(m)) return '⚠️ Sin conexión. Revisá internet y probá de nuevo';
   return '⚠️ No se pudo guardar: '+m;
@@ -200,7 +202,8 @@ function aFila(p){
     valor_venta:(p.val===''||p.val==null)?null:(Number(p.val)||0),
     vendedor_id:p.vendId||null,vendedor:p.vend||null,supervisor_id:p.supId||null,
     inicio:p.inicio||null,entrega:p.entrega||null,deposito:p.dep||null,prioridad:p.pri||'normal',
-    personas:parseInt(p.pers)||0,observaciones:p.obs||null,ficha:p.ficha||{},nota_arquitectura:p.notaArq||null};
+    personas:parseInt(p.pers)||0,observaciones:p.obs||null,ficha:p.ficha||{},nota_arquitectura:p.notaArq||null,
+    ...(posListo?{posicion:p.pos||null}:{})};
 }
 const nuevos=(a,b)=>{const ids=new Set((b||[]).map(x=>x.id));return (a||[]).filter(x=>!ids.has(x.id));};
 const isoTs=t=>t?new Date(t).toISOString():undefined;
@@ -866,6 +869,7 @@ function proyCard(p){
     </div>`:''}
     <div class="proy-meta">
       <span class="badge b-azul">📦 ${esc(p.tipo)}${unidadesDe(p)>1?' × '+unidadesDe(p):''}</span>
+      ${ocupaPosicion(p)?`<span class="badge b-verde">📍 ${esc(p.pos)}</span>`:''}
       ${sup?`<span class="badge b-gris">👷 ${esc(sup)}</span>`:''}
       ${(p.planos||[]).length?`<span class="badge b-morado">📐 ${p.planos.length} plano${p.planos.length>1?'s':''}</span>`:''}
       ${p.pri&&p.pri!=='normal'?`<span class="badge b-rojo">${PC[p.pri]}</span>`:''}
@@ -968,6 +972,7 @@ function renderDash(){
       <div class="stat-box amarillo" onclick="irFiltro('asignacion')"><div class="stat-num">${proyectos.filter(p=>etapaDe(p)==='asignacion').length}</div><div class="stat-lbl">Por asignar</div></div>
       <div class="stat-box"><div class="stat-num">${pers}</div><div class="stat-lbl">Personas en obra</div></div></div>`);
   }
+  if((op||r==='lectura')&&typeof bloquePlantaHoy==='function') bloques.push(bloquePlantaHoy());
   if(op&&puedeCrear()) bloques.push(btnNueva.replace('btn-nar hoy-nueva','btn-sec hoy-nueva-sec'));
   if(r!=='supervisor'){
     const mios=(r==='ventas'?proyectos.filter(p=>p.creadoPorId===myId||p.vendId===myId):proyectos).slice(0,3);
@@ -1228,6 +1233,7 @@ function verDetalle(id){
       acciones+=`<div class="accion"><p><b>Líder de operaciones:</b> ${comp?'producto <b>Company</b> (producción estándar): va al Supervisor Company y no hace falta validar el stock de materiales. Validá y generá las órdenes de trabajo de aberturas, muebles y aires, y poné las fechas.'
           +(sinSupComp?' <span style="color:var(--rojo)">Todavía no hay ningún Supervisor Company: el administrador lo asigna en Usuarios.</span>':''):conMat?'validá el stock de los materiales (abajo), pedí las aberturas a la fábrica y la colocación de aires, asigná un supervisor y las fechas. Con eso arranca la medición de avance y de desvíos de materiales.':'asigná un supervisor y las fechas'+(esAdmin()?' y el presupuesto de costos':'')+'. Con eso arranca la medición de avance y desvíos.'}</p>
         <div class="fg"><label>Supervisor</label><select id="as-sup">${opcionesSupervisores(supSugerido(p),comp)}</select></div>
+        ${typeof bloquePosicionAsignar==='function'?bloquePosicionAsignar(p):''}
         <div class="form-2"><div class="fg"><label>Inicio</label><input type="date" id="as-ini" value="${esc(p.inicio||hoyISO())}"></div>
           <div class="fg"><label>Entrega</label><input type="date" id="as-ent" value="${esc(p.entrega||'')}"></div></div>
         ${conMat||!esAdmin()?'':`<div class="fg"><label>Presupuesto de costos (USD)</label></div>
@@ -1278,6 +1284,7 @@ function verDetalle(id){
       <div class="drow"><span class="lbl">Tipo</span><span class="val">${esc(p.tipo)}</span></div>
       ${unidadesDe(p)>1?`<div class="drow"><span class="lbl">Unidades</span><span class="val">${unidadesDe(p)} iguales</span></div>`:''}
       <div class="drow"><span class="lbl">Depósito</span><span class="val">${esc(p.dep)||'—'}</span></div>
+      ${posListo&&(p.pos||(e==='ejecucion'&&!esCompany(p)))?`<div class="drow"><span class="lbl">Posición en planta</span><span class="val">${p.pos?'📍 '+esc(p.pos)+(ocupaPosicion(p)?'':' (liberada)'):'—'}</span></div>`:''}
       <div class="drow"><span class="lbl">Inicio</span><span class="val">${esc(p.inicio)||'—'}</span></div>
       <div class="drow"><span class="lbl">Entrega</span><span class="val">${esc(p.entrega)||'—'}${dr!==null&&e==='ejecucion'?' ('+(dr<0?'⚠️ '+Math.abs(dr)+'d vencido':dr+'d restantes')+')':''}</span></div>
       ${typeof ordenesInfoHTML==='function'?ordenesInfoHTML(p):''}
@@ -1336,6 +1343,8 @@ function verDetalle(id){
     pie.segunda={t:'📦 Falta',f:`abrirFaltante('${esc(id)}')`};
     pie.menu.push({t:'⚠️ Reportar error en medidas o plano',f:`abrirIncidencia('${esc(id)}')`});
   }
+  if(MODO==='nube'&&esOp()&&posListo&&e==='ejecucion'&&p.estado!=='finalizado'&&!esCompany(p))
+    pie.menu.push({t:'📍 Posición en planta'+(p.pos?' ('+p.pos+')':''),f:`abrirCambiarPosicion('${esc(id)}')`});
   if(puedeEditar(p)) pie.menu.push({t:'✏️ Editar datos del proyecto',f:`closeOverlay('m-det');editarProy('${esc(id)}')`});
   if(puedeEditar(p)&&(esOp()||MODO==='local'||e==='ventas')) pie.menu.push({t:'🗑️ Eliminar proyecto',f:`eliminarProy('${esc(id)}')`,c:'rojo'});
   pintarPie(pie);
@@ -1386,6 +1395,8 @@ async function asignar(id){
   if(!s){toast('⚠️ Elegí un supervisor');return;}
   const ent=document.getElementById('as-ent').value;
   if(!ent){toast('⚠️ Poné la fecha de entrega');return;}
+  const pos=typeof posicionElegida==='function'?posicionElegida(p):'';
+  if(pos===null) return;
   // Company: producción estándar, sin validar stock; lo que sí tiene que estar son las órdenes de trabajo
   const comp=esCompany(p), conMat=mpListo&&esNota(p);
   const fp=typeof faltaPedir==='function'?faltaPedir(todos[id]):[];
@@ -1398,13 +1409,15 @@ async function asignar(id){
   if(!comp&&fp.length&&!await confirmar('Todavía no se pidió: '+fp.map(k=>NOMBRE_NEC[k].toLowerCase()).join(', ')+'. ¿Asignar igual? Lo podés pedir después desde el proyecto.')) return;
   p.stockVerif={fecha:hoyISO(),autor:currentUser.nombre};
   p.supId=s; p.sup=nombreDe(s);
+  if(typeof llevaPosicion==='function'&&llevaPosicion(p)) p.pos=pos; else if(posListo) p.pos='';
   p.inicio=document.getElementById('as-ini').value||hoyISO(); p.entrega=ent;
   if(!conMat&&esAdmin()) p.presup={mat:Number(document.getElementById('as-pmat').value)||0,mo:Number(document.getElementById('as-pmo').value)||0,
     ter:Number(document.getElementById('as-pter').value)||0,otr:Number(document.getElementById('as-potr').value)||0};
   if(conMat){try{await fijarPlanMateriales(todos[id]);p.mats=todos[id].mats;}catch(e){console.error(e);toast('⚠️ No se pudo guardar la lista de materiales: '+(e.message||'error'));return;}}
   p.etapa='ejecucion'; p.estado='en-curso';
   p.flujo=(p.flujo||[]); p.flujo.push({fecha:hoyISO(),a:'ejecucion',autor:currentUser.nombre});
-  await guardarProyecto(p); closeOverlay('m-det'); refrescar(); toast('✅ Asignado a '+p.sup);
+  try{await guardarProyectoOError(p);}catch(e){return;}
+  closeOverlay('m-det'); refrescar(); toast('✅ Asignado a '+p.sup+(p.pos?' · 📍 '+p.pos:''));
 }
 async function agregarPlanoEnlace(id){
   const url=document.getElementById('det-plano-url').value.trim();
