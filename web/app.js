@@ -49,7 +49,7 @@ const TABS={
   admin:['dashboard','proyectos','kanban','alertas','pedidos','personal','contenedores','materiales','costos','usuarios','reportes','sugerencias','recursos'],
   lider:['dashboard','proyectos','kanban','alertas','pedidos','personal','contenedores','materiales','reportes','sugerencias','recursos'],
   supervisor:['dashboard','proyectos','kanban','alertas','pedidos','materiales','sugerencias','recursos'],
-  ventas:['dashboard','proyectos','sugerencias','recursos'],
+  ventas:['dashboard','proyectos','reportes','sugerencias','recursos'],
   arquitectura:['dashboard','proyectos','sugerencias','recursos'],
   lectura:['dashboard','proyectos','kanban','pedidos','reportes','sugerencias','recursos'],
   // las carpinterías ven solo sus pedidos (y los planos de esos proyectos)
@@ -172,6 +172,7 @@ async function cargarTodo(){
   await cargarPedidosCarp(T);
   await cargarRecetas();
   await cargarCosteo();
+  await cargarMetas();
   personal=pe.map(r=>({id:r.id,nom:r.nombre,rol:r.rol||'',tel:r.telefono||''}));
   contenedores=ct.map(r=>({id:r.id,cod:r.codigo,tipo:r.tipo||'',estado:r.estado||'',proyId:r.proyecto_id,obs:r.observaciones||''}));
   materiales=ma.map(r=>({id:r.id,nom:r.nombre,cant:r.cantidad||'',est:r.estado,proyId:r.proyecto_id}));
@@ -1879,6 +1880,11 @@ function pedirReasignacion(uid,motivo){
 // REPORTES
 // ════════════════════════════════════════════════
 function renderReportes(){
+  const ind=htmlIndicadores();
+  // ventas ve solo sus indicadores (sin montos); el resto del reporte es para operaciones
+  const solo=rol()==='ventas';
+  document.querySelectorAll('.rep-export').forEach(el=>el.style.display=solo?'none':'');
+  if(solo){document.getElementById('reporte-content').innerHTML=ind;return;}
   const ej=proyectos.filter(p=>etapaDe(p)==='ejecucion');
   const total=proyectos.length, enCurso=ej.filter(p=>p.estado==='en-curso');
   const totalVal=proyectos.reduce((s,p)=>s+(parseFloat(p.val)||0),0);
@@ -1909,6 +1915,8 @@ function renderReportes(){
     <div class="drow"><span class="lbl">Veces que el trabajo se frenó</span><span class="val">${frenados}</span></div>
   </div>`;
   document.getElementById('reporte-content').innerHTML=`
+    ${ind}
+    ${ind?'<div class="sec-title" style="font-size:16px;margin-top:6px">📋 Más detalle</div>':''}
     ${MODO==='nube'?cardCom:''}
     <div class="stats-4">
       <div class="stat-box nar"><div class="stat-num">${total}</div><div class="stat-lbl">Total proyectos</div></div>

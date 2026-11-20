@@ -16,7 +16,7 @@ async function cargarMateriales(T){
     rs.forEach(r=>{const p=T[r.proyecto_id]; if(!p) return;
       (p.mats=p.mats||[]).push({id:r.id,clave:r.clave,det:r.det||'',unidad:r.unidad,plan:Number(r.cant_plan)||0,extra:!!r.extra,
         stock:r.stock||null,stockPor:r.stock_por?nombreDe(r.stock_por):'',usada:r.cant_usada==null?null:Number(r.cant_usada),
-        usadaPor:r.usada_por?nombreDe(r.usada_por):'',usadaEn:fechaDe(r.usada_en)});});
+        usadaPor:r.usada_por?nombreDe(r.usada_por):'',usadaEn:fechaDe(r.usada_en),usadaTs:ts(r.usada_en)});});
     mpListo=true;
   }catch(e){console.warn('Materiales del proyecto no disponibles (¿falta la migración 0007?)',e);}
 }
