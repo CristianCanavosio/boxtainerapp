@@ -14,6 +14,7 @@ from (values
   ('0016', exists(select 1 from information_schema.columns where table_schema='public' and table_name='actualizaciones' and column_name='fotos'), 'Fotos en el parte diario'),
   ('0017', exists(select 1 from pg_enum e join pg_type t on t.oid=e.enumtypid where t.typname='rol_app' and e.enumlabel='tecnico_aires'), 'Pedidos de aires y rol Técnico de aire'),
   ('0018', to_regclass('public.push_suscripciones') is not null, 'Avisos al celular con la app cerrada'),
-  ('0019', to_regclass('public.stock_taller') is not null, 'Supervisor Company, órdenes de trabajo y stock de Utilbox')
+  ('0019', to_regclass('public.stock_taller') is not null, 'Supervisor Company, órdenes de trabajo y stock de Utilbox'),
+  ('0020', to_regclass('public.metas_indicadores') is not null, 'Metas de los indicadores de Reportes')
 ) as m(migracion, ok, para_que)
 order by 1;
