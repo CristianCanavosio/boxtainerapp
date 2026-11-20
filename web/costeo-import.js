@@ -65,37 +65,11 @@ function sugerenciasClave(desc,n){
   return catalogoCostos().map(it=>({clave:it.clave,p:puntajeEmp(it.clave,desc)})).filter(x=>x.p>=0.34)
     .sort((a,b)=>b.p-a.p||a.clave.length-b.clave.length).slice(0,n||3);
 }
-// los productos de proveedores más parecidos a un ítem de la app (el más nuevo de cada uno)
-function sugerenciasProv(clave,n){
-  const vistos=new Set();
-  return preciosProv.slice().sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha))||String(b.creado_en).localeCompare(String(a.creado_en)))
-    .filter(o=>{const k=o.proveedor+'|'+normTxt(o.descripcion);if(vistos.has(k))return false;vistos.add(k);return o.clave!==clave;})
-    .map(o=>({o,p:puntajeEmp(clave,o.descripcion)})).filter(x=>x.p>=0.34).sort((a,b)=>b.p-a.p).slice(0,n||3);
-}
-// vínculos ya hechos para un producto del proveedor (por código o por la misma descripción)
-function claveVinculadas(desc,prov,codigo){
-  return [...new Set(preciosProv.filter(x=>x.clave&&x.proveedor===prov&&((codigo&&x.codigo===codigo)||normTxt(x.descripcion)===normTxt(desc)))
-    .sort((a,b)=>String(b.creado_en).localeCompare(String(a.creado_en))).map(x=>x.clave))];
-}
-function sugerirClave(desc,prov,codigo){
-  const prev=claveVinculadas(desc,prov,codigo);
-  if(prev.length) return {clave:prev[0],por:'vínculo anterior'};
+// Sugerencia por nombre parecido, solo para esta importación. No se recuerdan vínculos anteriores
+// (pedido de Cristian 20/11: un vínculo guardado puede quedar viejo y costear mal; lo fijo es la planilla de costos).
+function sugerirClave(desc){
   const s=sugerenciasClave(desc,1)[0];
   return s&&s.p>=0.7?{clave:s.clave,por:'nombre parecido'}:null;
-}
-// Vincular un producto del proveedor a un ítem de la app. Si ese producto ya estaba vinculado a otro
-// ítem (la misma ventana para dos ítems), se guarda una copia, así los dos quedan con precio.
-async function vincularEmp(id,clave){
-  const x=preciosProv.find(y=>y.id===id); if(!x||!clave) return;
-  try{
-    if(x.clave&&x.clave!==clave){
-      const copia={...x,id:nuevoId(),clave}; delete copia.creado_en;
-      chk(await sb.from('precios_proveedor').insert(copia));
-      preciosProv.push({...copia,creado_en:new Date().toISOString()});
-      await usarPrecioProv(copia.id);
-    }else await vincularPrecioProv(id,clave);
-    toast('🔗 '+clave+' ← '+x.descripcion);
-  }catch(e){toast(msgError(e));}
 }
 
 // ── pantalla de importación ──
@@ -186,7 +160,7 @@ function filasDesdeMatriz(){
     const desc=String(r[c.desc]??'').trim(), costo=numAR(r[c.costo]);
     if(!desc||!(costo>0)) return null;
     const codigo=c.codigo!=null?String(r[c.codigo]??'').trim():'', unidad=c.unidad!=null?String(r[c.unidad]??'').trim():'';
-    const s=sugerirClave(desc,prov,codigo);
+    const s=sugerirClave(desc);
     return {desc,codigo,unidad,costo:Math.round(costo*100)/100,usar:true,clave:s?.clave||'',por:s?.por||''};
   }).filter(Boolean);
 }
@@ -211,7 +185,7 @@ async function leerPDF(f){
     const desc=tk.slice(0,i).join(' ').replace(/[\s$|:-]+$/,'').trim();
     if(!nums.length||desc.replace(/[^a-záéíóúñ]/gi,'').length<4||/^(sub)?total|iva|fecha|cuit|tel|p[aá]gina|bonif|descuento/i.test(desc)) return null;
     const precio=nums.length>=3?nums[nums.length-2]:nums[nums.length-1];
-    const s=sugerirClave(desc,imp.prov,'');
+    const s=sugerirClave(desc);
     return {desc,codigo:'',unidad:'',costo:Math.round(precio*100)/100,usar:true,clave:s?.clave||'',por:s?.por||''};
   }).filter(Boolean);
 }
@@ -235,9 +209,6 @@ async function guardarImport(){
     const nuevas=filas.map(f=>({id:nuevoId(),proveedor:imp.prov,codigo:f.codigo||null,descripcion:String(f.desc).trim(),unidad:f.unidad||null,
       costo:usd(f.costo),costo_original:numAR(f.costo),moneda:imp.moneda,tipo_cambio:imp.moneda==='ARS'?tc:null,
       fuente:imp.fuente,archivo:ruta,fecha:imp.fecha||hoyISO(),clave:f.clave||null}));
-    // si ese producto ya estaba vinculado a más de un ítem, cada ítem recibe el precio nuevo
-    nuevas.slice().forEach(x=>{if(!x.clave) return;
-      claveVinculadas(x.descripcion,x.proveedor,x.codigo).filter(k=>k!==x.clave).forEach(k=>nuevas.push({...x,id:nuevoId(),clave:k}));});
     chk(await sb.from('precios_proveedor').insert(nuevas));
     preciosProv.push(...nuevas.map(x=>({...x,creado_en:new Date().toISOString()})));
     // los vinculados pasan a la lista de costos
@@ -275,28 +246,4 @@ async function verArchivoCosto(ev,ruta){
   const {data,error}=await sb.storage.from('costos').createSignedUrl(ruta,600);
   if(error||!data){if(w)w.close();toast('⚠️ No se pudo abrir el archivo');return;}
   if(w) w.location=data.signedUrl; else location.href=data.signedUrl;
-}
-
-// ── sugerencias en la pestaña Costos ──
-function sugProvHTML(x){
-  if(x.costo||!proveedoresListo) return '';
-  const sg=sugerenciasProv(x.clave,3); if(!sg.length) return '';
-  return `<div class="emp-sug"><small>💡 ¿Es alguno de estos?</small>${sg.map(({o,p})=>`<div class="emp-op"><span>${esc(o.descripcion)}<small>${esc(o.proveedor)} · ${usd(o.costo)} · ${Math.round(p*100)}% parecido</small></span>
-    <button class="btn btn-verde btn-sm" onclick="vincularEmp('${o.id}',${esc(JSON.stringify(x.clave))})">Vincular</button></div>`).join('')}</div>`;
-}
-function sugClaveHTML(o){
-  const sg=sugerenciasClave(o.descripcion,3); if(!sg.length) return '';
-  return `<div class="emp-chips"><small>💡 Puede ser:</small>${sg.map(({clave,p})=>`<button class="chip" title="${Math.round(p*100)}% parecido" onclick="vincularEmp('${o.id}',${esc(JSON.stringify(clave))})">${esc(clave)}</button>`).join('')}</div>`;
-}
-// Vincula de una vez los ítems sin precio que tienen una sugerencia clara (muy parecida y sin otra cerca)
-function sugerenciasSeguras(){
-  if(!proveedoresListo) return [];
-  return catalogoCostos().filter(x=>!x.costo).map(x=>{const sg=sugerenciasProv(x.clave,2);
-    return sg[0]&&sg[0].p>=0.8&&(!sg[1]||sg[0].p-sg[1].p>=0.15)?{clave:x.clave,o:sg[0].o}:null;}).filter(Boolean);
-}
-async function vincularSeguras(){
-  const ls=sugerenciasSeguras(); if(!ls.length) return;
-  if(!await confirmar(`¿Vincular ${ls.length} ítem${ls.length>1?'s':''} con el producto más parecido?\n\n`+ls.slice(0,12).map(x=>`• ${x.clave} ← ${x.o.descripcion}`).join('\n')+(ls.length>12?`\n… y ${ls.length-12} más`:'')+'\n\nDespués podés cambiar cualquiera.')) return;
-  for(const x of ls){await vincularEmp(x.o.id,x.clave);}
-  toast(`🔗 ${ls.length} ítems vinculados`); renderCostos();
 }

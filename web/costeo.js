@@ -158,9 +158,11 @@ function renderCostos(){
   const sueltos=preciosProv.filter(x=>!x.clave&&(!f||normTxt(x.descripcion+' '+x.proveedor).includes(normTxt(f))));
   el.innerHTML=`<div class="card" style="font-size:13px">Precio unitario de cada ítem que se elige en la nota de pedido. Con estos precios cada pedido se costea solo. <b>Solo el administrador ve esta pestaña.</b>
       ${faltan?`<div style="margin-top:6px;color:var(--rojo);font-weight:700">${faltan} ítem${faltan>1?'s':''} sin precio</div>`:''}
-      ${proveedoresListo&&faltan?`<div style="margin-top:6px;font-size:12px;color:var(--gris)">Si cargaste la planilla y algún ítem no tomó el precio, es porque se llama distinto (la app dice "Sanitario · Inodoro", la planilla "Inodoro Andina largo"). Abajo de cada ítem sin precio te sugerimos los productos más parecidos: tocá <b>Vincular</b> y queda guardado para las próximas listas.</div>`:''}
-      ${(()=>{const n=typeof sugerenciasSeguras==='function'?sugerenciasSeguras().length:0;return n?`<button class="btn btn-verde btn-sm" style="margin-top:8px" onclick="vincularSeguras()">🔗 Vincular ${n} sugerencia${n>1?'s':''} clara${n>1?'s':''}</button>`:''})()}</div>
-    ${proveedoresListo?`<div class="cst-imp">
+      <div style="margin-top:6px;font-size:12px;color:var(--gris)">La forma más simple: bajá la <b>planilla de costos</b> (una fila por ítem de la app), poné el costo de cada uno y subila. Si un ítem junta varios productos del proveedor, agrupalos en la planilla y poné el total.</div>
+      <div class="flex-btns" style="margin-top:8px;flex-wrap:wrap"><button class="btn btn-sec btn-sm" onclick="planillaModeloCostos()">⬇️ Planilla de costos</button>
+        <label class="btn btn-nar btn-sm" style="cursor:pointer">📤 Subir planilla de costos<input type="file" accept=".xlsx,.xls,.csv,.ods" style="display:none" onchange="leerPlanillaCostos(this)"></label></div></div>
+    ${typeof previaPlanillaCostosHTML==='function'?previaPlanillaCostosHTML():''}
+    ${proveedoresListo?`<div style="font-size:12px;color:var(--gris-m);margin:4px 0">Precios sueltos de un proveedor (quedan en su catálogo; elegís a qué ítem va cada uno en ese momento):</div><div class="cst-imp">
       <button class="btn btn-nar btn-sm" onclick="abrirImport('excel')">📥 Excel / CSV</button>
       <button class="btn btn-nar btn-sm" onclick="abrirImport('pdf')">📄 PDF de proveedor</button>
       <button class="btn btn-sec btn-sm" onclick="abrirImport('manual')">✍️ A mano</button></div>`
@@ -170,11 +172,10 @@ function renderCostos(){
       <div><b>${esc(x.clave)}</b><small>${esc(RUBROS[x.rubro]||'Otros')} · por ${esc(x.unidad)}${x.usos?` · en ${x.usos} pedido${x.usos>1?'s':''}`:''}</small>${origenPrecio(x)}
         ${otros.length?`<a href="#" class="cst-otros" onclick="event.preventDefault();costosAbierto=costosAbierto===${esc(JSON.stringify(x.clave))}?null:${esc(JSON.stringify(x.clave))};renderCostos()">${otros.length} precio${otros.length>1?'s':''} de proveedores</a>`:''}</div>
       <input type="number" step="0.01" placeholder="USD" value="${x.costo??''}" onchange="ponerPrecio(${esc(JSON.stringify(x.clave))},this.value,'${x.rubro}','${esc(x.unidad)}')">
-    </div>${typeof sugProvHTML==='function'?sugProvHTML(x):''}${costosAbierto===x.clave?`<div class="cst-alt">${otros.map(o=>`<div><span>${esc(o.proveedor)} · ${esc(o.descripcion)}<small>${esc(o.fecha)} · ${esc(o.fuente)}${o.moneda==='ARS'?` · ARS ${Number(o.costo_original).toLocaleString('es-AR')} a ${Number(o.tipo_cambio).toLocaleString('es-AR')}`:''}</small></span>
+    </div>${costosAbierto===x.clave?`<div class="cst-alt">${otros.map(o=>`<div><span>${esc(o.proveedor)} · ${esc(o.descripcion)}<small>${esc(o.fecha)} · ${esc(o.fuente)}${o.moneda==='ARS'?` · ARS ${Number(o.costo_original).toLocaleString('es-AR')} a ${Number(o.tipo_cambio).toLocaleString('es-AR')}`:''}</small></span>
       <b>${usd(o.costo)}</b><button class="btn btn-sec btn-sm" onclick="usarPrecioProv('${o.id}')">Usar</button></div>`).join('')}</div>`:''}`}).join(''):'<div style="font-size:13px;color:var(--gris-m)">Todavía no hay ítems: aparecen cuando ventas carga notas de pedido.</div>'}</div>
     ${sueltos.length?`<div class="sec-title" style="font-size:15px;margin-top:14px">Productos de proveedores sin vincular (${sueltos.length})</div>
       <div class="card cst-lista">${sueltos.slice(0,200).map(o=>`<div class="cst-li cst-suelto"><div><b>${esc(o.descripcion)}</b><small>${esc(o.proveedor)} · ${esc(o.fecha)} · ${usd(o.costo)}</small>
-        ${typeof sugClaveHTML==='function'?sugClaveHTML(o):''}
         <select onchange="vincularPrecioProv('${o.id}',this.value)">${opcionesClave('')}</select></div></div>`).join('')}
         ${sueltos.length>200?`<div style="font-size:12px;color:var(--gris-m)">Mostrando 200: usá el buscador.</div>`:''}</div>`:''}`;
 }
