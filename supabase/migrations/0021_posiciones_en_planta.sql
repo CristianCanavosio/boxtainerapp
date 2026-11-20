@@ -3,11 +3,13 @@
 -- con 8 posiciones pintadas en el piso (tipo "boxes"), cada una con sus materiales a mano.
 -- 1. Tabla de posiciones: ya trae lugar para la cámara de cada posición (a futuro, todavía sin uso).
 -- 2. Cada proyecto a medida lleva su posición. Dos proyectos activos no pueden estar en la misma:
---    la posición se libera sola cuando el proyecto pasa a "Finalizado" (o sale de ejecución).
+--    la posición se libera sola cuando el proyecto pasa a "Pausado" o "Finalizado" (o sale de ejecución).
+--    Al pausarlo se le quita la posición: cuando se retoma, el líder le asigna una libre.
 -- 3. Ocupación: se guarda desde/hasta cuándo estuvo cada proyecto en cada posición.
 --    Sirve hoy para ver tiempos por posición y mañana para cruzar con el video de las cámaras.
 -- Solo el líder de operaciones y el admin asignan o cambian la posición.
 -- Sin correr esta migración la app funciona igual, sin pedir posición.
+-- Se puede volver a correr sin problema (si ya se corrió una versión anterior, la actualiza).
 
 -- ══════════════ 1. POSICIONES ══════════════
 create table if not exists posiciones_planta (
@@ -33,14 +35,26 @@ create policy posiciones_admin on posiciones_planta for all using (mi_rol() = 'a
 -- ══════════════ 2. POSICIÓN DEL PROYECTO ══════════════
 alter table proyectos add column if not exists posicion text references posiciones_planta (codigo) on update cascade;
 
--- Una posición = un solo proyecto activo (en ejecución y no finalizado)
-create unique index if not exists proyectos_posicion_ocupada on proyectos (posicion)
-  where posicion is not null and etapa = 'ejecucion' and estado <> 'finalizado';
+-- Una posición = un solo proyecto activo (en ejecución, ni pausado ni finalizado)
+drop index if exists proyectos_posicion_ocupada;
+create unique index proyectos_posicion_ocupada on proyectos (posicion)
+  where posicion is not null and etapa = 'ejecucion' and estado not in ('pausado','finalizado');
 
--- Solo el líder y el admin la cambian (el supervisor no la toca)
+-- Al pausar un proyecto se libera su posición (queda registrada en ocupacion_posiciones)
+create or replace function liberar_posicion_al_pausar() returns trigger language plpgsql as $$
+begin
+  if new.estado = 'pausado' and new.posicion is not null then new.posicion := null; end if;
+  return new;
+end $$;
+drop trigger if exists liberar_posicion on proyectos;
+create trigger liberar_posicion before insert or update of estado, posicion on proyectos
+  for each row execute function liberar_posicion_al_pausar();
+
+-- Solo el líder y el admin la cambian (el supervisor no la toca, salvo que se libere al pausar)
 create or replace function proteger_posicion() returns trigger language plpgsql as $$
 begin
-  if new.posicion is distinct from old.posicion and not es_op() then
+  if new.posicion is distinct from old.posicion and not es_op()
+     and not (new.posicion is null and new.estado = 'pausado') then
     raise exception 'Solo el líder de operaciones asigna la posición en planta' using errcode = 'P0001';
   end if;
   return new;
@@ -59,9 +73,9 @@ create table if not exists ocupacion_posiciones (
 create index if not exists ocupacion_pos on ocupacion_posiciones (posicion, desde);
 create index if not exists ocupacion_proy on ocupacion_posiciones (proyecto_id);
 
--- Un proyecto ocupa su posición mientras está en ejecución y no está finalizado
+-- Un proyecto ocupa su posición mientras está en ejecución, sin pausar ni finalizar
 create or replace function proyecto_ocupa(p proyectos) returns boolean language sql immutable as $$
-  select p.posicion is not null and p.etapa = 'ejecucion' and p.estado <> 'finalizado'
+  select p.posicion is not null and p.etapa = 'ejecucion' and p.estado not in ('pausado','finalizado')
 $$;
 
 create or replace function registrar_ocupacion() returns trigger language plpgsql security definer set search_path = public as $$

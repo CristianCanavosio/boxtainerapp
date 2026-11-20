@@ -2,7 +2,8 @@
 // POSICIONES EN PLANTA (P1 a P8) — proyectos a medida
 // La zona de proyectos a medida tiene posiciones pintadas en el piso, tipo "boxes", con los
 // materiales a mano. Al asignar un proyecto que no es Company, el líder elige su posición.
-// Una posición tiene un solo proyecto activo; se libera cuando el proyecto se finaliza.
+// Una posición tiene un solo proyecto activo; se libera cuando el proyecto se pausa o se finaliza.
+// Al pausarlo se le quita la posición: cuando se retoma, el líder le asigna una libre.
 // La tabla posiciones_planta ya tiene lugar para la cámara de cada posición (a futuro).
 // Sin la migración 0021 la app funciona igual y no pide posición.
 // ════════════════════════════════════════════════
@@ -19,8 +20,8 @@ async function cargarPosiciones(){
   }catch(e){console.warn('Posiciones en planta no disponibles (¿falta la migración 0021?)',e);}
 }
 
-// ¿Este proyecto ocupa su posición ahora? (en ejecución y no finalizado)
-function ocupaPosicion(p){return !!(p&&p.pos&&etapaDe(p)==='ejecucion'&&p.estado!=='finalizado');}
+// ¿Este proyecto ocupa su posición ahora? (en ejecución, sin pausar ni finalizar)
+function ocupaPosicion(p){return !!(p&&p.pos&&etapaDe(p)==='ejecucion'&&p.estado!=='finalizado'&&p.estado!=='pausado');}
 // Proyecto activo que está en esa posición (menos el que se indica)
 function ocupanteDe(cod,exceptoId){
   return Object.values(todos).find(p=>p.pos===cod&&ocupaPosicion(p)&&String(p.id)!==String(exceptoId))||null;
@@ -106,8 +107,8 @@ async function guardarCambioPosicion(){
 function bloquePlantaHoy(){
   if(!posListo) return '';
   const oc=POSICIONES.length-libresCount(null);
-  const sinPos=Object.values(todos).filter(p=>etapaDe(p)==='ejecucion'&&p.estado!=='finalizado'&&!esCompany(p)&&!p.pos).length;
+  const sinPos=Object.values(todos).filter(p=>etapaDe(p)==='ejecucion'&&p.estado==='en-curso'&&!esCompany(p)&&!p.pos).length;
   return `<div class="sec-title">🏁 Posiciones en planta <span class="sec-sub">${oc} ocupada${oc===1?'':'s'} · ${POSICIONES.length-oc} libre${POSICIONES.length-oc===1?'':'s'}</span></div>
     ${mapaPosicionesHTML()}
-    ${sinPos?`<p style="font-size:12px;color:var(--gris-m);margin:-4px 0 12px">${sinPos} proyecto${sinPos>1?'s':''} a medida en curso sin posición (asignados antes de esta función). Ubicalos desde el proyecto → ⋯ Más → 📍 Posición en planta.</p>`:''}`;
+    ${sinPos?`<p style="font-size:12px;color:var(--gris-m);margin:-4px 0 12px">${sinPos} proyecto${sinPos>1?'s':''} a medida en curso sin posición (retomados después de una pausa o asignados antes de esta función). Ubicalos desde el proyecto → ⋯ Más → 📍 Posición en planta.</p>`:''}`;
 }

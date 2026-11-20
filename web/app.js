@@ -214,6 +214,7 @@ async function guardarProyectoOError(p){
   guardando++;
   try{
     const pid=p.id, ahora=new Date().toISOString();
+    if(posListo&&p.estado==='pausado') p.pos=''; // al pausar se libera la posición en planta
     const fila=aFila(p);
     if(p.verifArq&&!(o&&o.verifArq)){fila.plano_verificado_por=myId;fila.plano_verificado_en=ahora;}
     if(!p.verifArq&&o&&o.verifArq){fila.plano_verificado_por=null;fila.plano_verificado_en=null;}
@@ -1343,7 +1344,7 @@ function verDetalle(id){
     pie.segunda={t:'📦 Falta',f:`abrirFaltante('${esc(id)}')`};
     pie.menu.push({t:'⚠️ Reportar error en medidas o plano',f:`abrirIncidencia('${esc(id)}')`});
   }
-  if(MODO==='nube'&&esOp()&&posListo&&e==='ejecucion'&&p.estado!=='finalizado'&&!esCompany(p))
+  if(MODO==='nube'&&esOp()&&posListo&&e==='ejecucion'&&p.estado==='en-curso'&&!esCompany(p))
     pie.menu.push({t:'📍 Posición en planta'+(p.pos?' ('+p.pos+')':''),f:`abrirCambiarPosicion('${esc(id)}')`});
   if(puedeEditar(p)) pie.menu.push({t:'✏️ Editar datos del proyecto',f:`closeOverlay('m-det');editarProy('${esc(id)}')`});
   if(puedeEditar(p)&&(esOp()||MODO==='local'||e==='ventas')) pie.menu.push({t:'🗑️ Eliminar proyecto',f:`eliminarProy('${esc(id)}')`,c:'rojo'});
