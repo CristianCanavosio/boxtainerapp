@@ -3,12 +3,7 @@
 // Los datos viven en Supabase (PostgreSQL). Los permisos por rol los aplica la base
 // (Row Level Security): cada celular solo recibe lo que su rol puede ver.
 // ════════════════════════════════════════════════
-const MODO='nube';
 const sb=window.supabase.createClient(window.SUPABASE_URL,window.SUPABASE_KEY);
-const LS={ // solo para preferencias del dispositivo
-  g:(k)=>{try{return JSON.parse(localStorage.getItem('bxt2_'+k))||[]}catch{return[]}},
-  s:(k,v)=>{try{localStorage.setItem('bxt2_'+k,JSON.stringify(v))}catch(e){}}
-};
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function toast(msg){const t=document.getElementById('toast');if(!t)return;t.textContent=msg;t.classList.add('show');
   clearTimeout(toast._t);toast._t=setTimeout(()=>t.classList.remove('show'),3200)}
@@ -18,8 +13,7 @@ function nuevoId(){return crypto.randomUUID()}
 function limpiar(o){return JSON.parse(JSON.stringify(o))}
 function usd(n){return 'USD '+Math.round(Number(n)||0).toLocaleString('es-AR')}
 
-let myId=null, soyOwner=false, miNombre='', miEmail='';
-const cassets={}; // los planos se suben al depósito privado "planos" de Supabase
+let myId=null, miNombre='', miEmail='';
 let todos={};          // id -> proyecto (los que la base deja ver a este usuario)
 let ORIG={};           // id -> copia tal como vino de la base (para guardar solo lo que cambió)
 let proyectos=[];
@@ -28,7 +22,6 @@ let ORIGL={personal:{},contenedores:{},materiales:{}};
 let perfiles={};       // uid -> {nombre,rol,email,creado_en}
 let roles={};          // uid -> {rol,nombre}   (con rol asignado)
 let solicitudes={};    // uid -> {nombre,fecha,email} (pendientes)
-let miSolicitud=null, usuarios=[];
 let currentUser=null;
 let filtroEstado='todos';
 let vistaActual='dashboard';
@@ -68,7 +61,7 @@ function etapaDe(p){return p.etapa||'ejecucion'}
 function rol(){return currentUser?.rol||''}
 function esOp(){return rol()==='admin'||rol()==='lider'}
 // El valor de venta es plata: lo ven el administrador y ventas (que lo carga). El resto no.
-function veoPrecio(){return MODO!=='nube'||rol()==='admin'||rol()==='ventas'}
+function veoPrecio(){return rol()==='admin'||rol()==='ventas'}
 function nombreDe(uid){
   if(!uid) return '';
   const x=perfiles[uid];
@@ -81,7 +74,8 @@ function puedeVer(p){
   if(r==='admin'||r==='lider'||r==='lectura') return true;
   if(r==='supervisor') return p.supId===myId;
   if(r==='ventas') return p.creadoPorId===myId||p.vendId===myId;
-  if(r==='arquitectura') return etapaDe(p)==='arquitectura'||(p.planos||[]).some(x=>x.autorId===myId);
+  // arquitectura: lo que está en su etapa, donde subió un plano o lo que mandó / devolvió (migración 0023)
+  if(r==='arquitectura') return etapaDe(p)==='arquitectura'||(p.planos||[]).some(x=>x.autorId===myId)||(p.flujo||[]).some(x=>x.autorId===myId);
   return false;
 }
 function recalcular(){
@@ -165,7 +159,7 @@ async function cargarTodo(){
     ts:ts(r.creado_en),autor:nombreDe(r.autor_id),resuelto:!!r.resuelto_en,resTs:ts(r.resuelto_en),
     resAutor:r.resuelto_por?nombreDe(r.resuelto_por):''})));
   rec.sort((a,b)=>a.id-b.id).forEach(r=>en(r.proyecto_id,p=>p.flujo.push({fecha:fechaDe(r.creado_en),a:r.a_etapa,
-    autor:r.detalle||nombreDe(r.autor_id)})));
+    autor:r.detalle||nombreDe(r.autor_id),autorId:r.autor_id})));
   todos=T; ORIG={}; for(const id in T) ORIG[id]=limpiar(T[id]);
   await cargarVersiones(T);
   await cargarMateriales(T);
@@ -275,8 +269,9 @@ async function guardarProyectoOError(p){
     throw e;
   }finally{guardando--;}
 }
-// Las funciones que llaman a guardarProyecto no esperan errores: se informan con un aviso
-function guardarProyecto(p){return guardarProyectoOError(p).catch(()=>{});}
+// Las funciones que llaman a guardarProyecto no esperan errores: se informan con un aviso.
+// Devuelve true si se guardó, así quien llama no muestra "✅ listo" encima del aviso de error.
+function guardarProyecto(p){return guardarProyectoOError(p).then(()=>true,()=>false);}
 
 async function borrarProyecto(id){
   const p=todos[id];
@@ -285,7 +280,8 @@ async function borrarProyecto(id){
     chk(await sb.from('proyectos').delete().eq('id',id));
     if(archivos.length) await sb.storage.from('planos').remove(archivos);
     delete todos[id]; delete ORIG[id]; recalcular();
-  }catch(e){toast(msgError(e));}
+    return true;
+  }catch(e){toast(msgError(e));return false;}
 }
 // Listas generales: personal, contenedores, materiales
 const LISTAS={
@@ -456,13 +452,24 @@ async function arrancar(session){
 }
 function decidirAcceso(){
   const r=perfiles[myId]?.rol;
-  soyOwner=r==='admin';
   if(!r||r==='pendiente'){currentUser=null; pantallaLogin('pendiente'); return;}
   const nuevo={id:myId,nombre:perfiles[myId].nombre||miNombre||miEmail,rol:r};
   const cambio=!currentUser||currentUser.rol!==nuevo.rol;
   currentUser=nuevo;
-  if(cambio) entrarApp(nuevo); else {recalcular(); pintarHeader(); marcarSolicitudes(); rerender();}
+  if(cambio) entrarApp(nuevo); else {recalcular(); pintarHeader(); marcarSolicitudes(); rerenderSinPisar();}
 }
+// Cuando llega un cambio de otro usuario y esta persona está escribiendo en la pantalla (un precio en Costos,
+// una cantidad en Materiales, la búsqueda), no se redibuja para no borrarle lo que escribe: se redibuja al salir del campo.
+let rerenderPendiente=false;
+function escribiendoEnVista(){
+  const a=document.activeElement;
+  return !!(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)&&a.closest('.view.active'));
+}
+function rerenderSinPisar(){
+  if(escribiendoEnVista()){rerenderPendiente=true;return;}
+  rerenderPendiente=false; rerender();
+}
+document.addEventListener('focusout',()=>{if(rerenderPendiente) setTimeout(()=>{if(rerenderPendiente&&!escribiendoEnVista()) rerenderSinPisar();},400);});
 
 function pintarHeader(){
   document.getElementById('header-user-info').textContent=`👤 ${currentUser.nombre} · ${ROLES[rolVisible(myId)]||ROLES[currentUser.rol]||currentUser.rol}`;
@@ -478,8 +485,6 @@ function entrarApp(u){
   document.querySelectorAll('.nav-btn').forEach(b=>b.style.display=t.includes(b.dataset.view)?'':'none');
   document.querySelectorAll('.admin-only').forEach(el=>el.style.display=rol()==='admin'?'':'none');
   pintarBurbujaPC();
-  document.querySelectorAll('.solo-local').forEach(el=>el.style.display='none');
-  document.querySelectorAll('.solo-nube').forEach(el=>el.style.display='');
   document.getElementById('fab-proy').style.display=puedeCrear()?'':'none';
   marcarSolicitudes();
   showView(t.includes(vistaActual)?vistaActual:t[0]);
@@ -507,7 +512,7 @@ async function subirPlano(id,input){
     const p=limpiar(todos[id]);
     p.planos=(p.planos||[]); p.planos.push({id:pid,archivo:ruta,url:'',nombre:f.name,fecha:hoyISO(),autorId:myId,ts:Date.now()});
     const nota=document.getElementById('det-notaarq'); if(nota) p.notaArq=nota.value.trim();
-    await guardarProyecto(p); toast('✅ Plano subido'); verDetalle(id);
+    if(await guardarProyecto(p)){toast('✅ Plano subido'); verDetalle(id);}
   }catch(e){toast(msgError(e));}
   input.value='';
 }
@@ -741,7 +746,6 @@ function importBackup(ev){
   };
   r.readAsText(f);
 }
-function migrarDispositivo(){}
 
 // ════════════════════════════════════════════════
 // ARRANQUE
@@ -810,7 +814,7 @@ function calcAvanceEsperado(p){
 }
 function costoInfo(p){
   // la plata (presupuesto de obra y gastos reales) la ve solo el administrador
-  const soloAdmin=MODO==='nube'&&!esAdmin();
+  const soloAdmin=!esAdmin();
   // presupuesto: en las notas de pedido sale solo del costeo (nota × lista de costos); en las fichas viejas, el cargado a mano
   const cn=!soloAdmin&&typeof costoNota==='function'?costoNota(p):null;
   const pres=soloAdmin?{}:cn?cn.por:(p.presup||{}), por={};
@@ -984,7 +988,7 @@ function renderDash(){
   }
   const n=(currentUser?.nombre||'').split(' ')[0];
   document.getElementById('dash-content').innerHTML=`<div class="hoy-saludo">Hola${n?', '+esc(n):''} 👋<span>${new Date().toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long'})}</span></div>`+bloques.join('');
-  pintarBadgeHoy(nAccion+(r==='supervisor'?enCurso.filter(p=>p.supId===myId&&!parteDeHoy(p)).length:0));
+  if(typeof pintarBadgeHoy==='function') pintarBadgeHoy(nAccion+(r==='supervisor'?enCurso.filter(p=>p.supId===myId&&!parteDeHoy(p)).length:0));
 }
 
 // ════════════════════════════════════════════════
@@ -1055,12 +1059,10 @@ function prepararModalProy(){
   const op=esOp();
   document.querySelectorAll('#m-proy .campo-op').forEach(el=>el.style.display=op?'':'none');
   document.getElementById('ep-val').closest('.fg').style.display=veoPrecio()?'':'none';
-  if(MODO==='nube'&&!esAdmin()) document.getElementById('ep-presup-box').style.display='none';
+  if(!esAdmin()) document.getElementById('ep-presup-box').style.display='none';
   // con nota de pedido el presupuesto sale solo del costeo: no se carga a mano
   const pid=document.getElementById('ep-id').value, pe=pid&&todos[pid];
   if(pe&&esNota(pe)) document.getElementById('ep-presup-box').style.display='none';
-  document.getElementById('ep-sup').style.display=MODO==='local'?'':'none';
-  document.getElementById('ep-supid').style.display=MODO==='nube'?'':'none';
 }
 function abrirNuevoProy(){
   if(!puedeCrear()) return;
@@ -1151,16 +1153,16 @@ function leerPresup(){
   return {mat:Number(document.getElementById('ep-pmat').value)||0,mo:Number(document.getElementById('ep-pmo').value)||0,
     ter:Number(document.getElementById('ep-pter').value)||0,otr:Number(document.getElementById('ep-potr').value)||0};
 }
-function guardarProy(){
+async function guardarProy(){
   const nom=document.getElementById('ep-nom').value.trim();
   const cli=document.getElementById('ep-cli').value.trim();
   if(!nom||!cli){toast('⚠️ Completá nombre y cliente');return;}
   const id=document.getElementById('ep-id').value;
   const prev=id?todos[id]:null;
-  const p=prev?limpiar(prev):{id:nuevoId(),creadoTs:Date.now(),creadoPor:currentUser?.nombre||'',creadoPorId:MODO==='nube'?myId:null,
+  const p=prev?limpiar(prev):{id:nuevoId(),creadoTs:Date.now(),creadoPor:currentUser?.nombre||'',creadoPorId:myId,
     creadoEn:hoyISO(),historial:[],costos:[],planos:[],flujo:[],estado:'presupuesto',avance:0,
-    vendId:rol()==='ventas'&&MODO==='nube'?myId:null};
-  if(!prev&&MODO==='nube'){
+    vendId:rol()==='ventas'?myId:null};
+  if(!prev){
     p.etapa=rol()==='ventas'?'ventas':'asignacion';
     p.flujo.push({fecha:hoyISO(),a:p.etapa,autor:currentUser.nombre});
   }
@@ -1174,17 +1176,16 @@ function guardarProy(){
     p.avance=Math.min(100,Math.max(0,parseInt(document.getElementById('ep-av').value)||0));
     p.pers=parseInt(document.getElementById('ep-pers').value)||0;
     if(esAdmin()) p.presup=leerPresup();
-    if(MODO==='nube'){const s=document.getElementById('ep-supid').value||null; p.supId=s; p.sup=s?nombreDe(s):(p.sup||'');}
-    else p.sup=document.getElementById('ep-sup').value;
+    const s=document.getElementById('ep-supid').value||null; p.supId=s; p.sup=s?nombreDe(s):(p.sup||'');
   }
-  guardarProyecto(p); closeOverlay('m-proy'); refrescar(); toast(prev?'✅ Proyecto actualizado':'✅ Proyecto creado');
+  if(!await guardarProyecto(p)) return; // queda abierto para no perder lo cargado
+  closeOverlay('m-proy'); refrescar(); toast(prev?'✅ Proyecto actualizado':'✅ Proyecto creado');
 }
 function puedeEditar(p){
-  if(MODO==='local') return rol()!=='lectura';
   if(esOp()) return true;
   return rol()==='ventas'&&etapaDe(p)==='ventas'&&p.creadoPorId===myId;
 }
-function esSupDe(p){return MODO==='local'?rol()!=='lectura':(p.supId===myId||esOp())}
+function esSupDe(p){return p.supId===myId||esOp()}
 
 let detalleId=null;
 function verDetalle(id){
@@ -1200,12 +1201,12 @@ function verDetalle(id){
   // Flujo de etapas
   const pasos=['ventas','arquitectura','asignacion','ejecucion'];
   const iAct=pasos.indexOf(e);
-  const flujoHTML=MODO==='nube'?`<div class="flujo">${pasos.map((k,i)=>`<div class="flujo-paso ${i<iAct?'hecho':i===iAct?'actual':''}">${ETAPA[k].label.split(' ')[0]}<span>${['Ventas','Arquitectura','Asignación','Ejecución'][i]}</span></div>`).join('')}</div>`:'';
+  const flujoHTML=`<div class="flujo">${pasos.map((k,i)=>`<div class="flujo-paso ${i<iAct?'hecho':i===iAct?'actual':''}">${ETAPA[k].label.split(' ')[0]}<span>${['Ventas','Arquitectura','Asignación','Ejecución'][i]}</span></div>`).join('')}</div>`;
 
   // Acciones según etapa y rol. La principal va en la barra fija de abajo (pie); el resto, en "⋯ Más"
   let acciones='';
   const pie={principal:null,segunda:null,menu:[]};
-  if(MODO==='nube'){
+  { // una acción por etapa
     if(e==='ventas'&&(esOp()||(r==='ventas'&&p.creadoPorId===myId)))
       acciones+=`<div class="accion"><p>Cuando el pedido del cliente esté completo, envialo a arquitectura para que agregue el plano.</p>
         ${sinPlano(p)?`<button class="btn btn-sec" onclick="moverEtapa('${esc(id)}','arquitectura')">📐 Mejor mandarlo a Arquitectura</button>
@@ -1215,9 +1216,8 @@ function verDetalle(id){
       pie.principal=sinPlano(p)?{t:'🧭 Enviar al líder',f:`moverEtapa('${esc(id)}','asignacion')`}:{t:'📐 Enviar a Arquitectura',f:`moverEtapa('${esc(id)}','arquitectura')`};
     if(e==='arquitectura'&&(r==='arquitectura'||esOp())){
       acciones+=`<div class="accion"><p><b>Arquitectura:</b> subí el plano (PDF o imagen) y enviá el proyecto al líder de operaciones.</p>
-        ${cassets?`<label class="btn btn-sec" style="cursor:pointer;display:block;text-align:center">⬆️ Subir plano
-          <input type="file" accept="application/pdf,image/*" style="display:none" onchange="subirPlano('${esc(id)}',this)"></label>`
-          :`<p style="color:var(--rojo);font-size:12px">Para subir planos necesitás acceso de Editor al artefacto. Pedíselo al administrador.</p>`}
+        <label class="btn btn-sec" style="cursor:pointer;display:block;text-align:center">⬆️ Subir plano
+          <input type="file" accept="application/pdf,image/*" style="display:none" onchange="subirPlano('${esc(id)}',this)"></label>
         <div style="font-size:12px;color:var(--gris-m);margin:8px 0 4px">¿Pesa más de 50 MB? Pegá el enlace del archivo en Drive, OneDrive o Dropbox:</div>
         <input type="url" id="det-plano-url" placeholder="https://drive.google.com/...">
         <input type="text" id="det-plano-nom" placeholder="Nombre del plano (ej: Planta y cortes v2)" style="margin-top:6px">
@@ -1260,7 +1260,7 @@ function verDetalle(id){
   }
 
   const planos=(p.planos||[]);
-  const puedeBorrarPlano=MODO==='nube'&&(esOp()||(r==='arquitectura'&&e==='arquitectura'));
+  const puedeBorrarPlano=(esOp()||(r==='arquitectura'&&e==='arquitectura'));
 
   document.getElementById('det-content').innerHTML=`
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
@@ -1298,13 +1298,13 @@ function verDetalle(id){
       <div class="drow"><span class="lbl">Prioridad</span><span class="val">${PC[p.pri]||'Normal'}</span></div>
       ${p.obs?`<div class="drow"><span class="lbl">Notas</span><span class="val">${esc(p.obs)}</span></div>`:''}
     </div>
-    ${MODO==='nube'||planos.length?`<div class="dsec"><h3>📐 Planos (${planos.length})</h3>
+    <div class="dsec"><h3>📐 Planos (${planos.length})</h3>
       ${planos.length?planos.map(pl=>`<div class="drow"><a class="lbl" href="${esc(pl.url||'#')}" ${pl.archivo?`onclick="abrirPlano(event,'${esc(pl.archivo)}')"`:''} target="_blank" rel="noopener noreferrer">${pl.enlace?'🔗':'📄'} ${esc(pl.nombre)}</a>
         <span class="val">${esc(pl.fecha)}${puedeBorrarPlano?` <button class="btn btn-rojo btn-sm" onclick="quitarPlano('${esc(id)}','${esc(pl.id)}')">✕</button>`:''}</span></div>`).join('')
         :'<div style="font-size:13px;color:var(--gris-m)">Todavía sin plano</div>'}
       ${p.notaArq&&e!=='arquitectura'?`<div class="drow"><span class="lbl">Nota de arquitectura</span><span class="val">${esc(p.notaArq)}</span></div>`:''}
-    </div>`:''}
-    ${(MODO!=='nube'||esAdmin())&&(e==='ejecucion'||c.presTot||c.realTot)?`<div class="dsec"><h3>💰 Costos: presupuestado vs real${MODO==='nube'?' <span style="font-weight:400;color:var(--gris-m);font-size:11px">solo vos lo ves</span>':''}</h3>
+    </div>
+    ${esAdmin()&&(e==='ejecucion'||c.presTot||c.realTot)?`<div class="dsec"><h3>💰 Costos: presupuestado vs real <span style="font-weight:400;color:var(--gris-m);font-size:11px">solo vos lo ves</span></h3>
       <table class="tcost"><tr><th>Rubro</th><th>Presup.</th><th>Real</th><th>Desvío</th></tr>
       ${Object.keys(RUBROS).map(k=>{const x=c.por[k];const d=x.pres?((x.real-x.pres)/x.pres*100):null;
         return `<tr><td>${RUBROS[k]}</td><td>${usd(x.pres)}</td><td>${usd(x.real)}</td><td class="${d===null?'':d>10?'rojo':d>5?'amar':'verde'}">${d===null?'—':pct(d)}</td></tr>`;}).join('')}
@@ -1345,10 +1345,10 @@ function verDetalle(id){
     pie.segunda={t:'📦 Falta',f:`abrirFaltante('${esc(id)}')`};
     pie.menu.push({t:'⚠️ Reportar error en medidas o plano',f:`abrirIncidencia('${esc(id)}')`});
   }
-  if(MODO==='nube'&&esOp()&&posListo&&e==='ejecucion'&&p.estado==='en-curso'&&!esCompany(p))
+  if(esOp()&&posListo&&e==='ejecucion'&&p.estado==='en-curso'&&!esCompany(p))
     pie.menu.push({t:'📍 Posición en planta'+(p.pos?' ('+p.pos+')':''),f:`abrirCambiarPosicion('${esc(id)}')`});
   if(puedeEditar(p)) pie.menu.push({t:'✏️ Editar datos del proyecto',f:`closeOverlay('m-det');editarProy('${esc(id)}')`});
-  if(puedeEditar(p)&&(esOp()||MODO==='local'||e==='ventas')) pie.menu.push({t:'🗑️ Eliminar proyecto',f:`eliminarProy('${esc(id)}')`,c:'rojo'});
+  if(puedeEditar(p)&&(esOp()||e==='ventas')) pie.menu.push({t:'🗑️ Eliminar proyecto',f:`eliminarProy('${esc(id)}')`,c:'rojo'});
   pintarPie(pie);
   plegarSecciones(document.getElementById('det-content'),p);
   const ya=document.getElementById('m-det').classList.contains('active');
@@ -1373,8 +1373,8 @@ async function moverEtapa(id,a){
     if(!(p.planos||[]).length&&!await confirmar('El proyecto no tiene plano cargado. ¿Enviarlo igual al líder de operaciones?')) return;
   }
   if(a==='arquitectura'||a==='ventas'){const nota=document.getElementById('det-notaarq'); if(nota) p.notaArq=nota.value.trim();}
-  p.etapa=a; p.flujo=(p.flujo||[]); p.flujo.push({fecha:hoyISO(),a,autor:currentUser.nombre});
-  await guardarProyecto(p);
+  p.etapa=a; p.flujo=(p.flujo||[]); p.flujo.push({fecha:hoyISO(),a,autor:currentUser.nombre,autorId:myId});
+  if(!await guardarProyecto(p)) return;
   closeOverlay('m-det'); refrescar();
   toast({arquitectura:'📐 Enviado a Arquitectura',asignacion:'🧭 Enviado al Líder de Operaciones',ventas:'↩️ Devuelto a Ventas'}[a]||'✅ Listo');
 }
@@ -1428,12 +1428,12 @@ async function agregarPlanoEnlace(id){
   const p=limpiar(todos[id]);
   p.planos=(p.planos||[]); p.planos.push({id:nuevoId(),url,nombre,fecha:hoyISO(),autorId:myId,enlace:true});
   const nota=document.getElementById('det-notaarq'); if(nota) p.notaArq=nota.value.trim();
-  await guardarProyecto(p); toast('✅ Enlace agregado'); verDetalle(id);
+  if(await guardarProyecto(p)){toast('✅ Enlace agregado'); verDetalle(id);}
 }
 async function quitarPlano(id,planoId){
   if(!await confirmar('¿Quitar este plano del proyecto?')) return;
   const p=limpiar(todos[id]); p.planos=(p.planos||[]).filter(x=>x.id!==planoId);
-  await guardarProyecto(p); verDetalle(id);
+  if(await guardarProyecto(p)) verDetalle(id);
 }
 
 function editarProy(id){
@@ -1442,7 +1442,7 @@ function editarProy(id){
   document.getElementById('m-proy-title').textContent='✏️ Editar Proyecto';
   const v=(k,x)=>document.getElementById(k).value=x??'';
   v('ep-nom',p.nombre);v('ep-cli',p.cli);v('ep-tipo',p.tipo);v('ep-ini',p.inicio);v('ep-ent',p.entrega);
-  v('ep-est',p.estado||'presupuesto');v('ep-av',p.avance||0);v('ep-val',p.val);v('ep-sup',p.sup);v('ep-vend',p.vend);
+  v('ep-est',p.estado||'presupuesto');v('ep-av',p.avance||0);v('ep-val',p.val);v('ep-vend',p.vend);
   v('ep-pers',p.pers||0);v('ep-dep',p.dep);v('ep-pri',p.pri||'normal');v('ep-obs',p.obs);
   const pr=p.presup||{}; v('ep-pmat',pr.mat||'');v('ep-pmo',pr.mo||'');v('ep-pter',pr.ter||'');v('ep-potr',pr.otr||'');
   ponerFicha(esNota(p)?{}:(p.ficha||{}));
@@ -1462,7 +1462,7 @@ function editarProy(id){
 }
 async function eliminarProy(id){
   if(!await confirmar('¿Eliminar este proyecto?')) return;
-  await borrarProyecto(id);
+  if(!await borrarProyecto(id)) return;
   contenedores.forEach(c=>{if(String(c.proyId)===String(id))c.proyId=null});
   materiales.forEach(m=>{if(String(m.proyId)===String(id))m.proyId=null});
   save(); closeOverlay('m-det'); refrescar(); toast('🗑️ Proyecto eliminado');
@@ -1551,7 +1551,7 @@ function seccionFicha(p){
       ${p.verifArq?`<div style="font-size:12px;color:var(--verde);margin-top:6px">✅ Plano verificado por ${esc(p.verifArq.autor)} (${esc(p.verifArq.fecha)})</div>`:''}
     </div>`;
   }
-  if(!f) return MODO==='nube'?`<div class="dsec"><h3>📏 Ficha técnica</h3><div style="font-size:13px;color:var(--rojo)">Sin ficha técnica cargada</div></div>`:'';
+  if(!f) return `<div class="dsec"><h3>📏 Ficha técnica</h3><div style="font-size:13px;color:var(--rojo)">Sin ficha técnica cargada</div></div>`;
   const falta=fichaFaltantes(p);
   const fila=(l,v)=>v?`<div class="drow"><span class="lbl">${l}</span><span class="val">${esc(v)}</span></div>`:'';
   return `<div class="dsec"><h3>📏 Ficha técnica</h3>
@@ -1575,7 +1575,6 @@ function horasDesde(ts,hasta){return Math.max(0,((hasta||Date.now())-ts)/36e5)}
 function fmtHoras(h){return h<1?Math.round(h*60)+' min':h<48?(Math.round(h*10)/10)+' h':Math.round(h/24)+' días'}
 function claseSla(h){return h>24?'rojo':h>SLA_HORAS?'amar':'verde'}
 function puedeResponder(p,c){
-  if(MODO==='local') return true;
   if(esOp()) return true;
   return rol()===c.para;
 }
@@ -1594,7 +1593,6 @@ function misConsultasEsperando(){
   return out;
 }
 function seccionConsultas(p){
-  if(MODO!=='nube') return '';
   const cs=(p.consultas||[]).slice().sort((a,b)=>b.ts-a.ts);
   const id=esc(p.id);
   return `<div class="dsec"><h3>💬 Consultas (${cs.length})</h3>
@@ -1620,7 +1618,7 @@ async function enviarConsulta(id,texto,para,incidencia){
   const p=limpiar(todos[id]); if(!p) return;
   p.consultas=(p.consultas||[]);
   p.consultas.push({id:nuevoId(),texto,para,ts:Date.now(),deId:myId,deNombre:currentUser.nombre,incidencia:!!incidencia});
-  await guardarProyecto(p);
+  if(!await guardarProyecto(p)) return;
   if(!incidencia){toast('💬 Consulta enviada a '+(AREAS[para]||para)); verDetalle(id);}
 }
 async function responderConsulta(id,cid){
@@ -1629,7 +1627,7 @@ async function responderConsulta(id,cid){
   const p=limpiar(todos[id]); if(!p) return;
   const c=(p.consultas||[]).find(x=>x.id===cid); if(!c) return;
   c.respuesta=t; c.respTs=Date.now(); c.respId=myId; c.respNombre=currentUser.nombre;
-  await guardarProyecto(p); toast('✅ Respuesta enviada'); verDetalle(id);
+  if(await guardarProyecto(p)){toast('✅ Respuesta enviada'); verDetalle(id);}
 }
 
 // ════════════════════════════════════════════════
@@ -1649,7 +1647,8 @@ async function guardarIncidencia(){
   p.incidencias.push({id:nuevoId(),tipo,origen,desc,frena,ts:Date.now(),fecha:hoyISO(),autorId:myId,autor:currentUser.nombre,vend:p.vend||''});
   p.consultas=(p.consultas||[]);
   p.consultas.push({id:nuevoId(),texto:`[${tipo}${frena?' · FRENA EL TRABAJO':''}] ${desc}`,para:origen,ts:Date.now(),deId:myId,deNombre:currentUser.nombre,incidencia:true});
-  await guardarProyecto(p); closeOverlay('m-inc'); verDetalle(id); toast('⚠️ Error reportado a '+AREAS[origen]);
+  if(!await guardarProyecto(p)) return;
+  closeOverlay('m-inc'); verDetalle(id); toast('⚠️ Error reportado a '+AREAS[origen]);
 }
 function seccionIncidencias(p){
   const ins=p.incidencias||[]; if(!ins.length) return '';
@@ -1675,13 +1674,14 @@ async function guardarFaltante(){
   p.faltantes=(p.faltantes||[]);
   p.faltantes.push({id:nuevoId(),mat,cant:document.getElementById('fa-cant').value.trim(),para:document.getElementById('fa-fecha').value,
     frena:document.getElementById('fa-frena').value==='si',ts:Date.now(),autor:currentUser.nombre,resuelto:false});
-  await guardarProyecto(p); closeOverlay('m-falt'); verDetalle(id); toast('📦 Aviso enviado al líder de operaciones');
+  if(!await guardarProyecto(p)) return;
+  closeOverlay('m-falt'); verDetalle(id); toast('📦 Aviso enviado al líder de operaciones');
 }
 async function resolverFaltante(id,fid){
   const p=limpiar(todos[id]); if(!p) return;
   const f=(p.faltantes||[]).find(x=>x.id===fid); if(!f) return;
   f.resuelto=true; f.resTs=Date.now(); f.resAutor=currentUser.nombre;
-  await guardarProyecto(p); verDetalle(id); toast('✅ Material resuelto');
+  if(await guardarProyecto(p)){verDetalle(id); toast('✅ Material resuelto');}
 }
 function faltantesAbiertos(){
   const out=[]; proyectos.forEach(p=>(p.faltantes||[]).forEach(f=>{if(!f.resuelto) out.push({p,f});}));
@@ -1713,7 +1713,8 @@ async function guardarCosto(){
   const p=limpiar(todos[id]); if(!p) return;
   p.costos=(p.costos||[]); p.costos.push({id:nuevoId(),ts:Date.now(),rubro:document.getElementById('co-rubro').value,importe:imp,desc,
     fecha:document.getElementById('co-fecha').value||hoyISO(),autor:currentUser?.nombre||''});
-  await guardarProyecto(p); closeOverlay('m-costo'); verDetalle(id); toast('✅ Gasto cargado');
+  if(!await guardarProyecto(p)) return;
+  closeOverlay('m-costo'); verDetalle(id); toast('✅ Gasto cargado');
 }
 
 // ════════════════════════════════════════════════
@@ -1721,11 +1722,9 @@ async function guardarCosto(){
 // ════════════════════════════════════════════════
 function renderKanban(){
   const cols=[
-    ...(MODO==='nube'?[
-      {label:'💼 Ventas',color:'var(--azul)',f:p=>etapaDe(p)==='ventas'},
-      {label:'📐 Arquitectura',color:'var(--morado)',f:p=>etapaDe(p)==='arquitectura'},
-      {label:'🧭 Por asignar',color:'var(--amarillo)',f:p=>etapaDe(p)==='asignacion'},
-    ]:[]),
+    {label:'💼 Ventas',color:'var(--azul)',f:p=>etapaDe(p)==='ventas'},
+    {label:'📐 Arquitectura',color:'var(--morado)',f:p=>etapaDe(p)==='arquitectura'},
+    {label:'🧭 Por asignar',color:'var(--amarillo)',f:p=>etapaDe(p)==='asignacion'},
     {label:'💬 Presupuesto',color:'var(--gris-m)',f:p=>etapaDe(p)==='ejecucion'&&p.estado==='presupuesto'},
     {label:'🔨 En curso',color:'var(--nar)',f:p=>etapaDe(p)==='ejecucion'&&p.estado==='en-curso'},
     {label:'⏸️ Pausado',color:'var(--amarillo)',f:p=>etapaDe(p)==='ejecucion'&&p.estado==='pausado'},
@@ -1842,21 +1841,23 @@ function agregarMaterial(){
   save(); document.getElementById('nm-nom').value=''; document.getElementById('nm-cant').value=''; renderMateriales();
 }
 function renderMateriales(){
-  const lista=document.getElementById('lista-materiales');
+  const lista=document.getElementById('lista-materiales'), op=esOp();
+  // Agregar y borrar es del líder y el admin (la base no deja a nadie más): al supervisor no se le ofrece
+  const form=document.getElementById('nm-form'); if(form) form.style.display=op?'':'none';
   // El supervisor ve solo los materiales de sus proyectos (y los sin proyecto)
-  const visibles=materiales.map((m,i)=>({m,i})).filter(({m})=>!m.proyId||MODO==='local'||esOp()||(todos[String(m.proyId)]&&puedeVer(todos[String(m.proyId)])));
+  const visibles=materiales.map((m,i)=>({m,i})).filter(({m})=>!m.proyId||esOp()||(todos[String(m.proyId)]&&puedeVer(todos[String(m.proyId)])));
   if(!visibles.length){lista.innerHTML=`<div class="empty"><div class="em">🔧</div><h3>Sin materiales</h3></div>`;return;}
   const eL={pendiente:'⏳ Pendiente',comprado:'✅ Comprado',transito:'🚛 En tránsito'};
   lista.innerHTML=`<div class="card">${visibles.map(({m,i})=>{const pn=nombreProy(m.proyId);
     return `<div class="mat-item"><div class="mat-dot dot-${esc((m.est||'p').charAt(0))}"></div>
       <div class="mat-info"><div class="mat-nom">${esc(m.nom)}</div>
         <div class="mat-det">${m.cant?'Cant: '+esc(m.cant)+' · ':''}${eL[m.est]||esc(m.est)}${pn?' · '+esc(pn.slice(0,18)):''}</div></div>
-      <select onchange="cambEst(${i},this.value)" style="padding:6px;border:1.5px solid var(--borde);border-radius:8px;font-size:12px">
+      ${op||(m.proyId&&todos[String(m.proyId)]?.supId===myId)?`<select onchange="cambEst(${i},this.value)" style="padding:6px;border:1.5px solid var(--borde);border-radius:8px;font-size:12px">
         <option value="pendiente" ${m.est==='pendiente'?'selected':''}>Pendiente</option>
         <option value="comprado" ${m.est==='comprado'?'selected':''}>Comprado</option>
         <option value="transito" ${m.est==='transito'?'selected':''}>Tránsito</option>
-      </select>
-      <button class="btn btn-rojo btn-sm" onclick="elimMat(${i})">✕</button></div>`;}).join('')}</div>`;
+      </select>`:''}
+      ${op?`<button class="btn btn-rojo btn-sm" onclick="elimMat(${i})">✕</button>`:''}</div>`;}).join('')}</div>`;
 }
 function cambEst(i,e){materiales[i].est=e;save();renderMateriales();}
 async function elimMat(i){if(!await confirmar('¿Eliminar?'))return;materiales.splice(i,1);save();renderMateriales();}
@@ -1881,7 +1882,7 @@ function pedirReasignacion(uid,motivo){
       const s=sel.value; if(!s){toast('⚠️ Elegí a quién pasárselos');return;}
       for(const p0 of lista){const p=limpiar(p0);p.supId=s;p.sup=nombreDe(s);
         p.flujo=(p.flujo||[]);p.flujo.push({fecha:hoyISO(),a:'ejecucion',autor:currentUser.nombre+' (reasignado de '+nom+' a '+p.sup+')'});
-        await guardarProyecto(p);}
+        if(!await guardarProyecto(p)){fin(false);return;}} // si falla, no se cambia el rol
       toast('✅ '+lista.length+' proyecto'+(lista.length>1?'s':'')+' reasignado'+(lista.length>1?'s':'')+' a '+nombreDe(s));
       fin(true);
     };
@@ -1907,7 +1908,7 @@ function renderReportes(){
   const avProm=enCurso.length?Math.round(enCurso.reduce((s,p)=>s+(p.avance||0),0)/enCurso.length):0;
   const tiposCount={}; proyectos.forEach(p=>{tiposCount[p.tipo]=(tiposCount[p.tipo]||0)+1;});
   let presT=0,realT=0; const conCosto=ej.filter(p=>{const c=costoInfo(p);presT+=c.presTot;realT+=c.realTot;return c.presTot||c.realTot;});
-  const filasEtapa=MODO==='nube'?['ventas','arquitectura','asignacion'].map(k=>({lbl:ETAPA[k].label,cls:ETAPA[k].cls,n:proyectos.filter(p=>etapaDe(p)===k).length})):[];
+  const filasEtapa=['ventas','arquitectura','asignacion'].map(k=>({lbl:ETAPA[k].label,cls:ETAPA[k].cls,n:proyectos.filter(p=>etapaDe(p)===k).length}));
   const filasEst=['presupuesto','en-curso','finalizado','pausado'].map(k=>({lbl:EC[k].label,cls:EC[k].cls,n:ej.filter(p=>p.estado===k).length}));
   const sups={}; ej.forEach(p=>{const s=supNombre(p); if(s){sups[s]=sups[s]||{n:0,d:0};sups[s].n++;if(esDesviado(p))sups[s].d++;}});
   const resp={}, abiertas={}, inc={}, incVend={}; let faltT=0,faltA=0,faltH=0,faltR=0,frenados=0;
@@ -1932,7 +1933,7 @@ function renderReportes(){
   document.getElementById('reporte-content').innerHTML=`
     ${ind}
     ${ind?'<div class="sec-title" style="font-size:16px;margin-top:6px">📋 Más detalle</div>':''}
-    ${MODO==='nube'?cardCom:''}
+    ${cardCom}
     <div class="stats-4">
       <div class="stat-box nar"><div class="stat-num">${total}</div><div class="stat-lbl">Total proyectos</div></div>
       <div class="stat-box azul"><div class="stat-num">${enCurso.length}</div><div class="stat-lbl">En curso</div></div>
@@ -1945,7 +1946,7 @@ function renderReportes(){
           <span class="badge ${f.cls}">${f.lbl}</span><span>${f.n} (${pc}%)</span></div>
           <div class="prog-bar"><div class="prog-fill prog-nar" style="width:${pc}%"></div></div></div>`;}).join('')}
     </div>
-    ${MODO==='nube'&&!esAdmin()?'':`<div class="card"><div class="card-title" style="margin-bottom:10px">💰 Costos: presupuestado vs real</div>
+    ${!esAdmin()?'':`<div class="card"><div class="card-title" style="margin-bottom:10px">💰 Costos: presupuestado vs real</div>
       ${conCosto.length?`<div class="drow"><span class="lbl">Presupuesto total</span><span class="val">${usd(presT)}</span></div>
         <div class="drow"><span class="lbl">Costo real cargado</span><span class="val">${usd(realT)}</span></div>
         <table class="tcost" style="margin-top:8px"><tr><th>Proyecto</th><th>Avance</th><th>Presup.</th><th>Real</th></tr>
@@ -1969,8 +1970,6 @@ function renderReportes(){
       ${Object.entries(sups).map(([s,x])=>`<div class="drow"><span class="lbl">👷 ${esc(s)}</span>
         <span class="val">${x.n} proyectos${x.d>0?` · <span style="color:var(--rojo)">${x.d} desviados</span>`:''}</span></div>`).join('')||'<div style="font-size:13px;color:var(--gris-m)">Sin supervisores asignados</div>'}
     </div>`;
-  const mig=document.getElementById('btn-migrar');
-  if(mig) mig.style.display=(MODO==='nube'&&soyOwner&&LS.g('proyectos2').length)?'':'none';
 }
 
 // ════════════════════════════════════════════════
@@ -1989,18 +1988,14 @@ function exportPersonalCSV(){
   personal.forEach(pe=>{csv+=`${pe.id},${csvq(pe.nom)},${csvq(pe.rol)},${csvq(pe.tel)}\n`;});
   downloadFile('﻿'+csv,'BoxTainer_Personal_'+hoyISO()+'.csv','text/csv');
 }
-async function downloadFile(content,filename,type){
-  const blob=new Blob([content],{type});
-  if(window.claude&&typeof window.claude.use==='function'){
-    try{const dl=await window.claude.use('downloads');
-      if(dl){try{await dl.save({filename,data:blob});toast('📥 Archivo listo');}
-        catch(e){toast(e&&e.code==='declined'?'Descarga cancelada':'⚠️ No se pudo descargar en esta vista');}return;}
-    }catch(e){}
-  }
-  const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;a.click();URL.revokeObjectURL(url);
+function downloadFile(content,filename,type){
+  // el enlace va al documento y se libera después: algunos navegadores cancelan la descarga si se libera enseguida
+  const url=URL.createObjectURL(new Blob([content],{type}));
+  const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),30000);
 }
 function exportBackup(){
-  const data={v:3,fecha:new Date().toISOString(),proyectos:Object.values(todos),personal,contenedores,materiales,usuarios:MODO==='local'?usuarios:[]};
+  const data={v:3,fecha:new Date().toISOString(),proyectos:Object.values(todos),personal,contenedores,materiales};
   downloadFile(JSON.stringify(data,null,1),'BoxTainer_Respaldo_'+hoyISO()+'.json','application/json');
   toast('💾 Respaldo descargado');
 }
@@ -2021,6 +2016,24 @@ function confirmar(msg){
 function openOverlay(id){document.getElementById(id).classList.add('active');}
 function closeOverlay(id){document.getElementById(id).classList.remove('active');}
 document.querySelectorAll('.overlay').forEach(m=>{m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('active');});});
+
+// ════════════════════════════════════════════════
+// UN SOLO TOQUE: con mala señal en la obra la gente toca dos veces "Guardar" y se cargaba todo doble
+// (dos partes, dos consultas, dos pasos en el recorrido). Mientras una de estas acciones está en curso,
+// los toques repetidos se ignoran.
+// ════════════════════════════════════════════════
+function unaVez(fn){
+  let enCurso=false;
+  return async function(...a){
+    if(enCurso) return;
+    enCurso=true;
+    try{return await fn.apply(this,a);}finally{enCurso=false;}
+  };
+}
+guardarUpdate=unaVez(guardarUpdate); asignar=unaVez(asignar); moverEtapa=unaVez(moverEtapa);
+guardarProy=unaVez(guardarProy); guardarFaltante=unaVez(guardarFaltante); guardarIncidencia=unaVez(guardarIncidencia);
+guardarCosto=unaVez(guardarCosto); enviarConsulta=unaVez(enviarConsulta); responderConsulta=unaVez(responderConsulta);
+resolverFaltante=unaVez(resolverFaltante); agregarPlanoEnlace=unaVez(agregarPlanoEnlace);
 
 // ════════════════════════════════════════════════
 // SPLASH · BANNER IPHONE · INICIO

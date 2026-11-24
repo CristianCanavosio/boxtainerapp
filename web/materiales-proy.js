@@ -133,7 +133,7 @@ function pintarMateriales(pid){
 }
 function seccionMateriales(p){
   const e=etapaDe(p), r=rol();
-  if(MODO!=='nube'||!esNota(p)||!(e==='asignacion'||e==='ejecucion')) return '';
+  if(!esNota(p)||!(e==='asignacion'||e==='ejecucion')) return '';
   if(!(esOp()||r==='lectura'||(r==='supervisor'&&p.supId===myId))) return '';
   if(!mpListo) return `<div class="dsec" id="mp-sec"><h3>📦 Materiales del proyecto</h3><div style="font-size:13px">Para activarlo hay que correr la migración <b>0007_materiales_por_proyecto.sql</b> en Supabase.</div></div>`;
   const id=esc(p.id), R=resumenDesvios(p), it=R.it; mpVista[p.id]=it;

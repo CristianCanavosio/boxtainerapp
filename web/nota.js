@@ -590,9 +590,8 @@ async function descargarPDF(btn,extra){
     let blob=await generarPDF(adj);
     blob=await sumarPlanos(blob,adj);
     const nombre=`Nota de pedido - ${(d.cli||'cliente').trim()}.pdf`;
-    if(window.claude){const dl=await claude.use('downloads');if(!dl){toast('En esta vista no se puede descargar. Abrí el enlace en el navegador.');return}
-      try{await dl.save({filename:nombre,data:blob});toast(faltaronPDF.length?'⚠️ PDF listo, pero no se pudo sumar: '+faltaronPDF.join(', ')+'. Mandalo aparte.':'PDF listo: mandalo por WhatsApp al cliente')}catch(e){if(e&&e.code!=='declined')toast('No se pudo descargar el PDF')}}
-    else{const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=nombre;document.body.appendChild(a);a.click();a.remove();toast(faltaronPDF.length?'⚠️ PDF listo, pero no se pudo sumar: '+faltaronPDF.join(', ')+'. Mandalo aparte.':'PDF listo: mandalo por WhatsApp al cliente')}
+    const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=nombre;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
+    toast(faltaronPDF.length?'⚠️ PDF listo, pero no se pudo sumar: '+faltaronPDF.join(', ')+'. Mandalo aparte.':'PDF listo: mandalo por WhatsApp al cliente');
   }catch(e){toast('No se pudo armar el PDF: '+e.message)}
   finally{btn.textContent=txt;btn.disabled=false}
 }

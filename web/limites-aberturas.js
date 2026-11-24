@@ -22,7 +22,7 @@ const laTxt=n=>n?Number(n).toLocaleString('es-AR'):'';
 
 function renderLimitesAberturas(){
   const el=document.getElementById('limites-abert-sec'); if(!el) return;
-  if(MODO!=='nube'||!esOp()){el.innerHTML='';return;}
+  if(!esOp()){el.innerHTML='';return;}
   const filas=limAbertListo?limAbert:NotaPedido.LIM_DEF;
   const fila=(r,i)=>`<div class="mp-f" style="flex-wrap:wrap;gap:6px">
       <div class="mp-n" style="min-width:150px">${esc(r.tipologia)} <span style="font-size:11px;color:var(--gris-m)">${r.clase==='puerta'?'puerta':'ventana'}</span></div>
