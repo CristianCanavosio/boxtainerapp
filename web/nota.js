@@ -34,7 +34,38 @@ const CONT={
 const esSolo=p=>p==='Contenedor'; // venta del contenedor sin transformar
 // Notas guardadas antes de las opciones de contenedor: se les asigna la opción que corresponde
 function contDe(x){if(x.cont&&CONT[x.cont])return x.cont;return Object.keys(CONT).find(k=>{const c=CONT[k];return c.prod===x.prod&&(!c.tam||c.tam===x.tam)&&(!c.lado||c.lado===x.lado)&&(c.corte==null||Number(x.corte)===c.corte)&&(c.ot==null||c.ot===!!x.ot)})||''}
-const normProd=x=>{if(x.prod==='Módulo habitacional')x.prod='Módulo habitable';if(x.prod&&!PROD_MOD.includes(x.prod))x.cont=contDe(x);else x.cont='';return x};
+const normProd=x=>{if(x.prod==='Módulo habitacional')x.prod='Módulo habitable';if(x.prod&&!PROD_MOD.includes(x.prod))x.cont=contDe(x);else x.cont='';normAbert(x);return x};
+// ---- Tipologías de aberturas y sus limitaciones técnicas ----
+// La lista y los máximos los edita el líder o el admin (Materiales → "Limitaciones de aberturas", migración 0022).
+// Si la migración no se corrió, se usan estos valores (tabla de Cristian, 24/11). Medidas máximas en mm.
+const LIM_DEF=[
+  {tipologia:'Puerta ingreso',clase:'puerta',ancho_max_mm:1000,alto_max_mm:null},
+  {tipologia:'Puerta ventana corrediza',clase:'puerta',ancho_max_mm:null,alto_max_mm:2300},
+  {tipologia:'Ventana corrediza',clase:'ventana'},{tipologia:'Raja',clase:'ventana'},{tipologia:'Ventiluz',clase:'ventana'},
+  {tipologia:'Desplazable',clase:'ventana'},{tipologia:'Banderola',clase:'ventana'},{tipologia:'Oscilobatiente',clase:'ventana'}];
+let LIM=LIM_DEF;
+const PUERTA_ORIG='Original del contenedor';
+const tiposPuerta=()=>[...LIM.filter(x=>x.clase==='puerta').map(x=>x.tipologia),PUERTA_ORIG];
+const tiposVentana=()=>LIM.filter(x=>x.clase==='ventana').map(x=>x.tipologia);
+// Notas cargadas antes: los tipos viejos pasan al nombre de la tabla
+const PUERTA_VIEJA={'De abrir':'Puerta ingreso','Corrediza':'Puerta ventana corrediza'};
+const VENTANA_VIEJA={'Corrediza':'Ventana corrediza'};
+function normAbert(x){(x.puertas||[]).forEach(p=>{if(p&&PUERTA_VIEJA[p.tipo])p.tipo=PUERTA_VIEJA[p.tipo]});(x.ventanas||[]).forEach(v=>{if(v&&VENTANA_VIEJA[v.tipo])v.tipo=VENTANA_VIEJA[v.tipo]})}
+// En la lista de materiales (y en Costos) las puertas conservan el nombre de siempre, para no perder los costos cargados
+const PUERTA_MAT={'Puerta ingreso':'De abrir','Puerta ventana corrediza':'Corrediza'};
+const mmTxt=mm=>Number(mm).toLocaleString('es-AR')+' mm';
+function limTxt(t){const L=LIM.find(x=>x.tipologia===t);if(!L)return '';const a=[];if(L.ancho_max_mm)a.push('ancho hasta '+mmTxt(L.ancho_max_mm));if(L.alto_max_mm)a.push('alto hasta '+mmTxt(L.alto_max_mm));return a.join(' y ')}
+// Medidas que pasan el máximo de su tipología (las medidas de la nota están en cm)
+function excesos(o,esPuerta){const L=LIM.find(x=>x.tipologia===o.tipo);if(!L)return [];
+  const an=Number(esPuerta?(o.med==='Otra'?o.ancho:o.med):o.ancho)||0, al=Number(esPuerta?(o.med==='Otra'?o.alto:0):o.alto)||0, out=[];
+  if(L.ancho_max_mm&&an*10>L.ancho_max_mm)out.push(`el ancho máximo es ${mmTxt(L.ancho_max_mm)} (${L.ancho_max_mm/10} cm) y tiene ${an} cm`);
+  if(L.alto_max_mm&&al*10>L.alto_max_mm)out.push(`el alto máximo es ${mmTxt(L.alto_max_mm)} (${L.alto_max_mm/10} cm) y tiene ${al} cm`);
+  return out}
+const msgExceso=(o,esPuerta,nom)=>{const x=excesos(o,esPuerta);return x.length?`${nom} (${o.tipo.toLowerCase()}): ${x.join(' y ')}`:''};
+// Opciones de tipo: si una nota vieja tiene un tipo que ya no está en la lista, se sigue mostrando
+const listaCon=(l,v)=>v&&!l.includes(v)?[...l,v]:l;
+function avisoLim(o,esPuerta,i,nom){const m=msgExceso(o,esPuerta,nom),t=limTxt(o.tipo);
+  return `<div class="err" data-lim="${esPuerta?'p':'v'}${i}" style="${m?'':'display:none'}">⚠️ ${esc(m)}</div>${t?`<div class="auto" style="margin-top:6px">📏 ${esc(o.tipo)}: ${esc(t)}</div>`:''}`}
 const nomProd=()=>d.cont||d.prod;
 const ESP={bano:'Baño',cocina:'Cocina',habitacion:'Habitación',oficina:'Oficina'};
 const UBI=['Extremo izquierdo','Centro','Extremo derecho'];
@@ -106,8 +137,8 @@ function errores(){
   if(paso===2){if(esModulo(d.prod)&&!total())e.push('Elegí al menos un espacio');d.espacios.forEach(x=>{if(!x.ubi)e.push(`Elegí dónde va ${etiqueta(x).toLowerCase()}`);})}
   if(paso===3){if(!d.pExt&&!d.pExtP)e.push('Elegí la pintura exterior o marcala a confirmar');if(d.pExt==='Otro'&&!d.pExtOtro.trim()&&!d.pExtP)e.push('Escribí el color o código exterior');if(d.pInt==='Otro'&&!d.pIntOtro.trim())e.push('Escribí el color o código interior');if(!d.revExt)e.push('Elegí el revestimiento exterior');if(!d.piso)e.push('Elegí el piso');if(!d.rev.length)e.push('Elegí el revestimiento interior');if(d.rev.length>1)revDestinos().forEach(x=>{if(!d.rev.includes(d.revAsig[x.k]))e.push(`Elegí qué revestimiento va en ${x.n.toLowerCase()}`)});if(total()>1&&!d.pInterior)e.push('Elegí las puertas interiores')}
   if(paso===4){if(!d.linea&&!d.segunPlano)e.push('Elegí la línea de aberturas');
-    if(!d.puertaP)puertasVal().forEach((p,i)=>{const n=d.puertas.length>1?' '+(i+1):'';if(!p.tipo||!p.pared||!p.mano)e.push(`Completá tipo, pared y apertura de la puerta${n} (o marcá las puertas a confirmar)`);else if(esLateral(p.pared)&&!p.pos)e.push(`Elegí en qué parte del ${p.pared.toLowerCase()} va la puerta${n}`);if(p.med==='Otra'&&(!p.ancho||!p.alto))e.push(`Poné ancho y alto de la puerta${n}`)});
-    d.ventanas.forEach((v,i)=>{if(!v.esp||!v.ancho||!v.alto||!v.tipo||!v.pared)e.push(`Completá la ventana ${i+1}`);else if(esLateral(v.pared)&&!v.pos)e.push(`Elegí en qué parte del ${v.pared.toLowerCase()} va la ventana ${i+1}`)});
+    if(!d.puertaP)puertasVal().forEach((p,i)=>{const n=d.puertas.length>1?' '+(i+1):'';if(!p.tipo||!p.pared||!p.mano)e.push(`Completá tipo, pared y apertura de la puerta${n} (o marcá las puertas a confirmar)`);else if(esLateral(p.pared)&&!p.pos)e.push(`Elegí en qué parte del ${p.pared.toLowerCase()} va la puerta${n}`);if(p.med==='Otra'&&(!p.ancho||!p.alto))e.push(`Poné ancho y alto de la puerta${n}`);if(!revisandoGuardada){const m=msgExceso(p,true,'Puerta'+n);if(m)e.push(m)}});
+    d.ventanas.forEach((v,i)=>{if(!v.esp||!v.ancho||!v.alto||!v.tipo||!v.pared)e.push(`Completá la ventana ${i+1}`);else if(esLateral(v.pared)&&!v.pos)e.push(`Elegí en qué parte del ${v.pared.toLowerCase()} va la ventana ${i+1}`);if(!revisandoGuardada){const m=msgExceso(v,false,'Ventana '+(i+1));if(m)e.push(m)}});
     const L=largoTot(),A=Number(d.ancho)||244;
     PAREDES.forEach(pa=>{const suma=d.ventanas.filter(v=>v.pared===pa).reduce((s,v)=>s+(Number(v.ancho)||0),0)+d.puertas.filter(p=>p.pared===pa).reduce((s,p)=>s+anchoPuerta(p),0);const max=esLateral(pa)?L-60:A-40;
       if(L&&suma>max)e.push(`Las aberturas del ${nomPared(pa)} suman ${suma} cm y no entran en ${esLateral(pa)?L:A} cm de pared`)})}
@@ -193,9 +224,10 @@ function render(){
     <div class="card">${barraAbert()}${abertSVG(true)}</div>
     <div class="card ${d.puertaP?'pend':''}"><div class="lbl">Puertas exteriores <small>${d.puertas.length} cargada${d.puertas.length>1?'s':''}</small> ${confBox('puertaP',d.puertaP)}</div>
       ${d.puertas.map((p,i)=>`<div class="abert"><div class="abert-h">Puerta ${i+1} <span style="color:var(--nar)">(P${i+1})</span>${d.puertas.length>1?`<button class="x" data-quitarp="${i}">Quitar</button>`:''}</div>
-      <div class="lbl" style="font-weight:600">Tipo</div>${ops('pu.'+i+'.tipo',['De abrir','Corrediza','Original del contenedor'],p.tipo)}
+      <div class="lbl" style="font-weight:600">Tipo</div>${ops('pu.'+i+'.tipo',listaCon(tiposPuerta(),p.tipo),p.tipo)}
       <div class="lbl" style="font-weight:600;margin-top:10px">Medida (ancho)</div>${ops('pu.'+i+'.med',['80','90','Otra'],p.med)}
       ${p.med==='Otra'?`<div class="fila"><div class="unidad"><input type="number" data-pui="${i}.ancho" placeholder="Ancho" value="${esc(p.ancho)}"><b>cm</b></div><div class="unidad"><input type="number" data-pui="${i}.alto" placeholder="Alto" value="${esc(p.alto)}"><b>cm</b></div></div>`:''}
+      ${avisoLim(p,true,i,'Puerta'+(d.puertas.length>1?' '+(i+1):''))}
       <div class="lbl" style="font-weight:600;margin-top:10px">Pared <small>mirá el dibujo</small></div>${ops('pu.'+i+'.pared',PAREDES,p.pared)}
       ${esLateral(p.pared)?`<div class="lbl" style="font-weight:600;margin-top:10px">¿En qué parte del ${p.pared.toLowerCase()}?</div>${ops('pu.'+i+'.pos',UBI,p.pos)}`:''}
       <div class="lbl" style="font-weight:600;margin-top:10px">Apertura</div>${ops('pu.'+i+'.mano',['Hacia afuera, bisagra izquierda','Hacia afuera, bisagra derecha','Hacia adentro, bisagra izquierda','Hacia adentro, bisagra derecha'],p.mano)}
@@ -206,7 +238,8 @@ function render(){
         <div class="lbl" style="font-weight:600">Espacio</div>${ops('v.'+i+'.esp',espOps.length?espOps:['General'],v.esp)}
         <div class="lbl" style="font-weight:600;margin-top:8px">Medida</div>${ops('v.'+i+'.med',['100 × 100','100 × 60','60 × 40 (baño)','Otra'],v.med)}
         ${v.med==='Otra'?`<div class="fila"><div class="unidad"><input type="number" data-vi="${i}.ancho" placeholder="Ancho" value="${esc(v.ancho)}"><b>cm</b></div><div class="unidad"><input type="number" data-vi="${i}.alto" placeholder="Alto" value="${esc(v.alto)}"><b>cm</b></div></div>`:''}
-        <div class="lbl" style="font-weight:600;margin-top:8px">Tipo</div>${ops('v.'+i+'.tipo',['Corrediza','De abrir','Ventiluz'],v.tipo)}
+        <div class="lbl" style="font-weight:600;margin-top:8px">Tipo</div>${ops('v.'+i+'.tipo',listaCon(tiposVentana(),v.tipo),v.tipo)}
+        ${avisoLim(v,false,i,'Ventana '+(i+1))}
         <div class="lbl" style="font-weight:600;margin-top:8px">Pared <small>mirá el dibujo</small></div>${ops('v.'+i+'.pared',PAREDES,v.pared)}
         ${esLateral(v.pared)?`<div class="lbl" style="font-weight:600;margin-top:8px">¿En qué parte del ${v.pared.toLowerCase()}?</div>${ops('v.'+i+'.pos',UBI,v.pos)}`:''}
         <div class="lbl" style="font-weight:600;margin-top:8px">Protección</div>${ops('v.'+i+'.prot',['Reja','Mosquitero','Sin protección'],v.prot)}</div>`).join('')}
@@ -574,6 +607,9 @@ function modelo(m){
   Object.assign(d,limpio(base));d.espacios=base.espacios;d.revAsig={};d.elec={};const [l,a,h]=MED[d.tam];d.largo=l;d.ancho=a;d.alto=h;
   render();toast('Modelo cargado: revisá y cambiá lo que haga falta');
 }
+// Aviso de medida fuera de límite mientras se escribe (sin redibujar, para no perder el foco)
+function pintarLim(k,i){const el=$(`[data-lim="${k}${i}"]`);if(!el)return;const esP=k==='p',o=(esP?d.puertas:d.ventanas)[i];
+  const m=msgExceso(o,esP,esP?'Puerta'+(d.puertas.length>1?' '+(i+1):''):'Ventana '+(i+1));el.textContent=m?'⚠️ '+m:'';el.style.display=m?'':'none'}
 function limpio(o){return JSON.parse(JSON.stringify(o))}
 function toast(t){let el=document.getElementById('np-tt');if(!el){el=document.createElement('div');el.id='np-tt';document.body.appendChild(el)}el.textContent=t;el.style.opacity=1;clearTimeout(toast.t);toast.t=setTimeout(()=>el.style.opacity=0,/^⚠️/.test(t)?7000:2400)}
 function conectar(R0){
@@ -611,8 +647,8 @@ R0.addEventListener('click',e=>{
 R0.addEventListener('input',e=>{const t=e.target;
   if(t.dataset.i==='unidades'){d.unidades=t.value===''?'':Number(t.value);return}
   if(t.dataset.i){d[t.dataset.i]=t.value;if(t.dataset.i==='loc'){const a=$('#np-maps-a');if(a)a.href=mapsUrl()}}
-  if(t.dataset.pui){const [i,c]=t.dataset.pui.split('.');d.puertas[+i][c]=t.value}
-  if(t.dataset.vi){const [i,c]=t.dataset.vi.split('.');d.ventanas[+i][c]=t.value}
+  if(t.dataset.pui){const [i,c]=t.dataset.pui.split('.');d.puertas[+i][c]=t.value;pintarLim('p',+i)}
+  if(t.dataset.vi){const [i,c]=t.dataset.vi.split('.');d.ventanas[+i][c]=t.value;pintarLim('v',+i)}
 });
 R0.addEventListener('change',e=>{const t=e.target;
   if(t.dataset.c){d[t.dataset.c]=t.checked;render()}
@@ -711,7 +747,7 @@ function lineasCosteo(){
   // aberturas
   if(d.puertaP)add('Puerta exterior (a confirmar)','mat','c/u',d.puertas.length||1,'',true);
   else if(d.segunPlano&&!d.puertas.some(p=>p.tipo))add('Puerta exterior (según plano)','mat','c/u',1,'',true);
-  else d.puertas.forEach(p=>{if(!p.tipo)return;add('Puerta exterior · '+p.tipo+(p.tipo==='Original del contenedor'?'':' '+(p.med==='Otra'?'medida especial':(p.med||'90')+' cm')),'mat','c/u',1,p.med==='Otra'?p.ancho+' × '+p.alto+' cm':'');
+  else d.puertas.forEach(p=>{if(!p.tipo)return;add('Puerta exterior · '+(PUERTA_MAT[p.tipo]||p.tipo)+(p.tipo===PUERTA_ORIG?'':' '+(p.med==='Otra'?'medida especial':(p.med||'90')+' cm')),'mat','c/u',1,p.med==='Otra'?p.ancho+' × '+p.alto+' cm':'');
     if(p.prot==='Reja')add('Reja de puerta','mat','c/u',1);if(p.prot==='Postigón')add('Postigón','mat','c/u',1)});
   d.ventanas.forEach(v=>{add('Ventana '+(d.linea||'')+' · '+(v.med==='Otra'?'medida especial':(v.med||'').replace(' (baño)','')),'mat','c/u',1,v.med==='Otra'?v.ancho+' × '+v.alto+' cm':'');
     if(v.prot==='Reja')add('Reja de ventana','mat','c/u',1);if(v.prot==='Mosquitero')add('Mosquitero','mat','c/u',1)});
@@ -741,6 +777,8 @@ window.NotaPedido={abrir,cerrar,
   dibujos:f=>conD(f,()=>(d.espacios.length?planoSVG():'')+abertSVG()),
   pendientes:f=>conD(f,()=>pendientes()),
   faltantes,compat,nombreSugerido,tipoTrabajo,EMPRESAS,
+  // limitaciones de aberturas: la app las trae de la base (migración 0022) y las pasa acá
+  LIM_DEF,limites:()=>LIM,setLimites:l=>{LIM=Array.isArray(l)&&l.length?l:LIM_DEF},
   // tipología del proyecto, para la receta de materiales: producto, tamaño y cantidad de unidades
   TIPOLOGIAS:[...PROD_MOD,'Contenedor cortado','Reefer','Contenedor'],TAMS:Object.keys(MED),
   tipologia:f=>conD(f,()=>({prod:d.prod,tam:d.tam,unidades:unidades()})),
