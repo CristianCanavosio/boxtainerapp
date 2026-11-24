@@ -98,7 +98,7 @@ function avisoPedido(x){
 
 // ── quién puede hacer qué (la base vuelve a controlarlo) ──
 function puedePedirCarp(p){
-  if(MODO!=='nube'||!pcListo||rol()==='lectura') return false;
+  if(!pcListo||rol()==='lectura') return false;
   const e=etapaDe(p);
   return (esOp()&&(e==='asignacion'||e==='ejecucion'))||(rol()==='supervisor'&&p.supId===myId&&e==='ejecucion');
 }
@@ -174,7 +174,6 @@ function tarjetaPedido(x,{conProyecto}={}){
 
 // ── sección dentro del detalle del proyecto ──
 function seccionPedidosCarp(p){
-  if(MODO!=='nube') return '';
   if(!(esOp()||rol()==='lectura'||(rol()==='supervisor'&&p.supId===myId))) return '';
   const e=etapaDe(p); if(!(e==='asignacion'||e==='ejecucion')) return '';
   if(!pcListo) return esOp()?`<div class="dsec"><h3>🛠️ Órdenes de trabajo</h3><div style="font-size:13px">Para activarlo hay que correr la migración <b>0009_pedidos_a_carpinterias.sql</b> en Supabase.</div></div>`:'';
@@ -182,33 +181,30 @@ function seccionPedidosCarp(p){
   return `<div class="dsec" id="pc-sec"><h3>🛠️ Órdenes de trabajo (${ls.length})</h3>
     ${ls.length?ls.map(x=>tarjetaPedido(x)).join(''):'<div style="font-size:13px;color:var(--gris-m);margin-bottom:8px">Todavía no se pidió nada.</div>'}
     ${puedePedirCarp(p)?`<div class="flex-btns" style="flex-wrap:wrap;margin-top:6px">
-      ${tallersDisponibles().map(k=>`<button class="btn btn-sec btn-sm" onclick="abrirPedidoCarp('${pid}','${k}')">${TALLER[k].pedir}</button>`).join('')}</div>`:''}
+      ${TALLERES.map(k=>`<button class="btn btn-sec btn-sm" onclick="abrirPedidoCarp('${pid}','${k}')">${TALLER[k].pedir}</button>`).join('')}</div>`:''}
   </div>`;
 }
 // En "Información" del proyecto: el estado y la fecha de cada orden de trabajo. Cuando Utilbox o los
 // técnicos la toman y le ponen fecha, el supervisor la ve acá (se actualiza sola con cada cambio).
 function ordenesInfoHTML(p){
-  if(MODO!=='nube'||!pcListo) return '';
+  if(!pcListo) return '';
   const ls=(p.pedidosCarp||[]).filter(x=>x.estado!=='cancelado');
   return TALLERES.map(k=>{const x=ls.find(y=>y.taller===k); if(!x) return '';
     const av=avisoPedido(x), col=TALLER[k].coloca;
     const fecha=x.comp?`${col?'colocan':'lista'} el <b>${esc(fmtFecha(x.comp))}</b>`:x.estado==='enviado'?'esperando que la tomen':'';
     return `<div class="drow"><span class="lbl">${TALLER[k].t}</span><span class="val"><span class="badge ${estPC(x).cls}">${esc(estPC(x).t)}</span> ${fecha}${av&&av.c==='rojo'?` <span style="color:var(--rojo)">⚠️ ${esc(av.t)}</span>`:''}</span></div>`;}).join('');
 }
-// los aires necesitan la migración 0017: si falta, el pedido a aires da error y se avisa
-const pcAires=true;
-const tallersDisponibles=()=>TALLERES.filter(k=>k!=='aires'||pcAires);
 
 // ── paso del líder: después de validar el stock, pedir aberturas y aires ──
 // Qué hay que pedir según la nota: aberturas a la fábrica (aluminio), lo de madera y la colocación
 // de los aires. Para cada uno: el pedido que ya salió, o el botón para mandarlo.
 function pedidosNecesarios(p){
   if(!esNota(p)) return [];
-  return tallersDisponibles().filter(k=>sugerenciasCarp(p,k).length);
+  return TALLERES.filter(k=>sugerenciasCarp(p,k).length);
 }
 function pedidoVigente(p,k){return (p.pedidosCarp||[]).find(x=>x.taller===k&&x.estado!=='cancelado');}
 function faltaPedir(p){
-  if(MODO!=='nube'||!pcListo) return [];
+  if(!pcListo) return [];
   return pedidosNecesarios(p).filter(k=>!pedidoVigente(p,k));
 }
 const NOMBRE_NEC={aluminio:'Aberturas (Utilbox)',madera:'Muebles (Utilbox)',aires:'Aire acondicionado'};
@@ -225,17 +221,16 @@ function pcIrAMateriales(){
   sec.style.transition='box-shadow .3s';sec.style.boxShadow='0 0 0 3px var(--naranja,#E8761A)';setTimeout(()=>{sec.style.boxShadow='';},1800);
 }
 function bloquePedidosLider(p,stockOk){
-  if(MODO!=='nube') return '';
   if(!pcListo) return `<p style="font-size:12px;color:var(--gris-m);margin-bottom:8px">📨 Para pedir aberturas y aires desde acá hay que correr las migraciones 0009 y 0017 en Supabase.</p>`;
   const nec=pedidosNecesarios(p), pid=esc(p.id);
-  const otros=tallersDisponibles().filter(k=>!nec.includes(k)&&pedidoVigente(p,k));
+  const otros=TALLERES.filter(k=>!nec.includes(k)&&pedidoVigente(p,k));
   const filas=[...nec,...otros].map(k=>{const x=pedidoVigente(p,k);
     return `<div class="drow"><span class="lbl">${esc(NOMBRE_NEC[k])}</span><span class="val">${x
       ?`<span class="badge ${estPC(x).cls}">${esc(estPC(x).t)}</span> N° ${esc(x.num)}`
       :stockOk?`<button class="btn btn-nar btn-sm" onclick="abrirPedidoCarp('${pid}','${k}')">📨 Generar orden</button>`
       :`<button class="btn btn-sec btn-sm" style="opacity:.6" onclick="pcFaltaStock()">🔒 Generar orden</button>`}</span></div>`;}).join('');
   const falta=nec.filter(k=>!pedidoVigente(p,k));
-  const extra=tallersDisponibles().filter(k=>!nec.includes(k)&&!pedidoVigente(p,k)); // pedidos que la nota no sugiere
+  const extra=TALLERES.filter(k=>!nec.includes(k)&&!pedidoVigente(p,k)); // pedidos que la nota no sugiere
   return `<div style="margin-bottom:10px"><div style="font-size:13px;font-weight:700;margin-bottom:4px">🛠️ Órdenes de trabajo${stockOk?'':' <span style="font-weight:400;color:var(--rojo)">🔒 se habilitan cuando el stock esté validado</span>'}</div>
     ${filas||`<div style="font-size:12px;color:var(--gris-m)">La nota no tiene aberturas, muebles ni aires.</div>`}
     ${falta.length&&stockOk?`<div style="font-size:12px;color:var(--nar,#c66a00);margin-top:4px">Falta generar la orden de: ${falta.map(k=>esc(NOMBRE_NEC[k].toLowerCase())).join(', ')}. Revisá la lista antes de mandarla.</div>`:''}
@@ -381,10 +376,10 @@ function renderPedidosCarp(){
     [TALLER[taller].coloca?'✅ Colocados, esperando revisión':'✅ Listos, esperando retiro',ls.filter(x=>x.estado==='listo')],
     ['🗂️ Cerrados',ls.filter(x=>!PC_ABIERTO.includes(x.estado)||x.estado==='rechazado').slice(0,30)],
   ]:null;
-  const chips=!taller?`<div class="chips">${[['activos','Abiertas'],['aluminio','🪟 Aberturas'],['madera','🪑 Muebles'],...(pcAires?[['aires','❄️ Aires']]:[]),['atrasados','⚠️ Con aviso'],['cerrados','Cerradas']]
+  const chips=!taller?`<div class="chips">${[['activos','Abiertas'],['aluminio','🪟 Aberturas'],['madera','🪑 Muebles'],['aires','❄️ Aires'],['atrasados','⚠️ Con aviso'],['cerrados','Cerradas']]
     .map(([k,t])=>`<div class="chip ${pcFiltro===k?'active':''}" onclick="setFiltroPC('${k}')">${t}</div>`).join('')}</div>`:'';
   const abiertos=ls.filter(x=>PC_ABIERTO.includes(x.estado));
-  const res=`<div class="stats-4 pc-res">${tallersDisponibles().filter(k=>!taller||k===taller).map(k=>{
+  const res=`<div class="stats-4 pc-res">${TALLERES.filter(k=>!taller||k===taller).map(k=>{
       const a=abiertos.filter(x=>x.taller===k), atr=a.filter(x=>avisoPedido(x)?.c==='rojo').length;
       return `<div class="stat-box"><div class="stat-num">${a.length}</div><div class="stat-lbl">${taller?'Órdenes abiertas':TALLER[k].corto+' abiertas'}${atr?` · <b style="color:var(--rojo)">${atr} con problema</b>`:''}</div></div>`;}).join('')}</div>`;
   if(taller){
@@ -404,7 +399,7 @@ function renderPedidosCarp(){
 // si no, un cartel en la app. Los cambios que hizo el propio usuario no avisan.
 const PC_VISTO_KEY=()=>'pc_visto_'+(myId||'');
 function pcAvisar(){
-  if(MODO!=='nube'||!myId) return;
+  if(!myId) return;
   let visto=null; try{visto=JSON.parse(localStorage.getItem(PC_VISTO_KEY())||'null');}catch(e){}
   const ahora={}; pedidosCarp.forEach(x=>{ahora[x.id]=x.estado+'|'+(x.comp||'');});
   try{localStorage.setItem(PC_VISTO_KEY(),JSON.stringify(ahora));}catch(e){}
@@ -461,7 +456,7 @@ async function pcActivarAvisos(){
 let pcPush=false, pcArrancado=false;
 function b64aBytes(b){const p='='.repeat((4-b.length%4)%4), r=atob((b+p).replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from(r,c=>c.charCodeAt(0));}
 async function pcSuscribirPush(silencioso){
-  if(!('serviceWorker' in navigator)||!('PushManager' in window)||!window.VAPID_PUBLIC||MODO!=='nube') return false;
+  if(!('serviceWorker' in navigator)||!('PushManager' in window)||!window.VAPID_PUBLIC) return false;
   try{
     const reg=await navigator.serviceWorker.register('sw.js'); await navigator.serviceWorker.ready;
     const sub=await reg.pushManager.getSubscription()||await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64aBytes(window.VAPID_PUBLIC)});

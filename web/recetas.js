@@ -50,7 +50,7 @@ function baseConReceta(p,nota,rec){
 
 function renderRecetas(){
   const el=document.getElementById('recetas-sec'); if(!el) return;
-  if(MODO!=='nube'||!esOp()){el.innerHTML='';return;}
+  if(!esOp()){el.innerHTML='';return;}
   if(!recetasListo){el.innerHTML=`<div class="card"><div style="font-size:14px;font-weight:800">📐 Receta por tipología</div>
     <div style="font-size:13px;margin-top:6px">Para activarla hay que correr la migración <b>0013_parte_diario_y_pintura.sql</b> en Supabase.</div></div>`;return;}
   const T=NotaPedido.TIPOLOGIAS, TM=NotaPedido.TAMS;

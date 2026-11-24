@@ -55,7 +55,7 @@ function anotarVersionLocal(p,tipo){
 // ── ventas avisa que el cliente aprobó ──
 async function reconfirmarNota(id,btn){
   const p=todos[id]; if(!p||!puedeReconfirmar(p)) return;
-  if(!confirm('¿El cliente aprobó la nota con el cambio? Confirmalo solo si ya te respondió.')) return;
+  if(!await confirmar('¿El cliente aprobó la nota con el cambio? Confirmalo solo si ya te respondió.')) return;
   if(btn) btn.disabled=true;
   try{chk(await sb.rpc('reconfirmar_nota',{pid:id}));}
   catch(e){console.error(e);toast('⚠️ No se pudo registrar: '+(e.message||'error'));if(btn) btn.disabled=false;return;}

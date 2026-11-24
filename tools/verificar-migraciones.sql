@@ -17,6 +17,7 @@ from (values
   ('0019', to_regclass('public.stock_taller') is not null, 'Supervisor Company, órdenes de trabajo y stock de Utilbox'),
   ('0020', to_regclass('public.metas_indicadores') is not null, 'Metas de los indicadores de Reportes'),
   ('0021', to_regclass('public.posiciones_planta') is not null, 'Posiciones en planta P1 a P8'),
-  ('0022', to_regclass('public.limites_aberturas') is not null, 'Limitaciones de aberturas en la nota de pedido')
+  ('0022', to_regclass('public.limites_aberturas') is not null, 'Limitaciones de aberturas en la nota de pedido'),
+  ('0023', coalesce((select pg_get_functiondef('public.proteger_campos()'::regprocedure) like '%libres_sup%'), false), 'Supervisor y arquitectura solo cambian lo suyo; arquitectura puede devolver sin plano')
 ) as m(migracion, ok, para_que)
 order by 1;

@@ -13,7 +13,7 @@ const rolCarga=()=>rol()||perfiles[myId]?.rol||'';
 
 async function cargarStockTaller(){
   stockTaller=[]; stListo=false;
-  if(MODO!=='nube'||!['carp_aluminio','carp_madera','admin','lider','lectura'].includes(rolCarga())) return;
+  if(!['carp_aluminio','carp_madera','admin','lider','lectura'].includes(rolCarga())) return;
   try{
     const rs=await traerSinOrden('stock_taller');
     stockTaller=rs.map(r=>({taller:r.taller,cod:r.codigo||'',desc:r.descripcion||'',cant:Number(r.cantidad)||0,unidad:r.unidad||'',en:r.cargado_en,
