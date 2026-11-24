@@ -16,6 +16,7 @@ from (values
   ('0018', to_regclass('public.push_suscripciones') is not null, 'Avisos al celular con la app cerrada'),
   ('0019', to_regclass('public.stock_taller') is not null, 'Supervisor Company, órdenes de trabajo y stock de Utilbox'),
   ('0020', to_regclass('public.metas_indicadores') is not null, 'Metas de los indicadores de Reportes'),
-  ('0021', to_regclass('public.posiciones_planta') is not null, 'Posiciones en planta P1 a P8')
+  ('0021', to_regclass('public.posiciones_planta') is not null, 'Posiciones en planta P1 a P8'),
+  ('0022', to_regclass('public.limites_aberturas') is not null, 'Limitaciones de aberturas en la nota de pedido')
 ) as m(migracion, ok, para_que)
 order by 1;

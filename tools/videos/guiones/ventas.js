@@ -39,7 +39,7 @@ module.exports={
       await g.siguiente();
     });
     await g.decir('Cada puerta lleva tipo, pared, ubicación y hacia dónde abre.',async()=>{
-      await g.op('pu.0.tipo','De abrir');
+      await g.op('pu.0.tipo','Puerta ingreso');
       await g.op('pu.0.pared','Lateral A');
       await g.op('pu.0.pos','Extremo izquierdo');
       await g.op('pu.0.mano','Hacia afuera, bisagra derecha');

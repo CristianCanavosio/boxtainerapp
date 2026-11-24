@@ -171,6 +171,7 @@ async function cargarTodo(){
   await cargarMateriales(T);
   await cargarPedidosCarp(T);
   await cargarRecetas();
+  await cargarLimitesAberturas();
   await cargarCosteo();
   await cargarMetas();
   await cargarPosiciones();
@@ -764,7 +765,7 @@ async function iniciarNube(){
 const RENDERS={
   dashboard:()=>renderDash(), proyectos:()=>renderProyectos(), kanban:()=>renderKanban(),
   alertas:()=>renderAlertas(), personal:()=>renderPersonal(), contenedores:()=>{updContSel();renderContenedores()},
-  materiales:()=>{updMatSel();renderMateriales();renderRecetas()}, pedidos:()=>{pintarBurbujaPC();renderPedidosCarp()}, stock:()=>renderStockTaller(), usuarios:()=>renderUsuarios(), costos:()=>renderCostos(), reportes:()=>renderReportes(), sugerencias:()=>renderSugerencias(), recursos:()=>renderRecursos()
+  materiales:()=>{updMatSel();renderMateriales();renderRecetas();renderLimitesAberturas()}, pedidos:()=>{pintarBurbujaPC();renderPedidosCarp()}, stock:()=>renderStockTaller(), usuarios:()=>renderUsuarios(), costos:()=>renderCostos(), reportes:()=>renderReportes(), sugerencias:()=>renderSugerencias(), recursos:()=>renderRecursos()
 };
 function showView(name){
   const t=tabsPermitidas();
