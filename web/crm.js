@@ -33,7 +33,7 @@ const CRM_NOCALIF=['No decide la compra','No tiene presupuesto','No lo necesita'
 const CRM_AUTO={precalificado:['llamar','Calificar: quién decide, para cuándo, presupuesto',1],
   calificado:['whatsapp','Mandar el presupuesto',1],presupuesto:['llamar','Seguimiento del presupuesto',2],acuerdo:['llamar','Pedir la orden de compra / facturar',2]};
 
-const crm={ops:[],tareas:[],prob:{},falta:false,tab:'hoy',filtro:'abiertas',vend:'',busca:'',det:null,modo:'',nuevo:null,tarea:null,comFiltro:'cobrar'};
+const crm={kbCol:0,kbX:0,ops:[],tareas:[],prob:{},falta:false,tab:'hoy',filtro:'abiertas',vend:'',busca:'',det:null,modo:'',nuevo:null,tarea:null,comFiltro:'cobrar'};
 
 const rolCRM=()=>perfiles[myId]?.rol||'';
 function puedeCRM(){return ['ventas','lider_ventas','admin'].includes(rolCRM())}
@@ -142,6 +142,7 @@ function renderCRM(){
   if(veTodoCRM()&&crm.tab!=='hoy') h+=crmSelVendedor();
   h+=crm.tab==='embudo'?crmEmbudoHTML():crm.tab==='pronostico'?crmPronosticoHTML():crm.tab==='comisiones'?crmComisionesHTML():crmHoyHTML();
   el.innerHTML=h;
+  crmKbRestaurar();
 }
 function crmVendedores(){
   const ids=new Set(crm.ops.map(o=>o.vendedor_id));
@@ -180,28 +181,72 @@ function crmHoyHTML(){
 }
 
 // ── Embudo: oportunidades por etapa ──
+// Columnas del tablero (kanban): las 4 etapas abiertas y Ganado. Perdido y No calificado se ven aparte, en lista.
+const CRM_KB=[...CRM_ABIERTAS,'ganado'];
+const CRM_SIG={precalificado:'calificado',calificado:'presupuesto',presupuesto:'acuerdo',acuerdo:'ganado'};
 function crmEmbudoHTML(){
   const base=crmMias();
   const q=crm.busca.trim().toLowerCase();
   const pasa=o=>!q||[o.cliente,o.telefono,o.producto].some(x=>String(x||'').toLowerCase().includes(q));
-  const n=k=>base.filter(o=>(k==='abiertas'?CRM_ABIERTAS.includes(o.etapa):o.etapa===k)).length;
-  const fs=[['abiertas','Abiertas'],...CRM_ET.slice(4).map(e=>[e.k,e.i+' '+e.t])];
+  if(!['abiertas','perdido','no_calificado'].includes(crm.filtro)) crm.filtro='abiertas';
+  const n=k=>base.filter(o=>o.etapa===k).length;
   let h=`<div class="fg" style="margin-bottom:8px"><input type="search" placeholder="🔍 Buscar cliente o teléfono" value="${esc(crm.busca)}" oninput="crm.busca=this.value;crmPintarEmbudo()"></div>
-    <div class="chips">${fs.map(([k,t])=>`<button class="chip${crm.filtro===k?' active':''}" onclick="crm.filtro='${k}';renderCRM()">${t} <span class="chip-n">${n(k)}</span></button>`).join('')}</div>
+    <div class="chips crm-kb-nav">${CRM_KB.map((k,i)=>{const e=crmEt(k);return `<button class="chip${crm.filtro==='abiertas'&&crm.kbCol===i?' active':''}" onclick="crmIrColumna(${i})">${e.i} <span class="chip-n">${n(k)}</span></button>`;}).join('')}
+      ${['perdido','no_calificado'].map(k=>{const e=crmEt(k);return `<button class="chip${crm.filtro===k?' active':''}" onclick="crm.filtro='${k}';renderCRM()">${e.i} ${e.t} <span class="chip-n">${n(k)}</span></button>`;}).join('')}</div>
     <div id="crm-embudo">`;
   if(crm.filtro==='abiertas'){
-    h+=CRM_ABIERTAS.map(k=>{const e=crmEt(k), l=base.filter(o=>o.etapa===k&&pasa(o));
+    h+=`<div class="crm-kb" id="crm-kb" onscroll="crmKbScroll(this)">${CRM_KB.map(k=>{const e=crmEt(k);
+      let l=base.filter(o=>o.etapa===k&&pasa(o));
+      // en Ganado, las de los últimos 60 días (el resto, en Pronóstico y Comisiones)
+      if(k==='ganado'&&!q) l=l.filter(o=>crmDiasA(crmFechaGanado(o))>=-60);
       const tot=l.reduce((s,o)=>s+crmImporte(o),0);
-      return `<div class="sec-title crm-et-tit">${e.i} ${e.t} <span class="sec-sub">${l.length}${tot?' · '+usd(tot):''}</span></div>
-        ${l.length?l.map(crmCard).join(''):'<div class="crm-vacio">Sin oportunidades</div>'}`;}).join('');
+      return `<section class="crm-col" data-et="${k}" ondragover="event.preventDefault();this.classList.add('sobre')" ondragleave="this.classList.remove('sobre')" ondrop="crmSoltar(event,'${k}')">
+        <div class="crm-col-tit"><b>${e.i} ${e.t}</b><span>${l.length}${tot?' · '+usd(tot):''}</span></div>
+        ${l.length?l.map(crmKbCard).join(''):'<div class="crm-vacio">Sin oportunidades</div>'}</section>`;}).join('')}</div>
+      <p class="crm-ayuda crm-kb-ayuda">Deslizá a los costados para ver cada etapa. Con <b>→</b> pasás la tarjeta a la etapa siguiente.</p>`;
   }else{
     const l=base.filter(o=>o.etapa===crm.filtro&&pasa(o));
-    h+=l.length?l.map(crmCard).join(''):'<div class="empty"><div class="em">🗂️</div><h3>Nada por acá</h3></div>';
+    h+=`<button class="btn btn-sec btn-sm" style="margin-bottom:8px" onclick="crm.filtro='abiertas';renderCRM()">← Volver al tablero</button>`
+      +(l.length?l.map(crmCard).join(''):'<div class="empty"><div class="em">🗂️</div><h3>Nada por acá</h3></div>');
   }
   h+=`</div><button class="btn btn-nar crm-nuevo-btn" onclick="crmNuevo()">+ Nuevo contacto</button>`;
   return h;
 }
-function crmPintarEmbudo(){const el=document.getElementById('crm-embudo');if(!el)return;const t=document.createElement('div');t.innerHTML=crmEmbudoHTML();el.replaceWith(t.querySelector('#crm-embudo'));}
+function crmPintarEmbudo(){const el=document.getElementById('crm-embudo');if(!el)return;const t=document.createElement('div');t.innerHTML=crmEmbudoHTML();el.replaceWith(t.querySelector('#crm-embudo'));crmKbRestaurar();}
+// el tablero recuerda en qué columna estaba al redibujarse
+function crmKbAncho(kb){const c=kb.querySelector('.crm-col');return c?c.getBoundingClientRect().width+10:1;}
+function crmKbScroll(kb){crm.kbX=kb.scrollLeft;const i=Math.round(kb.scrollLeft/crmKbAncho(kb));
+  if(i!==crm.kbCol){crm.kbCol=i;document.querySelectorAll('.crm-kb-nav .chip').forEach((b,j)=>b.classList.toggle('active',crm.filtro==='abiertas'&&j===i));}}
+function crmKbRestaurar(){const kb=document.getElementById('crm-kb');if(kb&&crm.kbX) kb.scrollLeft=crm.kbX;}
+function crmIrColumna(i){
+  if(crm.filtro!=='abiertas'){crm.filtro='abiertas';crm.kbCol=i;crm.kbX=0;renderCRM();}
+  const kb=document.getElementById('crm-kb'); const c=kb&&kb.querySelectorAll('.crm-col')[i];
+  if(c) kb.scrollTo({left:c.offsetLeft-kb.offsetLeft-kb.clientLeft-(parseFloat(getComputedStyle(kb).paddingLeft)||0),behavior:'smooth'});
+}
+function crmKbCard(o){
+  const t=crmPendientes(o.id)[0], sig=CRM_SIG[o.etapa];
+  const tarea=CRM_ABIERTAS.includes(o.etapa)?(t?`<span style="color:${t.vence<hoyISO()?'var(--rojo)':t.vence===hoyISO()?'var(--nar)':'var(--gris-m)'}">${CRM_TAREA[t.tipo]?.split(' ')[0]||'📌'} ${crmCuandoTxt(t.vence)}</span>`:'<span style="color:var(--amarillo)">⚠️ Sin seguimiento</span>'):'';
+  return `<div class="crm-kc" draggable="true" ondragstart="event.dataTransfer.setData('text/plain','${esc(o.id)}')" onclick="crmAbrir('${esc(o.id)}')">
+    <div class="crm-cli">${esc(o.cliente)}</div>
+    <div class="crm-sub">${esc(o.producto||'Producto a definir')}${o.unidades>1?' × '+o.unidades:''}${veTodoCRM()?' · 👤 '+esc(nombreDe(o.vendedor_id)):''}</div>
+    <div class="crm-card-pie"><b>${crmImporte(o)?usd(crmImporte(o)):''}</b>${tarea}
+      ${o.etapa==='ganado'&&!o.proyecto_id?'<span style="color:var(--rojo)">📝 Falta la nota</span>':''}
+      ${o.etapa==='ganado'&&o.cobrado?'<span style="color:var(--verde)">✅ Cobrado</span>':''}</div>
+    ${sig?`<button class="btn btn-sec btn-sm crm-kc-sig" onclick="event.stopPropagation();crmAvanzar('${esc(o.id)}','${sig}')" aria-label="Pasar a ${crmEt(sig).t}">→ ${crmEt(sig).i} ${crmEt(sig).t}</button>`:''}</div>`;
+}
+// Pasar de etapa desde el tablero: si falta la calificación se abre la ficha para completarla
+async function crmAvanzar(id,etapa){
+  const o=crmOp(id); if(!o) return;
+  if(etapa!=='precalificado'&&crmFaltaCalificar(o).length){crmAbrir(id);setTimeout(()=>crmMover(id,etapa),150);return;}
+  if(etapa==='ganado') return crmGanar(id);
+  await crmMover(id,etapa);
+}
+// En la compu también se puede arrastrar la tarjeta a otra columna
+function crmSoltar(ev,etapa){
+  ev.preventDefault(); ev.currentTarget.classList.remove('sobre');
+  const id=ev.dataTransfer.getData('text/plain'), o=crmOp(id); if(!o||o.etapa===etapa) return;
+  crmAvanzar(id,etapa);
+}
 function crmCard(o){
   const e=crmEt(o.etapa), t=crmPendientes(o.id)[0];
   const tarea=CRM_ABIERTAS.includes(o.etapa)?(t?`<span style="color:${t.vence<hoyISO()?'var(--rojo)':t.vence===hoyISO()?'var(--nar)':'var(--gris-m)'}">${CRM_TAREA[t.tipo]?.split(' ')[0]||'📌'} ${crmCuandoTxt(t.vence)}</span>`:'<span style="color:var(--amarillo)">⚠️ Sin seguimiento</span>'):'';

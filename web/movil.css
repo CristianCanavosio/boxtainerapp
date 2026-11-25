@@ -198,3 +198,17 @@
 .crm-com{padding:12px 14px}
 .crm-com-vend{margin-top:10px;font-size:14px}
 .crm-tarea .fh-t{font-weight:800}
+/* tablero (kanban) del embudo: en el celular, una columna por pantalla que se desliza de costado */
+.crm-kb{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;
+  margin:0 -14px;padding:2px 14px 10px;scroll-padding:0 14px;align-items:flex-start}
+.crm-kb::-webkit-scrollbar{display:none}
+.crm-col{flex:0 0 84%;scroll-snap-align:start;background:#e9ecef;border-radius:14px;padding:8px;min-height:180px}
+.crm-col.sobre{outline:3px dashed var(--nar)}
+.crm-col-tit{display:flex;justify-content:space-between;align-items:baseline;gap:6px;padding:4px 4px 8px;font-size:14px}
+.crm-col-tit span{font-size:12px;color:var(--gris-m);font-weight:700;white-space:nowrap}
+.crm-kc{background:#fff;border-radius:12px;padding:10px 12px;margin-bottom:8px;box-shadow:0 1px 4px rgba(0,0,0,.08);cursor:pointer}
+.crm-kc .crm-cli{font-size:15px}
+.crm-kc-sig{width:100%;margin-top:8px;min-height:40px;font-size:13px;font-weight:700}
+.crm-kb-nav .chip{font-size:15px}
+.crm-kb-ayuda{text-align:center;margin-top:2px}
+@media(min-width:760px){.crm-col{flex:1 1 0;min-width:190px}.crm-kb{margin:0;padding:2px 0 10px}.crm-kb-ayuda{display:none}}
