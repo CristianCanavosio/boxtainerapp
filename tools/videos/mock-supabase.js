@@ -27,6 +27,10 @@
     if(t==='sugerencias'){const p=tabla('perfiles').find(x=>x.id===ME.id)||{};
       Object.assign(r,{autor:r.autor||ME.id,autor_nombre:p.nombre||'',autor_rol:p.rol||'',estado:'nueva',respuesta:''});}
     if(t==='recursos'){r.actualizado_en=ahora();r.actualizado_por=ME.id;}
+    if(t==='oportunidades'){r.numero=r.numero??++serial;r.vendedor_id=r.vendedor_id||ME.id;r.etapa=r.etapa||'precalificado';r.unidades=r.unidades||1;
+      r.entregado=!!r.entregado;r.cobrado=!!r.cobrado;r.etapa_en=r.etapa_en||ahora();r.actualizado_en=r.actualizado_en||ahora();
+      r.historial=r.historial||[{etapa:r.etapa,en:ahora(),por:ME.id}];}
+    if(t==='tareas_crm'){r.hecha_en=r.hecha_en??null;r.tipo=r.tipo||'llamar';}
     return r;
   }
   function alActualizar(t,r,cambios){
@@ -38,6 +42,8 @@
       cambios.historial=h;
     }
     if(t==='recursos'){cambios.actualizado_en=ahora();cambios.actualizado_por=ME.id;}
+    if(t==='oportunidades'){cambios.actualizado_en=ahora();
+      if(cambios.etapa&&cambios.etapa!==r.etapa){cambios.etapa_en=ahora();cambios.historial=(r.historial||[]).concat([{etapa:cambios.etapa,en:ahora(),por:ME.id}]);}}
   }
   class Q{
     constructor(t){this.t=t;this.op='select';this.f=[];this.ord=[];this.rng=null;this.lim=null;this.val=null;this.opts={};this.uno=false;}
@@ -68,7 +74,7 @@
       }
       if(this.op==='insert'){
         const filas=(Array.isArray(this.val)?this.val:[this.val]).map(r=>porDefecto(this.t,clon(r)));
-        T.push(...filas); avisar(); return {data:clon(filas),error:null};
+        T.push(...filas); avisar(); return {data:this.uno?clon(filas[0]):clon(filas),error:null};
       }
       if(this.op==='upsert'){
         const k=this.opts.onConflict||PK[this.t]||'id';
@@ -80,7 +86,7 @@
       }
       if(this.op==='update'){
         const fs=T.filter(pasa); fs.forEach(r=>{const c=clon(this.val);alActualizar(this.t,r,c);Object.assign(r,c);});
-        avisar(); return {data:clon(fs),error:null};
+        avisar(); return {data:this.uno?clon(fs[0]||null):clon(fs),error:null};
       }
       if(this.op==='delete'){
         const quedan=T.filter(r=>!pasa(r)); DB[this.t]=quedan; avisar(); return {data:[],error:null};

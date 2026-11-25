@@ -142,3 +142,59 @@
 .mp-ok .mp-lista{margin-top:8px}
 
 .nav-burbuja{display:inline-block;min-width:18px;padding:0 5px;border-radius:9px;background:var(--rojo);color:#fff;font-size:11px;font-weight:800;line-height:18px;text-align:center;margin-left:4px}
+
+/* ── CRM de ventas (crm.js) ── */
+.crm-tabs .chip{font-size:14px}
+.crm-nuevo-btn{width:100%;margin:4px 0 12px}
+.crm-ayuda{font-size:13px;color:var(--gris-m);margin-bottom:8px}
+.crm-n{font-size:12px;color:var(--gris-m)}
+.crm-vacio{font-size:13px;color:var(--gris-m);padding:4px 2px 10px}
+.crm-et-tit{margin-top:6px}
+.crm-card{cursor:pointer;padding:12px 14px;margin-bottom:8px}
+.crm-card-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.crm-cli{font-size:16px;font-weight:800;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.crm-sub{font-size:13px;color:var(--gris-m);margin-top:3px;display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center}
+.crm-card-pie{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:13px;margin-top:6px;align-items:center}
+.crm-acc{display:flex;gap:6px;flex:none}
+.crm-acc .btn{min-width:40px;min-height:40px;padding:6px 8px;font-size:16px;display:inline-flex;align-items:center;justify-content:center}
+.crm-ct{text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:4px}
+.crm-contacto{display:flex;gap:8px;margin:10px 0}
+.crm-contacto .btn{flex:1}
+.crm-det-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.crm-ops{display:flex;flex-wrap:wrap;gap:6px}
+.crm-ops .chip{flex:none}
+.crm-modal .fg label small{font-weight:400;color:var(--gris-m)}
+.crm-2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.crm-steps{display:flex;gap:2px;margin:6px 0 12px}
+.crm-step{flex:1;text-align:center;font-size:10px;color:var(--gris-m);padding-top:4px;border-top:4px solid var(--borde);line-height:1.2}
+.crm-step i{display:block;font-style:normal;font-size:16px;filter:grayscale(1);opacity:.5}
+.crm-step.hecho{border-top-color:var(--nar-m)}
+.crm-step.actual{border-top-color:var(--nar);color:var(--nar);font-weight:800}
+.crm-step.hecho i,.crm-step.actual i{filter:none;opacity:1}
+.crm-paso .card-title{margin-bottom:6px}
+.crm-sec-btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.crm-sec-btns .btn{flex:1;min-height:40px}
+.crm-t{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--borde);font-size:14px}
+.crm-nt{margin-top:8px;display:flex;flex-direction:column;gap:6px}
+.crm-nt input[type=text]{width:100%;padding:10px;border:1.5px solid var(--borde);border-radius:10px;font-size:16px}
+.crm-fecha{border:1.5px solid var(--borde);border-radius:20px;padding:6px 10px;font-size:14px;min-height:40px;background:#fff}
+.crm-fecha.active{border-color:var(--nar)}
+.crm-tabla{width:100%;border-collapse:collapse;font-size:13px}
+.crm-tabla th{text-align:left;font-size:11px;color:var(--gris-m);font-weight:700;padding:4px 4px;border-bottom:1px solid var(--borde)}
+.crm-tabla td{padding:7px 4px;border-bottom:1px solid var(--borde);vertical-align:top}
+.crm-prob{width:56px;padding:6px;border:1.5px solid var(--borde);border-radius:8px;font-size:16px}
+.crm-kpis .stat-num{font-size:22px}
+.crm-barra{display:grid;grid-template-columns:100px 1fr 28px;gap:8px;align-items:center;font-size:13px;margin:4px 0}
+.crm-barra div{background:var(--gris-l);border-radius:6px;height:12px;overflow:hidden}
+.crm-barra i{display:block;height:100%;background:var(--rojo)}
+.crm-precios{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:8px 0}
+.crm-precios div{background:#fff;border-radius:10px;padding:8px;font-size:12px;color:var(--gris-m);border:1px solid var(--borde)}
+.crm-precios b{display:block;font-size:14px;color:var(--gris);margin-top:2px}
+.crm-lider-fila{margin-top:8px}
+.crm-lider-fila label{display:block;font-size:12px;font-weight:700;color:var(--gris-m);margin-bottom:4px}
+.crm-lider-fila input{width:100%;padding:10px;border:1.5px solid var(--borde);border-radius:10px;font-size:16px}
+.crm-checks{display:flex;gap:8px}
+.crm-checks .chip{flex:1;justify-content:center}
+.crm-com{padding:12px 14px}
+.crm-com-vend{margin-top:10px;font-size:14px}
+.crm-tarea .fh-t{font-weight:800}

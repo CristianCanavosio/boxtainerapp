@@ -31,7 +31,7 @@ let vistaActual='dashboard';
 // su nombre interno (carp_aluminio / carp_madera) para no tocar permisos ni pedidos ya cargados.
 const ROLES={admin:'👑 Administrador',lider:'🧭 Líder de operaciones',supervisor:'🔨 Supervisor',
   supervisor_company:'🏭 Supervisor Company',
-  ventas:'💼 Ventas',arquitectura:'📐 Arquitectura',lectura:'👁️ Solo lectura',
+  ventas:'💼 Ventas',lider_ventas:'📈 Líder de ventas',arquitectura:'📐 Arquitectura',lectura:'👁️ Solo lectura',
   carp_aluminio:'🪟 Supervisor Aberturas (Utilbox)',carp_madera:'🪑 Supervisor Muebles (Utilbox)',tecnico_aires:'❄️ Técnico aire acondicionado'};
 // rol que se muestra (y se elige en Usuarios): el supervisor marcado como company es "Supervisor Company"
 function rolVisible(uid){const x=perfiles[uid];if(!x) return '';return x.rol==='supervisor'&&x.company?'supervisor_company':x.rol;}
@@ -39,10 +39,12 @@ const esSupCompany=uid=>!!(perfiles[uid]&&perfiles[uid].rol==='supervisor'&&perf
 // producto Company (Módulo habitable Company, Oficina Company): producción estándar
 function esCompany(p){return !!(p&&esNota(p)&&/Company$/.test(NotaPedido.tipologia(p.ficha).prod||''));}
 const TABS={
-  admin:['dashboard','proyectos','kanban','alertas','pedidos','personal','contenedores','materiales','costos','usuarios','reportes','sugerencias','recursos'],
+  admin:['dashboard','proyectos','kanban','alertas','pedidos','personal','contenedores','materiales','costos','crm','usuarios','reportes','sugerencias','recursos'],
   lider:['dashboard','proyectos','kanban','alertas','pedidos','personal','contenedores','materiales','reportes','sugerencias','recursos'],
   supervisor:['dashboard','proyectos','kanban','alertas','pedidos','materiales','sugerencias','recursos'],
-  ventas:['dashboard','proyectos','reportes','sugerencias','recursos'],
+  ventas:['dashboard','crm','proyectos','reportes','sugerencias','recursos'],
+  // líder de ventas: el CRM de todos los vendedores (comisión, entregado y cobrado). Migración 0024.
+  lider_ventas:['crm','sugerencias','recursos'],
   arquitectura:['dashboard','proyectos','sugerencias','recursos'],
   lectura:['dashboard','proyectos','kanban','pedidos','reportes','sugerencias','recursos'],
   // las carpinterías ven solo sus pedidos (y los planos de esos proyectos)
@@ -169,6 +171,7 @@ async function cargarTodo(){
   await cargarCosteo();
   await cargarMetas();
   await cargarPosiciones();
+  if(typeof cargarCRM==='function') await cargarCRM();
   personal=pe.map(r=>({id:r.id,nom:r.nombre,rol:r.rol||'',tel:r.telefono||''}));
   contenedores=ct.map(r=>({id:r.id,cod:r.codigo,tipo:r.tipo||'',estado:r.estado||'',proyId:r.proyecto_id,obs:r.observaciones||''}));
   materiales=ma.map(r=>({id:r.id,nom:r.nombre,cant:r.cantidad||'',est:r.estado,proyId:r.proyecto_id}));
@@ -529,7 +532,7 @@ async function abrirPlano(ev,ruta){
 // ════════════════════════════════════════════════
 function selectRol(id,actual){
   return `<select id="${id}" style="padding:7px;border:1.5px solid var(--borde);border-radius:8px;font-size:12px">
-    ${['ventas','arquitectura','lider','supervisor','supervisor_company','carp_aluminio','carp_madera','tecnico_aires','admin','lectura'].map(r=>`<option value="${r}" ${r===actual?'selected':''}>${ROLES[r]}</option>`).join('')}</select>`;
+    ${['ventas','lider_ventas','arquitectura','lider','supervisor','supervisor_company','carp_aluminio','carp_madera','tecnico_aires','admin','lectura'].map(r=>`<option value="${r}" ${r===actual?'selected':''}>${ROLES[r]}</option>`).join('')}</select>`;
 }
 function renderUsuarios(){
   const lista=document.getElementById('lista-usuarios');
@@ -591,7 +594,8 @@ async function ponerRol(uid,rv){
   const comp=rv==='supervisor_company', r=comp?'supervisor':rv;
   const cambios={rol:r}; if(comp||perfiles[uid]?.company) cambios.company=comp;
   const {data,error}=await sb.from('perfiles').update(cambios).eq('id',uid).select('id');
-  if(error){if(/company/.test(error.message||'')) throw {message:'Para el rol Supervisor Company falta correr la migración 0019 en Supabase'}; throw error;}
+  if(error){if(/company/.test(error.message||'')) throw {message:'Para el rol Supervisor Company falta correr la migración 0019 en Supabase'};
+    if(r==='lider_ventas'&&/enum|rol_app|invalid input/i.test(error.message||'')) throw {message:'Para el rol Líder de ventas falta correr la migración 0024 en Supabase'}; throw error;}
   if(!data||!data.length) throw {code:'42501',message:'permission'};
   perfiles[uid].rol=r; perfiles[uid].company=comp;
   if(r==='pendiente'){delete roles[uid]; solicitudes[uid]={nombre:perfiles[uid].nombre,fecha:fechaDe(perfiles[uid].creado_en),email:perfiles[uid].email};}
@@ -769,7 +773,7 @@ async function iniciarNube(){
 const RENDERS={
   dashboard:()=>renderDash(), proyectos:()=>renderProyectos(), kanban:()=>renderKanban(),
   alertas:()=>renderAlertas(), personal:()=>renderPersonal(), contenedores:()=>{updContSel();renderContenedores()},
-  materiales:()=>{updMatSel();renderMateriales();renderRecetas();renderLimitesAberturas()}, pedidos:()=>{pintarBurbujaPC();renderPedidosCarp()}, stock:()=>renderStockTaller(), usuarios:()=>renderUsuarios(), costos:()=>renderCostos(), reportes:()=>renderReportes(), sugerencias:()=>renderSugerencias(), recursos:()=>renderRecursos()
+  materiales:()=>{updMatSel();renderMateriales();renderRecetas();renderLimitesAberturas()}, pedidos:()=>{pintarBurbujaPC();renderPedidosCarp()}, stock:()=>renderStockTaller(), usuarios:()=>renderUsuarios(), costos:()=>renderCostos(), reportes:()=>renderReportes(), sugerencias:()=>renderSugerencias(), recursos:()=>renderRecursos(), crm:()=>renderCRM()
 };
 function showView(name){
   const t=tabsPermitidas();
@@ -1076,12 +1080,14 @@ const unidadesDe=p=>esNota(p)?Math.max(1,Math.floor(Number(p.ficha.unidades))||1
 const destinoNota=f=>f&&f.arq==='No'?'asignacion':'arquitectura';
 const pasoPorArq=p=>(p.flujo||[]).some(x=>x.a==='arquitectura');
 // Crea el proyecto con lo que cargó ventas en la nota de pedido
-async function crearDesdeNota(f,{enviar,archivos}){
+// extra: datos que vienen del CRM (vendedor de la oportunidad y precio del cliente como valor de venta)
+async function crearDesdeNota(f,{enviar,archivos},extra){
   const p={id:nuevoId(),creadoTs:Date.now(),creadoPor:currentUser?.nombre||'',creadoPorId:myId,creadoEn:hoyISO(),
     historial:[],costos:[],planos:[],flujo:[],consultas:[],incidencias:[],faltantes:[],estado:'presupuesto',avance:0,
     vendId:rol()==='ventas'?myId:null,nombre:NotaPedido.nombreSugerido(f),cli:(f.cli||'').trim()||'Sin nombre',emp:f.empresa||'',
     tipo:NotaPedido.tipoTrabajo(f),entrega:f.fecha||'',val:'',vend:currentUser?.nombre||'',dep:'',pri:'normal',obs:'',
     ficha:NotaPedido.compat(f)};
+  if(extra) Object.assign(p,extra);
   p.etapa=rol()==='ventas'?'ventas':'asignacion';
   p.flujo.push({fecha:hoyISO(),a:p.etapa,autor:currentUser.nombre});
   try{await guardarProyectoOError(p);}catch(e){return false;}
@@ -1089,7 +1095,7 @@ async function crearDesdeNota(f,{enviar,archivos}){
   if(enviar) await moverEtapa(p.id,destinoNota(f));
   else toast('✅ Nota de pedido guardada');
   refrescar();
-  return true;
+  return p.id;
 }
 function editarNota(id){
   const p=todos[id]; if(!p||!puedeEditar(p)) return;
