@@ -120,7 +120,7 @@ function calcularIndicadores(){
       if(m.usada==null||!(m.plan>0)) return;
       if(!enRango(m.usadaTs||ts(m.usadaEn),R)) return;
       items.push({p,m,d:(m.usada-m.plan)/m.plan*100});
-      if(admin){const c=listaCostos[m.clave]; if(c) plata+=(m.usada-m.plan)*c.costo; else sinPrecio++;}
+      if(admin){const c=typeof costoDe==='function'?costoDe(m.clave):listaCostos[m.clave]?.costo; if(c!=null) plata+=(m.usada-m.plan)*c; else sinPrecio++;}
     }));
     const prom=items.length?items.reduce((s,x)=>s+x.d,0)/items.length:null;
     const porClave={}; items.forEach(x=>{const k=x.m.clave; porClave[k]=porClave[k]||[]; porClave[k].push(x.d);});

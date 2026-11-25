@@ -39,7 +39,7 @@ const esSupCompany=uid=>!!(perfiles[uid]&&perfiles[uid].rol==='supervisor'&&perf
 // producto Company (Módulo habitable Company, Oficina Company): producción estándar
 function esCompany(p){return !!(p&&esNota(p)&&/Company$/.test(NotaPedido.tipologia(p.ficha).prod||''));}
 const TABS={
-  admin:['dashboard','proyectos','kanban','alertas','pedidos','personal','contenedores','materiales','costos','crm','usuarios','reportes','sugerencias','recursos'],
+  admin:['dashboard','proyectos','kanban','alertas','pedidos','personal','contenedores','materiales','crm','usuarios','reportes','sugerencias','recursos'],
   lider:['dashboard','proyectos','kanban','alertas','pedidos','personal','contenedores','materiales','reportes','sugerencias','recursos'],
   supervisor:['dashboard','proyectos','kanban','alertas','pedidos','materiales','sugerencias','recursos'],
   ventas:['dashboard','crm','proyectos','reportes','sugerencias','recursos'],
@@ -169,6 +169,7 @@ async function cargarTodo(){
   await cargarRecetas();
   await cargarLimitesAberturas();
   await cargarCosteo();
+  if(typeof cargarMaestro==='function') await cargarMaestro();
   await cargarMetas();
   await cargarPosiciones();
   if(typeof cargarCRM==='function') await cargarCRM();
@@ -773,7 +774,7 @@ async function iniciarNube(){
 const RENDERS={
   dashboard:()=>renderDash(), proyectos:()=>renderProyectos(), kanban:()=>renderKanban(),
   alertas:()=>renderAlertas(), personal:()=>renderPersonal(), contenedores:()=>{updContSel();renderContenedores()},
-  materiales:()=>{updMatSel();renderMateriales();renderRecetas();renderLimitesAberturas()}, pedidos:()=>{pintarBurbujaPC();renderPedidosCarp()}, stock:()=>renderStockTaller(), usuarios:()=>renderUsuarios(), costos:()=>renderCostos(), reportes:()=>renderReportes(), sugerencias:()=>renderSugerencias(), recursos:()=>renderRecursos(), crm:()=>renderCRM()
+  materiales:()=>renderMaterialesTab(), pedidos:()=>{pintarBurbujaPC();renderPedidosCarp()}, stock:()=>renderStockTaller(), usuarios:()=>renderUsuarios(), costos:()=>renderCostos(), reportes:()=>renderReportes(), sugerencias:()=>renderSugerencias(), recursos:()=>renderRecursos(), crm:()=>renderCRM()
 };
 function showView(name){
   const t=tabsPermitidas();

@@ -395,8 +395,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <button class="nav-btn" data-view="stock" onclick="showView('stock')">🗃️ Stock</button>
     <button class="nav-btn" data-view="personal" onclick="showView('personal')">👷 Personal</button>
     <button class="nav-btn" data-view="contenedores" onclick="showView('contenedores')">📦 Contenedores</button>
-    <button class="nav-btn" data-view="materiales" onclick="showView('materiales')">🔧 Materiales</button>
-    <button class="nav-btn" data-view="costos" onclick="showView('costos')">🔒 Costos</button>
+    <button class="nav-btn" data-view="materiales" onclick="showView('materiales')">🔧 Materiales y costos</button>
     <button class="nav-btn" data-view="crm" onclick="showView('crm')">🎯 CRM</button>
     <button class="nav-btn" data-view="usuarios" onclick="showView('usuarios')">👤 Usuarios</button>
     <button class="nav-btn" data-view="reportes" onclick="showView('reportes')">📈 Reportes</button>
@@ -511,9 +510,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <!-- MATERIALES -->
   <div class="view" id="view-materiales">
     <div style="margin-top:12px">
+      <!-- una sola solapa: maestro de insumos y costos (admin), recetas, aberturas y compras -->
+      <div id="mat-subs"></div>
+      <div id="mae-sec"></div>
       <div id="recetas-sec"></div>
       <div id="limites-abert-sec"></div>
-      <div class="sec-title">🔧 Materiales</div>
+      <div id="compras-sec">
+      <div class="sec-title">🛒 Compras de materiales</div>
       <div class="card" id="nm-form">
         <div style="font-size:14px;font-weight:800;margin-bottom:10px">+ Agregar material</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
@@ -531,6 +534,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         <button class="btn btn-nar" onclick="agregarMaterial()">+ Agregar</button>
       </div>
       <div id="lista-materiales"></div>
+      </div>
     </div>
   </div>
 
@@ -869,6 +873,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <script src="costeo.js"></script>
 <script src="costeo-import.js"></script>
 <script src="costos-planilla.js"></script>
+<script src="maestro.js"></script>
 <script src="versiones.js"></script>
 <script src="materiales-proy.js"></script>
 <script src="pedidos-carp.js"></script>
@@ -881,6 +886,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <script src="posiciones.js"></script>
 <script src="app.js"></script>
 <script src="crm.js"></script>
+<script src="cotizador.js"></script>
 <script src="movil.js"></script>
 </body>
 </html>

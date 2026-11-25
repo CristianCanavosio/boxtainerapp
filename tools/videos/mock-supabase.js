@@ -45,6 +45,69 @@
     if(t==='oportunidades'){cambios.actualizado_en=ahora();
       if(cambios.etapa&&cambios.etapa!==r.etapa){cambios.etapa_en=ahora();cambios.historial=(r.historial||[]).concat([{etapa:cambios.etapa,en:ahora(),por:ME.id}]);}}
   }
+  // Cotizador (migración 0025): la misma cuenta que hace la base, en memoria
+  const PK2={cot_insumos:'codigo',cot_tipologias:'codigo',cot_parametros:'clave',cot_equivalencias:'clave',cotizaciones_costo:'cotizacion_id'};
+  Object.assign(PK,PK2);
+  const par=k=>Number((tabla('cot_parametros').find(x=>x.clave===k)||{}).valor);
+  function cotCalc(tip,camb,uni){
+    const t=tabla('cot_tipologias').find(x=>x.codigo===tip); if(!t) throw new Error('La tipología no existe');
+    const m=t.margen??par('margen_default')??0, u=Math.max(1,Math.min(999,uni||1));
+    const base={}; tabla('cot_recetas').filter(r=>r.tipologia===tip).forEach(r=>base[r.insumo]=Number(r.cant));
+    const cods=new Set([...Object.keys(base),...Object.keys(camb||{})]);
+    let costo=0,sin=[]; const det=[];
+    tabla('cot_insumos').filter(i=>cods.has(i.codigo)).sort((a,b)=>String(a.rubro).localeCompare(b.rubro)||a.nombre.localeCompare(b.nombre)).forEach(i=>{
+      const b=base[i.codigo]||0, c=camb&&camb[i.codigo]!=null?Math.max(0,Number(camb[i.codigo])):b;
+      if(!c&&!b) return; det.push({codigo:i.codigo,nombre:i.nombre,unidad:i.unidad,cant:c,base:b});
+      if(c>0){if(i.costo_usd==null) sin.push(i.nombre); else costo+=c*Number(i.costo_usd);}});
+    const pu=Math.round(costo*(1+m));
+    return {tipologia:tip,tipologia_nombre:t.nombre,unidades:u,costo_unit:Math.round(costo*100)/100,costo_total:Math.round(costo*u*100)/100,margen:m,
+      precio_unit:pu,precio_total:pu*u,detalle:det,sin_costo:sin.length,sin_costo_nombres:sin,iva:par('iva')||0,tipo_cambio:par('tipo_cambio'),validez_dias:par('validez_dias')||7};
+  }
+  function cotMock(fn,a){
+    try{
+      const yo=(tabla('perfiles').find(x=>x.id===ME.id)||{}).rol, lider=['admin','lider_ventas'].includes(yo);
+      if(fn==='cot_catalogo') return {data:{tipologias:clon(tabla('cot_tipologias').filter(t=>t.activo!==false).map(({margen,...t})=>t)),
+        insumos:clon(tabla('cot_insumos').filter(i=>i.activo!==false).map(({costo_usd,...i})=>i)),recetas:clon(tabla('cot_recetas')),
+        iva:par('iva'),tipo_cambio:par('tipo_cambio'),validez_dias:par('validez_dias')},error:null};
+      if(fn==='cot_calcular'){const c=cotCalc(a.p_tipologia,a.p_cambios,a.p_unidades);if(!lider){delete c.costo_unit;delete c.costo_total;delete c.margen;}return {data:c,error:null};}
+      if(fn==='cot_guardar'){
+        const c=cotCalc(a.p_tipologia,a.p_cambios,a.p_unidades), lista=c.precio_total, o=tabla('oportunidades').find(x=>x.id===a.p_oportunidad);
+        let ped=a.p_precio_pedido||null, est, fin=null, v=a.p_id&&tabla('cotizaciones').find(x=>x.id===a.p_id);
+        if(v&&v.estado==='enviada') throw new Error('La cotización ya se envió: hacé una nueva');
+        if(ped==null||ped>=lista){est='lista';fin=ped??lista;if(ped===lista)ped=null;}
+        else if(lider){est='autorizada';fin=ped;}
+        else if(v&&v.estado==='autorizada'&&Number(v.precio_final)===ped&&Number(v.precio_lista)===lista){est='autorizada';fin=ped;}
+        else{est='pendiente';if(!String(a.p_motivo||'').trim()) throw new Error('Contale al líder de ventas por qué pedís otro precio');}
+        const fila={oportunidad_id:o.id,vendedor_id:o.vendedor_id,cliente:o.cliente,tipologia:a.p_tipologia,tipologia_nombre:c.tipologia_nombre,unidades:c.unidades,
+          cambios:a.p_cambios||{},detalle:c.detalle,notas:a.p_notas,precio_lista:lista,precio_pedido:ped,motivo_pedido:a.p_motivo,precio_final:fin,estado:est,
+          iva:c.iva,tipo_cambio:c.tipo_cambio,validez_dias:c.validez_dias,sin_costo:c.sin_costo,actualizado_en:ahora()};
+        if(est==='pendiente') fila.respuesta=null;
+        if(v) Object.assign(v,fila); else{v=Object.assign({id:uuid(),numero:++serial,creado_en:ahora()},fila);tabla('cotizaciones').push(v);}
+        const k=tabla('cotizaciones_costo').find(x=>x.cotizacion_id===v.id);
+        if(k) Object.assign(k,{costo_total:c.costo_total,margen:c.margen}); else tabla('cotizaciones_costo').push({cotizacion_id:v.id,costo_total:c.costo_total,margen:c.margen});
+        avisar(); return {data:v.id,error:null};
+      }
+      if(fn==='cot_autorizar'){const v=tabla('cotizaciones').find(x=>x.id===a.p_id);
+        if(a.p_aprobar) Object.assign(v,{estado:'autorizada',precio_final:a.p_precio??v.precio_pedido,precio_pedido:a.p_precio??v.precio_pedido,respuesta:a.p_respuesta,autorizado_por:ME.id});
+        else Object.assign(v,{estado:'rechazada',precio_final:null,respuesta:a.p_respuesta,autorizado_por:ME.id});
+        avisar(); return {data:null,error:null};}
+      if(fn==='cot_enviar'){const v=tabla('cotizaciones').find(x=>x.id===a.p_id);
+        if(!['lista','autorizada','enviada'].includes(v.estado)) throw new Error('El precio todavía no está autorizado');
+        Object.assign(v,{estado:'enviada',enviada_en:ahora(),enviada_via:a.p_via});
+        const o=tabla('oportunidades').find(x=>x.id===v.oportunidad_id);
+        Object.assign(o,{precio_estandar:v.precio_lista,precio_cliente:v.precio_final,unidades:v.unidades,presupuesto_via:a.p_via||o.presupuesto_via});
+        avisar(); return {data:null,error:null};}
+      if(fn==='cot_importar'){
+        (a.p_insumos||[]).forEach(x=>{const f={codigo:x.codigo,nombre:x.nombre,rubro:x.rubro,unidad:x.unidad,costo_usd:x.costo,fuente:'planilla',activo:true,para_vendedor:x.rubro!=='Otros',costo_actualizado_en:ahora()};
+          const y=tabla('cot_insumos').find(i=>i.codigo===x.codigo); if(y) Object.assign(y,f); else tabla('cot_insumos').push(f);});
+        (a.p_tipologias||[]).forEach(x=>{const y=tabla('cot_tipologias').find(i=>i.codigo===x.codigo), f={...x,activo:true}; if(y) Object.assign(y,f); else tabla('cot_tipologias').push(f);});
+        const ts=new Set((a.p_recetas||[]).map(r=>r.tipologia)); DB.cot_recetas=tabla('cot_recetas').filter(r=>!ts.has(r.tipologia));
+        (a.p_recetas||[]).forEach(r=>DB.cot_recetas.push({...r}));
+        Object.entries(a.p_parametros||{}).forEach(([k,v])=>{const y=tabla('cot_parametros').find(i=>i.clave===k); if(y) y.valor=v; else tabla('cot_parametros').push({clave:k,valor:v});});
+        avisar(); return {data:{insumos:(a.p_insumos||[]).length,tipologias:(a.p_tipologias||[]).length,recetas:(a.p_recetas||[]).length},error:null};}
+    }catch(e){return {data:null,error:{message:e.message,code:'P0001'}};}
+    return {data:null,error:null};
+  }
   class Q{
     constructor(t){this.t=t;this.op='select';this.f=[];this.ord=[];this.rng=null;this.lim=null;this.val=null;this.opts={};this.uno=false;}
     select(){return this;}
@@ -109,6 +172,7 @@
         DB.stock_taller=tabla('stock_taller').filter(x=>x.taller!==t);
         (args.filas||[]).forEach(f=>DB.stock_taller.push({id:uuid(),taller:t,codigo:f.codigo||null,descripcion:f.descripcion,cantidad:Number(f.cantidad)||0,unidad:f.unidad||null,cargado_en:ahora()}));
         avisar(); return {data:(args.filas||[]).length,error:null};}
+      if(fn.startsWith('cot_')) return cotMock(fn,args);
       return {data:null,error:null};
     },
     auth:{
