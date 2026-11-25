@@ -18,6 +18,7 @@ from (values
   ('0020', to_regclass('public.metas_indicadores') is not null, 'Metas de los indicadores de Reportes'),
   ('0021', to_regclass('public.posiciones_planta') is not null, 'Posiciones en planta P1 a P8'),
   ('0022', to_regclass('public.limites_aberturas') is not null, 'Limitaciones de aberturas en la nota de pedido'),
-  ('0023', coalesce((select pg_get_functiondef('public.proteger_campos()'::regprocedure) like '%libres_sup%'), false), 'Supervisor y arquitectura solo cambian lo suyo; arquitectura puede devolver sin plano')
+  ('0023', coalesce((select pg_get_functiondef('public.proteger_campos()'::regprocedure) like '%libres_sup%'), false), 'Supervisor y arquitectura solo cambian lo suyo; arquitectura puede devolver sin plano'),
+  ('0024', to_regclass('public.oportunidades') is not null, 'CRM de ventas y rol Líder de ventas')
 ) as m(migracion, ok, para_que)
 order by 1;

@@ -12,6 +12,8 @@ const U={
   supervisor2:{id:'00000000-0000-4000-8000-000000000006',nombre:'Carlos Medina',email:'carlos@ejemplo.com',rol:'supervisor'},
   aluminio:{id:'00000000-0000-4000-8000-000000000007',nombre:'Aluminios del Sur',email:'aluminio@ejemplo.com',rol:'carp_aluminio'},
   madera:{id:'00000000-0000-4000-8000-000000000008',nombre:'Maderas del Norte',email:'madera@ejemplo.com',rol:'carp_madera'},
+  lider_ventas:{id:'00000000-0000-4000-8000-000000000010',nombre:'Valeria Torres',email:'valeria@ejemplo.com',rol:'lider_ventas'},
+  ventas2:{id:'00000000-0000-4000-8000-000000000011',nombre:'Lucía Benítez',email:'lucia@ejemplo.com',rol:'ventas',empresa:'Utilbox SAS'},
   pendiente:{id:'00000000-0000-4000-8000-000000000009',nombre:'Pablo Luna',email:'pablo@ejemplo.com',rol:'pendiente'},
 };
 const P={
@@ -117,7 +119,36 @@ module.exports=function datos(){
     {id:'b1',clave:'Pintura exterior',rubro:'mat',unidad:'tacho 20 l',costo:120},{id:'b2',clave:'Aislación térmica',rubro:'mat',unidad:'m²',costo:9},
     {id:'b3',clave:'Revestimiento PVC',rubro:'mat',unidad:'m²',costo:14},{id:'b4',clave:'Piso flotante PVC',rubro:'mat',unidad:'m²',costo:18},
   ];
-  return {perfiles,proyectos,consultas,recorrido,actualizaciones,materiales_proyecto,pedidos_carpinteria,planos,nota_versiones,faltantes,
+  // CRM de ventas (0024): oportunidades de ejemplo en todas las etapas
+  const V1=U.ventas.id, V2=U.ventas2.id;
+  const finMes=n=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth()+n+1,0).toISOString().slice(0,10);};
+  const hist=(...et)=>et.map(([e,h])=>({etapa:e,en:hace(h),por:V1}));
+  let nOp=1;
+  const op=(o)=>Object.assign({id:'30000000-0000-4000-8000-'+String(nOp).padStart(12,'0'),numero:nOp++,vendedor_id:V1,empresa:'Boxtainers Argentina SAS',unidades:1,
+    origen:'whatsapp',entregado:false,cobrado:false,creado_en:hace(400),actualizado_en:hace(10),etapa_en:hace(10)},o);
+  const calif={decide:'Dueño',necesita:'Este mes',tiene_presupuesto:true,soluciona:true};
+  const oportunidades=[
+    op({cliente:'Constructora Andina',telefono:'351 555 1234',producto:'Oficina',etapa:'precalificado',historial:hist(['precalificado',30]),notas:'Pide oficina para obrador'}),
+    op({cliente:'Estancia La Paz',telefono:'261 444 2211',producto:'Módulo habitable',etapa:'precalificado',origen:'llamada',historial:hist(['precalificado',5])}),
+    op({cliente:'Minera del Oeste',telefono:'264 433 9988',producto:'Sanitario',unidades:3,etapa:'calificado',...calif,precio_estandar:27000,precio_cliente:25500,cierre_estimado:finMes(1),historial:hist(['precalificado',200],['calificado',30])}),
+    op({cliente:'Hotel Cumbres',telefono:'294 455 1100',producto:'Módulo habitable',unidades:2,etapa:'presupuesto',...calif,precio_estandar:48000,precio_cliente:46000,presupuesto_via:'whatsapp',cierre_estimado:finMes(0),historial:hist(['precalificado',300],['calificado',150],['presupuesto',50])}),
+    op({cliente:'Agro Sur SA',telefono:'2984 22 3344',producto:'Pañol',etapa:'acuerdo',...calif,precio_estandar:9800,precio_cliente:9800,cierre_estimado:finMes(0),historial:hist(['precalificado',400],['calificado',300],['presupuesto',200],['acuerdo',20])}),
+    op({cliente:'Logística Norte',telefono:'381 466 7788',producto:'Oficina',vendedor_id:V2,empresa:'Utilbox SAS',etapa:'presupuesto',...calif,precio_estandar:21000,precio_cliente:19900,cierre_estimado:finMes(1),historial:hist(['precalificado',300],['calificado',200],['presupuesto',100])}),
+    op({cliente:'Colegio San José',telefono:'351 477 0000',producto:'Oficina',etapa:'ganado',...calif,precio_estandar:23000,precio_cliente:24500,cierre_estimado:finMes(0),proyecto_id:P.ventas,historial:hist(['precalificado',600],['calificado',500],['presupuesto',300],['acuerdo',100],['ganado',30])}),
+    op({cliente:'Petrolera Patagonia',telefono:'299 488 1212',producto:'Módulo habitable',unidades:4,vendedor_id:V2,empresa:'Utilbox SAS',etapa:'ganado',...calif,precio_estandar:92000,precio_cliente:90000,comision:1800,entregado:true,entregado_en:dia(-3),historial:hist(['precalificado',900],['calificado',700],['presupuesto',500],['acuerdo',300],['ganado',60])}),
+    op({cliente:'Municipio de Villa Rica',telefono:'3541 49 5656',producto:'Sanitario',etapa:'perdido',...calif,precio_estandar:15000,precio_cliente:15000,motivo:'precio',motivo_detalle:'Otro proveedor cotizó 20 % menos',historial:hist(['precalificado',900],['calificado',800],['presupuesto',700],['perdido',600])}),
+    op({cliente:'Juan Paredes',telefono:'351 400 1111',etapa:'no_calificado',motivo:'No tiene presupuesto',historial:hist(['precalificado',900],['no_calificado',850])}),
+  ];
+  const tid=n=>'40000000-0000-4000-8000-'+String(n).padStart(12,'0');
+  const tareas_crm=[
+    {id:tid(1),oportunidad_id:oportunidades[0].id,tipo:'whatsapp',texto:'Calificar: quién decide, para cuándo, presupuesto',vence:dia(-1),hecha_en:null,creado_en:hace(30)},
+    {id:tid(2),oportunidad_id:oportunidades[3].id,tipo:'llamar',texto:'Seguimiento del presupuesto',vence:dia(0),hecha_en:null,creado_en:hace(50)},
+    {id:tid(3),oportunidad_id:oportunidades[4].id,tipo:'llamar',texto:'Pedir la orden de compra / facturar',vence:dia(0),hecha_en:null,creado_en:hace(20)},
+    {id:tid(4),oportunidad_id:oportunidades[2].id,tipo:'whatsapp',texto:'Mandar el presupuesto',vence:dia(2),hecha_en:null,creado_en:hace(30)},
+    {id:tid(5),oportunidad_id:oportunidades[5].id,tipo:'mail',texto:'Seguimiento del presupuesto',vence:dia(-2),hecha_en:null,creado_en:hace(100)},
+  ];
+  const crm_probabilidades=[{etapa:'precalificado',prob:10},{etapa:'calificado',prob:25},{etapa:'presupuesto',prob:40},{etapa:'acuerdo',prob:80}];
+  return {oportunidades,tareas_crm,crm_probabilidades,perfiles,proyectos,consultas,recorrido,actualizaciones,materiales_proyecto,pedidos_carpinteria,planos,nota_versiones,faltantes,
     recetas_tipologia,sugerencias,lista_costos,presupuestos:[],costos:[],incidencias:[],personal:[],contenedores:[],materiales:[],costeos:[],
     precios_proveedor:[],recursos:[]};
 };

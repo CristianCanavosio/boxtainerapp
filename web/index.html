@@ -397,6 +397,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <button class="nav-btn" data-view="contenedores" onclick="showView('contenedores')">📦 Contenedores</button>
     <button class="nav-btn" data-view="materiales" onclick="showView('materiales')">🔧 Materiales</button>
     <button class="nav-btn" data-view="costos" onclick="showView('costos')">🔒 Costos</button>
+    <button class="nav-btn" data-view="crm" onclick="showView('crm')">🎯 CRM</button>
     <button class="nav-btn" data-view="usuarios" onclick="showView('usuarios')">👤 Usuarios</button>
     <button class="nav-btn" data-view="reportes" onclick="showView('reportes')">📈 Reportes</button>
     <button class="nav-btn" data-view="sugerencias" onclick="showView('sugerencias')">💡 Sugerencias</button>
@@ -547,6 +548,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <div class="sec-title">👤 Gestión de Usuarios</div>
       <div id="lista-usuarios"></div>
     </div>
+  </div>
+
+  <!-- CRM DE VENTAS (ventas, líder de ventas y admin): lo arma crm.js -->
+  <div class="view" id="view-crm">
+    <div style="margin-top:12px" id="crm-content"></div>
   </div>
 
   <!-- SUGERENCIAS DE MEJORA (todos) -->
@@ -874,6 +880,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <script src="indicadores.js"></script>
 <script src="posiciones.js"></script>
 <script src="app.js"></script>
+<script src="crm.js"></script>
 <script src="movil.js"></script>
 </body>
 </html>
