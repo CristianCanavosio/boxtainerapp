@@ -212,3 +212,13 @@
 .crm-kb-nav .chip{font-size:15px}
 .crm-kb-ayuda{text-align:center;margin-top:2px}
 @media(min-width:760px){.crm-col{flex:1 1 0;min-width:190px}.crm-kb{margin:0;padding:2px 0 10px}.crm-kb-ayuda{display:none}}
+/* Cotizador de ventas */
+.cot-paso{display:flex;align-items:center;gap:4px;flex:none}
+.cot-paso input{width:64px;text-align:center;padding:6px}
+.cot-paso small{font-size:11px;color:var(--gris-m);min-width:24px}
+.cot-precio{border-left:5px solid var(--nar);margin-top:10px}
+.cot-grande{font-size:26px;font-weight:800;color:var(--nar);line-height:1.2}
+.cot-grande small{font-size:14px;color:var(--gris-m);font-weight:700}
+.cot-aut .drow{font-size:13px}
+#m-cot .mp-f{grid-template-columns:1fr auto auto}
+#mae-sec .mp-f{grid-template-columns:1fr auto auto}

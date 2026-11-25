@@ -19,7 +19,7 @@ const BNAV={
   lider_ventas:['crm','sugerencias','recursos'],
   arquitectura:['dashboard','proyectos','recursos'],
   lider:['dashboard','proyectos','alertas','materiales'],
-  admin:['dashboard','proyectos','alertas','costos'],
+  admin:['dashboard','proyectos','alertas','materiales'],
   lectura:['dashboard','proyectos','reportes'],
   carp_aluminio:['pedidos','stock','alertas'],
   carp_madera:['pedidos','stock','alertas'],

@@ -44,6 +44,8 @@ Correr en orden, una sola vez cada uno:
 16. `supabase/migrations/0016_fotos_del_parte_diario.sql` (el supervisor puede adjuntar hasta 4 fotos del avance en el parte diario)
 17. `supabase/migrations/0017_pedidos_de_aires.sql` (pedidos de colocación de aires a los técnicos y rol Técnico de aire)
 18. `supabase/migrations/0018_avisos_al_celular.sql` (avisos al celular con la app cerrada; antes hay que publicar la función `avisar-pedido` y cargar sus claves)
+19. `0019` a `0024` (Company y órdenes de trabajo, metas de indicadores, posiciones en planta, limitaciones de aberturas, supervisor y arquitectura solo lo suyo, CRM de ventas)
+20. `supabase/migrations/0025_cotizador_de_ventas.sql` (cotizador del vendedor en el CRM, maestro de insumos con tipologías, recetas y parámetros, y costeo de proyectos desde el maestro). Después, el administrador sube la planilla del cotizador en **Materiales y costos → 📦 Insumos → Importar planilla del cotizador**.
 
 Para ver cuáles ya están corridas, `tools/verificar-migraciones.sql` (solo lee, no cambia nada).
 

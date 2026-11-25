@@ -29,11 +29,12 @@ function costeoDe(p){
   base=typeof baseConReceta==='function'?baseConReceta(p,base,rec):base;
   const lineas=base.map(x=>{
     const k=x.clave+(x.det?' | '+x.det:'');
-    const precio=listaCostos[x.clave];
+    // costo: del maestro de insumos (migración 0025); si el ítem no está emparejado, la lista de costos vieja
+    const precio=typeof precioItem==='function'?precioItem(x.clave):listaCostos[x.clave];
     const cant=c.ajustes[k]!=null?Number(c.ajustes[k]):x.cant;
     return {...x,k,cant,cantNota:x.cant,ajustada:c.ajustes[k]!=null,
-      rubro:precio?.rubro||x.rubro,unidad:precio?.unidad||x.unidad,costo:precio?precio.costo:null,
-      sub:precio?cant*precio.costo:0};
+      rubro:precio?.rubro||x.rubro,unidad:precio?.unidad||x.unidad,costo:precio?precio.costo:null,fuente:precio?.fuente||'',
+      sub:precio&&precio.costo!=null?cant*precio.costo:0};
   });
   const extras=(c.extras||[]).map((x,i)=>({...x,i,sub:(Number(x.cant)||0)*(Number(x.costo)||0)}));
   const por={}; Object.keys(RUBROS).forEach(r=>por[r]=0);
@@ -58,9 +59,10 @@ function seccionCosteo(p){
   // el total queda guardado solo (para reportes), sin botón
   if(c.guardado==null||Math.abs((Number(c.guardado)||0)-c.total)>=0.5) setTimeout(()=>guardarFilaCosteo(p.id),0);
   return `<div class="dsec costeo"><h3>🔒 Costeo del pedido <span style="font-weight:400;color:var(--gris-m);font-size:11px">solo vos lo ves</span></h3>
-    <div style="font-size:12px;color:var(--gris-m);margin-bottom:8px">Se calcula solo: cantidades de la nota de pedido y de la receta de la tipología, por el precio de cada material en la pestaña Costos.</div>
+    <div style="font-size:12px;color:var(--gris-m);margin-bottom:8px">Se calcula solo: cantidades de la nota de pedido y de la receta de la tipología, por el costo de cada ítem en el maestro de insumos (Materiales y costos).</div>
+    ${c.lineas.some(x=>x.fuente==='viejo')?`<div class="cst-aviso amar">${c.lineas.filter(x=>x.fuente==='viejo').length} ítem(s) todavía usan el precio viejo de la lista de costos: emparejalos con el maestro en Materiales y costos → Ítems de proyectos.</div>`:''}
     ${c.sinPrecio.length?`<div class="cst-aviso">Faltan precios en ${c.sinPrecio.length} ítem${c.sinPrecio.length>1?'s':''}: ${esc(c.sinPrecio.slice(0,3).map(x=>x.clave).join(', '))}${c.sinPrecio.length>3?'…':''}.
-      <button class="btn btn-sec btn-sm" style="margin-top:6px" onclick="closeOverlay('m-det');filtroCostos='';showView('costos')">Cargarlos en Costos</button></div>`:''}
+      <button class="btn btn-sec btn-sm" style="margin-top:6px" onclick="closeOverlay('m-det');mae.sub='equiv';mae.busca='';showView('materiales')">Emparejarlos con el maestro</button></div>`:''}
     ${c.pend.length?`<div class="cst-aviso amar">Hay ítems "a confirmar" en la nota: el costo puede cambiar.</div>`:''}
     <div class="cst-tabla">
       <div class="cst-h"><span>Ítem</span><span>Cant.</span><span>Costo u.</span><span>Subtotal</span></div>
@@ -68,7 +70,7 @@ function seccionCosteo(p){
         <span>${esc(x.clave)}${x.det?`<small>${esc(x.det)}</small>`:''}</span>
         <span><input type="number" step="0.01" value="${x.cant}" title="Cantidad calculada de la nota: corregila solo si hace falta" onchange="ajustarCant('${id}',${esc(JSON.stringify(x.k))},this.value,${x.cantNota})">
           <small>${esc(x.unidad)}${x.ajustada?' · corregido':''}${x.receta?' · receta':''}</small></span>
-        <span class="cst-pu">${x.costo?usd(x.costo):'<b style="color:var(--rojo)">sin precio</b>'}</span>
+        <span class="cst-pu">${x.costo?usd(x.costo)+(x.fuente==='viejo'?'<small>precio viejo</small>':''):'<b style="color:var(--rojo)">sin precio</b>'}</span>
         <span class="cst-sub">${x.costo!=null?usd(x.sub):'—'}</span></div>`).join('')}
       ${c.extras.map(x=>`<div class="cst-f extra">
         <span>${esc(x.desc)}<small>${esc(RUBROS[x.rubro]||'Otros')} · agregado a mano <a href="#" onclick="quitarExtra(event,'${id}',${x.i})">quitar</a></small></span>

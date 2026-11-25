@@ -147,8 +147,24 @@ module.exports=function datos(){
     {id:tid(4),oportunidad_id:oportunidades[2].id,tipo:'whatsapp',texto:'Mandar el presupuesto',vence:dia(2),hecha_en:null,creado_en:hace(30)},
     {id:tid(5),oportunidad_id:oportunidades[5].id,tipo:'mail',texto:'Seguimiento del presupuesto',vence:dia(-2),hecha_en:null,creado_en:hace(100)},
   ];
+  // Maestro del cotizador (migración 0025): insumos, tipologías y costos INVENTADOS para las pruebas
+  const ins=(codigo,nombre,rubro,unidad,costo_usd,para_vendedor=true)=>({codigo,nombre,rubro,unidad,costo_usd,para_vendedor,activo:true,fuente:'planilla',costo_actualizado_en:hace(48)});
+  const cot_insumos=[ins('INS-001','CONTENEDOR 20 PIES','Estructura','UN',1500),ins('INS-002','CONTENEDOR 40 PIES','Estructura','UN',2200),
+    ins('INS-003','VENTANA ALUMINIO','Aberturas','UN',180),ins('INS-004','PUERTA EXTERIOR','Aberturas','UN',160),ins('INS-005','VENTILUZ','Aberturas','UN',120),
+    ins('INS-006','INODORO','Sanitarios','UN',200),ins('INS-007','MINGITORIO','Sanitarios','UN',110),ins('INS-008','LAVAMANOS','Sanitarios','UN',130),
+    ins('INS-009','AIRE ACONDICIONADO 3000 FG','Climatización','UN',600),ins('INS-010','REVESTIMIENTO PVC','Revestimientos','M2',9),
+    ins('INS-011','LANA DE VIDRIO ROLLO','Aislación','ROLLO',90),ins('INS-012','PINTURA','Pintura','LITRO',6),ins('INS-013','MANO DE OBRA MODULO 20','Mano de Obra','GLOBAL',800,false),
+    ins('INS-014','MANO DE OBRA MODULO 40','Mano de Obra','GLOBAL',1400,false),ins('INS-015','COMISION DE VENTA','Otros','GLOBAL',250,false),ins('INS-016','DUCHA CON GRIFERIA','Sanitarios','UN',260)];
+  const cot_tipologias=[{codigo:'MOD-20-OF',nombre:'Módulo 20 pies oficina',pies:20,m2:14.4,margen:0.25,activo:true,orden:1},
+    {codigo:'MOD-40-HB',nombre:'Módulo 40 pies con baño',pies:40,m2:28.8,margen:0.3,activo:true,orden:2}];
+  const rc=(tipologia,l)=>l.map(([insumo,cant])=>({tipologia,insumo,cant}));
+  const cot_recetas=[...rc('MOD-20-OF',[['INS-001',1],['INS-003',2],['INS-004',1],['INS-009',1],['INS-010',50],['INS-011',5],['INS-012',30],['INS-013',1],['INS-015',1]]),
+    ...rc('MOD-40-HB',[['INS-002',1],['INS-003',3],['INS-004',1],['INS-005',1],['INS-006',1],['INS-008',1],['INS-016',1],['INS-009',1],['INS-010',110],['INS-011',9],['INS-012',45],['INS-014',1],['INS-015',1]])];
+  const cot_parametros=[{clave:'tipo_cambio',valor:1500},{clave:'margen_default',valor:0.2},{clave:'iva',valor:0.21},{clave:'validez_dias',valor:7}];
+  const cot_equivalencias=[{clave:'Contenedor 20 DV',composicion:[{insumo:'INS-001',factor:1}]},{clave:'Sanitario · Inodoro',composicion:[{insumo:'INS-006',factor:1}]},
+    {clave:'Aislación térmica',composicion:[{insumo:'INS-011',factor:0.1064}]},{clave:'Pintura',composicion:[{insumo:'INS-012',factor:20}]}];
   const crm_probabilidades=[{etapa:'precalificado',prob:10},{etapa:'calificado',prob:25},{etapa:'presupuesto',prob:40},{etapa:'acuerdo',prob:80}];
-  return {oportunidades,tareas_crm,crm_probabilidades,perfiles,proyectos,consultas,recorrido,actualizaciones,materiales_proyecto,pedidos_carpinteria,planos,nota_versiones,faltantes,
+  return {oportunidades,tareas_crm,crm_probabilidades,cot_insumos,cot_tipologias,cot_recetas,cot_parametros,cot_equivalencias,cotizaciones:[],cotizaciones_costo:[],perfiles,proyectos,consultas,recorrido,actualizaciones,materiales_proyecto,pedidos_carpinteria,planos,nota_versiones,faltantes,
     recetas_tipologia,sugerencias,lista_costos,presupuestos:[],costos:[],incidencias:[],personal:[],contenedores:[],materiales:[],costeos:[],
     precios_proveedor:[],recursos:[]};
 };

@@ -117,7 +117,7 @@ function resumenDesvios(p){
   const cerrado=p.estado==='finalizado', it=itemsMateriales(p);
   let usd=0, sinPrecio=0, cargados=0, sobre=0;
   it.forEach(x=>{if(x.usada!=null) cargados++; const dv=desvioItem(x,cerrado); if(!dv) return; if(dv.d>0) sobre++;
-    if(esAdmin()){const pr=listaCostos[x.clave]; if(pr&&pr.costo) usd+=dv.d*pr.costo; else if(dv.d) sinPrecio++;}});
+    if(esAdmin()){const pr=typeof precioItem==='function'?precioItem(x.clave):listaCostos[x.clave]; if(pr&&pr.costo) usd+=dv.d*pr.costo; else if(dv.d) sinPrecio++;}});
   return {it,cerrado,usd,sinPrecio,cargados,sobre};
 }
 
@@ -170,7 +170,7 @@ function seccionMateriales(p){
     ${esAdmin()&&(R.cargados||R.cerrado)?`<div class="mp-usd ${R.usd>0?'rojo':'verde'}">🔒 Desvío en materiales: <b>${R.usd>0?'+':''}${usd(R.usd)}</b> <small>solo vos lo ves${R.sinPrecio?` · ${R.sinPrecio} ítem${R.sinPrecio>1?'s':''} sin precio en la lista de costos`:''}</small></div>`:''}
     <div class="mp-tabla">
       <div class="mp-h"><span>Material</span><span>Plan</span><span>Usado</span><span>Desvío</span></div>
-      ${it.map((x,i)=>{const dv=desvioItem(x,R.cerrado);const pr=esAdmin()?listaCostos[x.clave]:null;
+      ${it.map((x,i)=>{const dv=desvioItem(x,R.cerrado);const pr=esAdmin()?(typeof precioItem==='function'?precioItem(x.clave):listaCostos[x.clave]):null;
         return `<div class="mp-r">
           <span>${esc(x.clave)}${x.det?`<small>${esc(x.det)}</small>`:''}${x.extra&&!x.plan?'<small>no previsto</small>':''}${x.usadaPor?`<small>${esc(x.usadaPor)} · ${esc(x.usadaEn||'')}</small>`:''}</span>
           <span>${mpFmt(x.plan)} <small>${esc(x.unidad)}</small></span>
