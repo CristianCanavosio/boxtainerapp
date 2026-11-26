@@ -772,6 +772,8 @@ function lineasCosteo(){
   if(d.tanque==='Sí')add('Tanque de agua','mat','c/u',1,d.tanqueL?d.tanqueL+' l':'');
   // generales
   if(!esSolo(d.prod))add('Mano de obra general','mo','m²',piso);
+  // todo lo eléctrico se costea por m² (pedido de Cristian 26/11): los ítems de arriba quedan para el taller con costo 0
+  if(!esSolo(d.prod))add('Instalación eléctrica','mo','m²',piso);
   add('Flete','ter','c/u',1,d.loc||'');
   // van en todos los pedidos, sea cual sea el producto (pedido de Cristian 19/11): el administrador carga en Costos cuánto es por unidad
   add('Comisión de venta','otr','c/u',1);
