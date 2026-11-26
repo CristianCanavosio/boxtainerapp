@@ -26,10 +26,14 @@ function costeoDe(p){
   let base=esNota(p)?NotaPedido.lineasCosteo(p.ficha):[];
   const rec=typeof lineasReceta==='function'?lineasReceta(p):[];
   base=typeof baseConReceta==='function'?baseConReceta(p,base,rec):base;
+  // instalación eléctrica por m² (migración 0030): lo eléctrico suelto queda incluido, con costo 0 (menos en Company)
+  const company=/Company$/.test(NotaPedido.tipologia(p.ficha||{}).prod||'');
+  if(company&&typeof ELEC_M2!=='undefined') base=base.filter(x=>x.clave!==ELEC_M2);   // Company sigue con lo eléctrico de su receta
+  const elec=typeof esElectrico==='function'&&!company&&base.some(x=>x.clave===ELEC_M2);
   const lineas=base.map(x=>{
     const k=x.clave+(x.det?' | '+x.det:'');
     // costo: del maestro de insumos (migración 0025); si el ítem no está emparejado, la lista de costos vieja
-    const precio=typeof precioItem==='function'?precioItem(x.clave):listaCostos[x.clave];
+    const precio=elec&&x.clave!==ELEC_M2&&esElectrico(x.clave)?{costo:0,fuente:'incluido'}:typeof precioItem==='function'?precioItem(x.clave):listaCostos[x.clave];
     const cant=c.ajustes[k]!=null?Number(c.ajustes[k]):x.cant;
     return {...x,k,cant,cantNota:x.cant,ajustada:c.ajustes[k]!=null,
       rubro:precio?.rubro||x.rubro,unidad:precio?.unidad||x.unidad,costo:precio?precio.costo:null,fuente:precio?.fuente||'',
@@ -40,7 +44,7 @@ function costeoDe(p){
   lineas.forEach(x=>por[x.rubro]=(por[x.rubro]||0)+x.sub);
   extras.forEach(x=>{const r=RUBROS[x.rubro]?x.rubro:'otr';por[r]+=x.sub;});
   const total=Object.values(por).reduce((s,v)=>s+v,0);
-  const sinPrecio=lineas.filter(x=>x.costo==null||x.costo===0);
+  const sinPrecio=lineas.filter(x=>(x.costo==null||x.costo===0)&&x.fuente!=='incluido');
   const pend=lineas.filter(x=>x.pend);
   return {lineas,extras,por,total,sinPrecio,pend,guardado:c.total};
 }
@@ -65,11 +69,11 @@ function seccionCosteo(p){
     ${c.pend.length?`<div class="cst-aviso amar">Hay ítems "a confirmar" en la nota: el costo puede cambiar.</div>`:''}
     <div class="cst-tabla">
       <div class="cst-h"><span>Ítem</span><span>Cant.</span><span>Costo u.</span><span>Subtotal</span></div>
-      ${c.lineas.map(x=>`<div class="cst-f ${x.costo?'':'sinp'}">
+      ${c.lineas.map(x=>`<div class="cst-f ${x.costo||x.fuente==='incluido'?'':'sinp'}">
         <span>${esc(x.clave)}${x.det?`<small>${esc(x.det)}</small>`:''}</span>
         <span><input type="number" step="0.01" value="${x.cant}" title="Cantidad calculada de la nota: corregila solo si hace falta" onchange="ajustarCant('${id}',${esc(JSON.stringify(x.k))},this.value,${x.cantNota})">
           <small>${esc(x.unidad)}${x.ajustada?' · corregido':''}${x.receta?' · receta':''}</small></span>
-        <span class="cst-pu">${x.costo?usd(x.costo)+(x.fuente==='viejo'?'<small>precio viejo</small>':''):'<b style="color:var(--rojo)">sin precio</b>'}</span>
+        <span class="cst-pu">${x.fuente==='incluido'?'<small>incluido en instalación eléctrica</small>':x.costo?usd(x.costo)+(x.fuente==='viejo'?'<small>precio viejo</small>':''):'<b style="color:var(--rojo)">sin precio</b>'}</span>
         <span class="cst-sub">${x.costo!=null?usd(x.sub):'—'}</span></div>`).join('')}
       ${c.extras.map(x=>`<div class="cst-f extra">
         <span>${esc(x.desc)}<small>${esc(RUBROS[x.rubro]||'Otros')} · agregado a mano <a href="#" onclick="quitarExtra(event,'${id}',${x.i})">quitar</a></small></span>

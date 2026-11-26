@@ -45,6 +45,11 @@ function precioItem(clave){
 // Mano de obra por regla de tres (migración 0028): "Mano de obra general" (m² de piso) cuesta el módulo de referencia ÷ sus m²
 const MO_M2='Mano de obra general';
 const maeMoRef=()=>Number(mae.par.mo_m2_referencia)>0?Number(mae.par.mo_m2_referencia):29.74;
+// Instalación eléctrica por m² (migración 0030): lo eléctrico suelto (tomas, luces, tablero, disyuntor, térmicas…)
+// queda incluido en un solo ítem por m². Mismo criterio que _cot_es_electrico en la base.
+const ELEC_M2='Instalación eléctrica';
+const ELEC_RE=/^(instalacion electrica|tablero|toma|luz|plafon|tubo led|disyuntor|termica|llave termica|interruptor|cable|caja de luz|punto de luz|portalampara|lampara|disyuntores|termicas|tomas)/;
+const esElectrico=clave=>ELEC_RE.test(String(clave||'').trim().toLowerCase().replace(/[áéíóú]/g,c=>'aeiou'['áéíóú'.indexOf(c)]));
 // mismo criterio que la base (_cot_costo_item, migración 0028): código exacto o nombre igual sin importar mayúsculas
 function maeInsIgual(clave){
   if(!mae.listo) return null;
