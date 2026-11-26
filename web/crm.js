@@ -603,7 +603,10 @@ async function crmGanar(id){
   if(crmFaltaCalificar(o).length){await crmMover(id,'ganado');return;}
   if(!await confirmar('¿Se facturó la venta a '+o.cliente+'? Pasa a Ganado'+(puedeCrear()?' y se abre la nota de pedido con los datos del cliente ya cargados.':'.'))) return;
   if(!await crmMover(id,'ganado')) return;
-  if(puedeCrear()&&!o.proyecto_id) crmCargarNota(id);
+  if(!puedeCrear()) return;
+  if(!o.proyecto_id) crmCargarNota(id);
+  // ya tiene un presupuesto armado con la nota: se pasa a orden de compra sin cargar nada de nuevo
+  else if(typeof cotPasarAOC==='function'&&todos[o.proyecto_id]?.ficha?.sol==='Presupuesto') cotPasarAOC(o.proyecto_id,true);
 }
 // Abre la nota de pedido de siempre, con el cliente, el teléfono, el mail, la empresa y el producto del CRM
 function crmCargarNota(id){
@@ -616,7 +619,7 @@ function crmCargarNota(id){
   crmCerrar();
   NotaPedido.abrir({titulo:'Nota de pedido · '+o.cliente,ficha,cliente:o.cliente,empresa,enviar:rol()==='ventas',
     onGuardar:async(f,opt)=>{
-      const pid=await crearDesdeNota(f,opt,{vendId:o.vendedor_id,vend:nombreDe(o.vendedor_id),val:o.precio_cliente??''});
+      const pid=await crearDesdeNota(f,opt,{vendId:o.vendedor_id,vend:nombreDe(o.vendedor_id),val:o.precio_cliente??'',oportunidad:id});
       if(!pid) return false;
       await crmGuardar(id,{proyecto_id:pid},true);
       crmRefrescar();

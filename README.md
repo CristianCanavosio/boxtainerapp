@@ -47,6 +47,7 @@ Correr en orden, una sola vez cada uno:
 19. `0019` a `0024` (Company y órdenes de trabajo, metas de indicadores, posiciones en planta, limitaciones de aberturas, supervisor y arquitectura solo lo suyo, CRM de ventas)
 20. `supabase/migrations/0025_cotizador_de_ventas.sql` (cotizador del vendedor en el CRM, maestro de insumos con tipologías, recetas y parámetros, y costeo de proyectos desde el maestro). Después, el administrador sube la planilla del cotizador en **Materiales y costos → 📦 Insumos → Importar planilla del cotizador**.
 21. `supabase/migrations/0026_revision_cotizador.sql` (revisión del cotizador: una cotización no cambia de contacto y un costo negativo no frena la actualización de costos)
+22. `supabase/migrations/0027_presupuesto_en_la_nota.sql` (precio al cliente dentro de la nota de pedido cuando es un Presupuesto, el cliente queda en el CRM y el presupuesto pasa a orden de compra)
 
 Para ver cuáles ya están corridas, `tools/verificar-migraciones.sql` (solo lee, no cambia nada).
 
@@ -122,7 +123,7 @@ Las tablas de costos (`lista_costos`, `costeos`, `cot_insumos`, `cot_equivalenci
 
 ## CRM y cotizador de ventas
 
-`web/crm.js` (migración 0024) y `web/cotizador.js` (migración 0025). El vendedor carga cada contacto y lo pasa por las etapas (Pre-calificado → Calificado → Presupuesto → Acuerdo mutuo → Ganado, o Perdido / No calificado), con seguimientos agendados. Cotiza desde la ficha del contacto: elige la tipología, agrega o saca insumos, y **la base** calcula el precio (costo × (1 + margen)); al vendedor le llega solo el precio final. Si pide un precio más bajo que el de lista, lo autoriza el líder de ventas, que ve costo y margen. Al enviarla (PDF por WhatsApp o mail) el contacto pasa a Presupuesto con ese precio. Al ganar, se abre la nota de pedido con los datos del cliente.
+`web/crm.js` (migración 0024) y `web/cotizador.js` (migración 0025). El vendedor carga cada contacto y lo pasa por las etapas (Pre-calificado → Calificado → Presupuesto → Acuerdo mutuo → Ganado, o Perdido / No calificado), con seguimientos agendados. Cotiza desde la ficha del contacto: elige la tipología, agrega o saca insumos, y **la base** calcula el precio (costo × (1 + margen)); al vendedor le llega solo el precio final. Si pide un precio más bajo que el de lista, lo autoriza el líder de ventas, que ve costo y margen. Al enviarla (PDF por WhatsApp o mail) el contacto pasa a Presupuesto con ese precio. Al ganar, se abre la nota de pedido con los datos del cliente. También se puede presupuestar **cualquier versión a medida** con la nota de pedido (migración 0027): si la nota es un *Presupuesto*, en el último paso aparece el precio de esa nota (lo que sale de la nota + la receta de la tipología, por el maestro; mismo margen por defecto y misma autorización si se pide menos). Al guardarla, el cliente queda en el CRM en Presupuesto con el precio, y el PDF lleva el precio. Cuando el cliente acepta, desde el proyecto (o el CRM) se pasa a *Orden de compra confirmada*: la nota se abre en el último paso, el precio queda como valor de venta y el contacto pasa a Ganado.
 
 Pendiente: traer costos desde Flexxus. El maestro ya está preparado: cada insumo tiene `codigo_externo` y el programa de sincronización solo tiene que llamar a `cot_actualizar_costos(...)` con la clave `service_role`.
 
