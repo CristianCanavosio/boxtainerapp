@@ -43,7 +43,10 @@ function cotBase(tip){const b={};(cot.cat?.recetas||[]).filter(r=>r.tipologia===
 async function cotNueva(oid){
   const o=crmOp(oid); if(!o) return;
   try{await cotCat(true);}catch(e){toast(cot.falta||/cot_catalogo/.test(e.message||'')?'⚠️ Falta correr la migración 0025 (cotizador)':msgError(e));return;}
-  if(!cot.cat.tipologias.length){toast('⚠️ El administrador todavía no cargó las tipologías del cotizador');return;}
+  if(!cot.cat.tipologias.length){
+    if(rol()==='admin'){toast('⚠️ Falta subir la planilla del cotizador: te llevo a Materiales y costos → Insumos');closeOverlay('m-crm');mae.sub='insumos';showView('materiales');}
+    else toast('⚠️ El administrador todavía no subió la planilla del cotizador (Materiales y costos → Insumos)');
+    return;}
   cot.ed={id:null,op:oid,tip:'',uni:o.unidades||1,cambios:{},notas:'',pedido:'',motivo:'',calc:null,sucio:true,precio:false,busca:''};
   cot.ver=null; cotPintar(); openOverlay(crmModal('m-cot',240).id);
 }
