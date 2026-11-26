@@ -42,8 +42,11 @@ function rubroReceta(clave){
 // el corte, el flete, la comisión y la amortización (pedido de Cristian 19/11).
 function baseConReceta(p,nota,rec){
   if(!rec.length) return nota;
-  const k=new Set(rec.map(x=>x.clave));
+  // mano de obra por regla de tres (0028): si la nota la trae por m², la de la receta no se suma
+  // (menos en los Company: mantienen la mano de obra fija de su receta, USD 2000)
   const company=/Company$/.test(NotaPedido.tipologia(p.ficha).prod||'');
+  if(!company&&nota.some(x=>x.clave==='Mano de obra general')) rec=rec.filter(x=>!/^mano de obra/i.test(x.clave));
+  const k=new Set(rec.map(x=>x.clave));
   const queda=x=>!k.has(x.clave)&&(!company||/^(Contenedor |Corte de contenedor|Flete$|Comisión de venta$|Amortización de planta)/.test(x.clave));
   return nota.filter(queda).concat(rec);
 }
