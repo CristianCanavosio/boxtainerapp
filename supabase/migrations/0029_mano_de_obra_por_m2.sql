@@ -4,7 +4,7 @@
 -- (hoy: Mano de obra módulo 40 sin baño) y el parámetro "m² del módulo de referencia" (29,74 = 40 pies).
 -- Ej.: 40' 29,74 m² → 1 × costo; 20' 14,87 m² → 0,5 × costo.
 -- Si la receta de obra trae su propia "Mano de obra…", se reemplaza por esta (antes se sumaban las dos).
--- Los productos Company también usan la regla.
+-- Los productos Company NO: siguen con la mano de obra fija de su receta (USD 2000, decisión de Cristian 26/11).
 -- Necesita la 0028. Se puede correr más de una vez.
 
 -- ══════════════ 0. M² DE REFERENCIA DE LA MANO DE OBRA ══════════════
@@ -71,13 +71,14 @@ begin
     rec as (   -- la del tamaño manda sobre la de "cualquier tamaño"
       select distinct on (clave) clave, cant * u as cant from rec_todas
       -- con mano de obra por m² en la nota, la de la receta no se suma (regla de tres para todos)
-      where not (clave ~* '^mano de obra' and exists (select 1 from nota where nota.clave = 'Mano de obra general'))
+      -- (menos en los Company: mantienen la mano de obra fija de su receta)
+      where company or not (clave ~* '^mano de obra' and exists (select 1 from nota where nota.clave = 'Mano de obra general'))
       order by clave, (tam = '') ),
     todo as (
       select clave, cant from nota
       where not exists (select 1 from rec where rec.clave = nota.clave)
         and (not company or not exists (select 1 from rec) or
-             clave ~ '^(Contenedor |Corte de contenedor|Flete$|Comisión de venta$|Amortización de planta|Mano de obra general$)')
+             clave ~ '^(Contenedor |Corte de contenedor|Flete$|Comisión de venta$|Amortización de planta)')
       union all select clave, cant from rec)
     select t.clave, t.cant from todo t where t.cant > 0 order by t.clave
   loop

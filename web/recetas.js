@@ -43,10 +43,11 @@ function rubroReceta(clave){
 function baseConReceta(p,nota,rec){
   if(!rec.length) return nota;
   // mano de obra por regla de tres (0028): si la nota la trae por m², la de la receta no se suma
-  if(nota.some(x=>x.clave==='Mano de obra general')) rec=rec.filter(x=>!/^mano de obra/i.test(x.clave));
-  const k=new Set(rec.map(x=>x.clave));
+  // (menos en los Company: mantienen la mano de obra fija de su receta, USD 2000)
   const company=/Company$/.test(NotaPedido.tipologia(p.ficha).prod||'');
-  const queda=x=>!k.has(x.clave)&&(!company||/^(Contenedor |Corte de contenedor|Flete$|Comisión de venta$|Amortización de planta|Mano de obra general$)/.test(x.clave));
+  if(!company&&nota.some(x=>x.clave==='Mano de obra general')) rec=rec.filter(x=>!/^mano de obra/i.test(x.clave));
+  const k=new Set(rec.map(x=>x.clave));
+  const queda=x=>!k.has(x.clave)&&(!company||/^(Contenedor |Corte de contenedor|Flete$|Comisión de venta$|Amortización de planta)/.test(x.clave));
   return nota.filter(queda).concat(rec);
 }
 
