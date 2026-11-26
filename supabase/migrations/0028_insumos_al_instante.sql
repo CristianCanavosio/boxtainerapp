@@ -14,7 +14,27 @@
 --      Los que el cliente ya aceptó (orden de compra) NO cambian: conservan su precio.
 --      Un precio que pidió el vendedor y autorizó el líder de ventas se respeta; cambia el precio de lista.
 --   3. Las tablas del maestro avisan en tiempo real: las pantallas abiertas se actualizan solas.
+--   4. Mano de obra por regla de tres (pedido de Cristian 26/11): en todos los presupuestos de nota la mano de
+--      obra = m² del piso del módulo × (costo de la mano de obra del módulo de referencia ÷ m² de referencia).
+--      Referencia: "Mano de obra general" en Ítems de proyectos (hoy: Mano de obra módulo 40 sin baño) y el
+--      parámetro "m² del módulo de referencia" (29,74 = 40 pies). Ej.: 40' 29,74 m² → 1 × costo; 20' 14,8 m² → ~0,5 × costo.
+--      Si la receta de obra trae su propia "Mano de obra…", se reemplaza por esta (antes se sumaban las dos).
 -- Se puede correr más de una vez.
+
+-- ══════════════ 0. M² DE REFERENCIA DE LA MANO DE OBRA ══════════════
+-- La primera vez: la equivalencia de "Mano de obra general" pasa a ser la del módulo entero (antes ya venía ÷ 29,74).
+do $$
+begin
+  if not exists (select 1 from cot_parametros where clave = 'mo_m2_referencia') then
+    insert into cot_parametros (clave, valor, descripcion)
+      values ('mo_m2_referencia', 29.74, 'm² del módulo de referencia de la mano de obra (regla de tres por m²)');
+    update cot_equivalencias set composicion = (
+        select jsonb_agg(jsonb_set(e, '{factor}', to_jsonb(round(coalesce((e->>'factor')::numeric, 0) * 29.74, 4))))
+        from jsonb_array_elements(composicion) e),
+      actualizado_en = now()
+    where clave = 'Mano de obra general' and jsonb_array_length(composicion) > 0;
+  end if;
+end $$;
 
 -- ══════════════ 1. INSUMO CON EL MISMO NOMBRE ══════════════
 -- Costo de un ítem de la app: equivalencia → insumo con el mismo nombre o código → precio viejo de lista_costos.
@@ -29,6 +49,10 @@ begin
       into costo, falta
     from jsonb_array_elements(comp) e left join cot_insumos x on x.codigo = e->>'insumo';
     if falta then costo := null; end if;
+    -- mano de obra por m²: el costo del módulo de referencia ÷ sus m²
+    if p_clave = 'Mano de obra general' and costo is not null then
+      costo := costo / coalesce(nullif((select valor from cot_parametros where clave = 'mo_m2_referencia'), 0), 29.74);
+    end if;
     return;
   end if;
   select * into i from cot_insumos
@@ -55,18 +79,21 @@ begin
     with rec_todas as (
       select clave, cant, tam from recetas_tipologia
       where tipologia = p_prod and (tam = '' or tam = coalesce(p_tam, ''))),
-    rec as (   -- la del tamaño manda sobre la de "cualquier tamaño"
-      select distinct on (clave) clave, cant * u as cant from rec_todas order by clave, (tam = '') ),
     nota as (
       select trim(x->>'clave') as clave, sum(greatest(0, coalesce((x->>'cant')::numeric, 0))) as cant
       from jsonb_array_elements(case when jsonb_typeof(p_lineas) = 'array' then p_lineas else '[]'::jsonb end) x
       where coalesce(trim(x->>'clave'), '') <> '' and (x->>'cant') ~ '^-?[0-9]+([.][0-9]+)?$'
       group by 1),
+    rec as (   -- la del tamaño manda sobre la de "cualquier tamaño"
+      select distinct on (clave) clave, cant * u as cant from rec_todas
+      -- con mano de obra por m² en la nota, la de la receta no se suma (regla de tres para todos)
+      where not (clave ~* '^mano de obra' and exists (select 1 from nota where nota.clave = 'Mano de obra general'))
+      order by clave, (tam = '') ),
     todo as (
       select clave, cant from nota
       where not exists (select 1 from rec where rec.clave = nota.clave)
         and (not company or not exists (select 1 from rec) or
-             clave ~ '^(Contenedor |Corte de contenedor|Flete$|Comisión de venta$|Amortización de planta)')
+             clave ~ '^(Contenedor |Corte de contenedor|Flete$|Comisión de venta$|Amortización de planta|Mano de obra general$)')
       union all select clave, cant from rec)
     select t.clave, t.cant from todo t where t.cant > 0 order by t.clave
   loop
