@@ -46,6 +46,7 @@ function baseConReceta(p,nota,rec){
   // (menos en los Company: mantienen la mano de obra fija de su receta, USD 2000)
   const company=/Company$/.test(NotaPedido.tipologia(p.ficha).prod||'');
   if(!company&&nota.some(x=>x.clave==='Mano de obra general')) rec=rec.filter(x=>!/^mano de obra/i.test(x.clave));
+  rec=rec.filter(x=>!/^armado de /i.test(x.clave));   // sin costos de armado (0031)
   const k=new Set(rec.map(x=>x.clave));
   const queda=x=>!k.has(x.clave)&&(!company||/^(Contenedor |Corte de contenedor|Flete$|Comisión de venta$|Amortización de planta)/.test(x.clave));
   return nota.filter(queda).concat(rec);

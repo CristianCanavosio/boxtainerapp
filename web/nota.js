@@ -739,7 +739,8 @@ function lineasCosteo(){
   if(d.prod==='Contenedor cortado')add('Corte de contenedor','mo','c/u',1,d.corte?d.corte+' cm':'');
   // espacios
   const esp=d.espacios, humedos=esp.filter(x=>ITEMS[x.tipo]);
-  esp.forEach(x=>{add('Armado de '+ESP[x.tipo].toLowerCase(),'mo','c/u',1);
+  // sin costos de armado (decisión de Cristian 26/11): la mano de obra va por m²
+  esp.forEach(x=>{
     (x.items||[]).forEach(it=>add((x.tipo==='bano'?'Sanitario · ':'Cocina · ')+it,'mat','c/u',1))});
   if(esp.length>1)add('Tabique divisorio','mat','m²',(esp.length-1)*A*H);
   if(humedos.length)add('Instalación sanitaria por ambiente','mo','c/u',humedos.length);

@@ -369,7 +369,15 @@ function maeSugerir(clave){
 function maeEqEditorHTML(clave){
   const b=mae.eqBorr||[];
   const tot=b.reduce((s,c)=>s+(mae.ins[c.insumo]?.costo||0)*c.factor,0);
+  // ítem sin costo (ej. "Armado de oficina"): se carga el costo directo y queda como insumo con el mismo nombre
+  const directo=!(mae.eq[clave]||[]).length&&!maeInsIgual(clave);
   return `<div style="margin-top:8px;border-top:1px solid var(--borde);padding-top:8px">
+    ${directo?`<div style="background:var(--fondo,#F6F7F9);border-radius:10px;padding:8px;margin-bottom:8px">
+      <div style="font-size:13px;font-weight:700">Cargar el costo directo</div>
+      <div style="font-size:12px;color:var(--gris-m);margin:2px 0 6px">Crea el insumo "${esc(clave)}" en Insumos con este costo. Los presupuestos abiertos se recalculan al instante.</div>
+      <div style="display:flex;gap:6px;align-items:center"><input id="mae-dir-cos" type="text" inputmode="decimal" placeholder="USD" style="flex:1;min-width:0">
+        <button class="btn btn-nar btn-sm" onclick="maeCostoDirecto(${esc(JSON.stringify(clave))})">Guardar costo</button></div>
+      <div style="font-size:12px;color:var(--gris-m);margin-top:6px">O armalo con insumos que ya existen:</div></div>`:''}
     ${b.map((c,i)=>`<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
       <input style="flex:1;min-width:0" list="mae-ins-dl" value="${esc(c.insumo?maeNombre(c.insumo)+' · '+c.insumo:'')}" onchange="maeEqSet(${i},'insumo',this.value)" placeholder="Insumo">
       <span>×</span><input style="width:80px" type="text" inputmode="decimal" value="${String(c.factor).replace('.',',')}" onchange="maeEqSet(${i},'factor',this.value)" aria-label="Factor">
@@ -396,4 +404,20 @@ async function maeEqGuardar(clave){
     if(comp.length) mae.eq[clave]=comp; else delete mae.eq[clave];
     mae.eqAbierto=null; mae.eqBorr=null; toast('✅ Guardado: los proyectos y los presupuestos abiertos ya usan este costo'); renderMaestro();
   }catch(e){toast(msgError(e));}
+}
+
+// Costo directo para un ítem de la nota que no tiene insumo: crea el insumo con el mismo nombre (lo toma solo, 0028)
+async function maeCostoDirecto(clave){
+  const n=maeNum(document.getElementById('mae-dir-cos')?.value);
+  if(isNaN(n)||n<0){toast('⚠️ Poné el costo en USD');return;}
+  const nums=Object.keys(mae.ins).map(c=>/^INS-(\d+)$/.exec(c)).filter(Boolean).map(m=>Number(m[1]));
+  let k=(nums.length?Math.max(...nums):0)+1, cod;
+  do{cod='INS-'+String(k++).padStart(3,'0');}while(mae.ins[cod]);
+  const fila={codigo:cod,nombre:clave,rubro:typeof rubroReceta==='function'&&rubroReceta(clave)==='mo'?'Mano de obra':null,
+    unidad:null,costo_usd:n,para_vendedor:false,fuente:'manual',costo_actualizado_en:new Date().toISOString()};
+  try{const r=await sb.from('cot_insumos').insert(fila).select().single(); if(r.error) throw r.error;
+    mae.ins[cod]={...r.data,costo:Number(r.data.costo_usd)};
+    mae.eqAbierto=null; mae.eqBorr=null;
+    toast(`✅ "${clave}" cuesta ${usd(n)}: los presupuestos abiertos ya tienen el precio nuevo`); renderMaestro();}
+  catch(e){toast(msgError(e));}
 }
