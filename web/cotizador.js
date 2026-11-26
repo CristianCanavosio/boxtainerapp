@@ -52,7 +52,7 @@ async function cotNueva(oid){
 }
 async function cotAbrir(id){
   const c=cotOp(id); if(!c) return;
-  try{await cotCat();}catch(e){toast(msgError(e));return;}
+  try{await cotCat(true);}catch(e){toast(msgError(e));return;}   // siempre fresco: un insumo nuevo aparece enseguida
   cot.ver=id;
   cot.ed={id:c.id,op:c.oportunidad_id,tip:c.tipologia,uni:c.unidades,cambios:{...(c.cambios||{})},notas:c.notas||'',
     pedido:c.precio_pedido??'',motivo:c.motivo_pedido||'',calc:null,sucio:false,precio:c.precio_pedido!=null,busca:''};

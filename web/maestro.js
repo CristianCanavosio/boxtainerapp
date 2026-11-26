@@ -35,8 +35,18 @@ function precioItem(clave){
     for(const c of e){const i=mae.ins[c.insumo]; if(!i||i.costo==null) return {costo:null,fuente:'maestro',falta:i?i.nombre:c.insumo}; s+=i.costo*c.factor;}
     return {costo:Math.round(s*100)/100,fuente:'maestro'};
   }
+  // sin emparejar: el insumo del maestro que se llama igual (o tiene ese código) manda sobre el precio viejo
+  const i=maeInsIgual(clave);
+  if(i) return i.costo==null?{costo:null,fuente:'nombre',falta:i.nombre,insumo:i.codigo}:{costo:i.costo,fuente:'nombre',insumo:i.codigo};
   const l=typeof listaCostos!=='undefined'&&listaCostos[clave];
   return l&&l.costo?{costo:l.costo,fuente:'viejo',rubro:l.rubro,unidad:l.unidad}:null;
+}
+// mismo criterio que la base (_cot_costo_item, migración 0028): código exacto o nombre igual sin importar mayúsculas
+function maeInsIgual(clave){
+  if(!mae.listo) return null;
+  const k=String(clave||'').trim(), n=k.toLowerCase();
+  if(mae.ins[k]?.activo) return mae.ins[k];
+  return Object.values(mae.ins).filter(x=>x.activo&&String(x.nombre||'').trim().toLowerCase()===n).sort((a,b)=>a.codigo.localeCompare(b.codigo))[0]||null;
 }
 const costoDe=clave=>{const p=precioItem(clave);return p&&p.costo!=null?p.costo:null;};
 const maeNombre=c=>mae.ins[c]?.nombre||c;
@@ -98,6 +108,9 @@ function maeInsumosHTML(){
       <div class="form-2"><div class="fg"><label>Rubro</label><input id="mi-rub" list="mi-rubros"><datalist id="mi-rubros">${[...new Set(l.map(x=>x.rubro).filter(Boolean))].sort().map(r=>`<option value="${esc(r)}">`).join('')}</datalist></div>
         <div class="fg"><label>Unidad</label><input id="mi-uni" placeholder="UN, M2, ML…"></div></div>
       <div class="fg"><label>Costo USD</label><input id="mi-cos" type="number" step="0.01" min="0"></div>
+      <div class="fg"><label>¿Se suma a un ítem de la nota de pedido? (opcional)</label><input id="mi-item" list="mi-items" placeholder="Ej: Sanitario · Inodoro">
+        <datalist id="mi-items">${maeClavesProyectos().map(x=>`<option value="${esc(x.clave)}">`).join('')}</datalist>
+        <div style="font-size:12px;color:var(--gris-m);margin-top:4px">Si lo elegís, el costo de ese ítem pasa a incluir este insumo. Si lo vas a usar en una receta de obra con el mismo nombre, no hace falta. Los presupuestos abiertos se recalculan al instante.</div></div>
       <button class="btn btn-nar btn-sm" onclick="maeNuevoIns()">+ Agregar</button></details>`;
 }
 async function maeSetIns(cod,cambios){
@@ -118,9 +131,17 @@ async function maeNuevoIns(){
   if(!fila.codigo||!fila.nombre){toast('⚠️ Poné código y nombre');return;}
   if(mae.ins[fila.codigo]){toast('⚠️ Ya hay un insumo con ese código');return;}
   const c=maeNum(g('mi-cos')); if(g('mi-cos')!==''&&!isNaN(c)){fila.costo_usd=c;fila.costo_actualizado_en=new Date().toISOString();}
+  const item=g('mi-item');
   try{const r=await sb.from('cot_insumos').insert(fila).select().single(); if(r.error) throw r.error;
-    mae.ins[fila.codigo]={...r.data,costo:r.data.costo_usd==null?null:Number(r.data.costo_usd)}; toast('✅ Insumo agregado'); renderMaestro();}
-  catch(e){toast(msgError(e));}
+    mae.ins[fila.codigo]={...r.data,costo:r.data.costo_usd==null?null:Number(r.data.costo_usd)};
+    if(item){
+      // se suma a lo que ya tenía el ítem (si no tenía equivalencia, queda solo este insumo)
+      const comp=[...(mae.eq[item]||[]).filter(c=>c.insumo!==fila.codigo),{insumo:fila.codigo,factor:1}];
+      chk(await sb.from('cot_equivalencias').upsert({clave:item,composicion:comp,actualizado_en:new Date().toISOString()}));
+      mae.eq[item]=comp;
+    }
+    toast(item?`✅ Insumo agregado y sumado a "${item}": los presupuestos abiertos ya tienen el precio nuevo`:'✅ Insumo agregado'); renderMaestro();}
+  catch(e){toast(msgError(e));renderMaestro();}
 }
 
 // ── Importar la planilla del cotizador ──
@@ -305,16 +326,17 @@ function maeEquivHTML(){
   const f=normTxt(mae.busca);
   const l=maeClavesProyectos().map(x=>({...x,p:precioItem(x.clave),eq:mae.eq[x.clave]||[]}))
     .filter(x=>!f||normTxt(x.clave).includes(f))
-    .sort((a,b)=>((a.eq.length?1:0)-(b.eq.length?1:0))||(b.usos-a.usos)||a.clave.localeCompare(b.clave));
-  const sinEq=l.filter(x=>!x.eq.length&&x.usos).length;
+    .sort((a,b)=>((a.eq.length||a.p?.fuente==='nombre'?1:0)-(b.eq.length||b.p?.fuente==='nombre'?1:0))||(b.usos-a.usos)||a.clave.localeCompare(b.clave));
+  const sinEq=l.filter(x=>!x.eq.length&&x.usos&&x.p?.fuente!=='nombre').length;
   return `<div class="card" style="font-size:13px">Cada ítem que sale de la nota de pedido (o de la receta de obra) toma su costo del maestro: uno o más insumos, cada uno con un factor.
       Ej.: Lavamatic = lavamanos + monocomando; Aislación (m²) = Isover ÷ 9,4 → factor 0,1064; Pintura (tacho 20 l) = litro × 20.
+      <div style="margin-top:6px">Si un ítem se llama igual que un insumo, lo toma solo: no hace falta emparejarlo. Cualquier cambio acá o en Insumos recalcula al instante los presupuestos abiertos; los que el cliente ya aceptó conservan su precio.</div>
       ${sinEq?`<div style="margin-top:6px;color:var(--rojo);font-weight:700">${sinEq} ítem${sinEq>1?'s':''} usado${sinEq>1?'s':''} en pedidos sin emparejar: usan el precio viejo de la lista de costos.</div>`:''}</div>
     <div class="fg"><input type="search" id="mae-busca" placeholder="🔍 Buscar ítem…" value="${esc(mae.busca)}" oninput="mae.busca=this.value;renderMaestro();maeFoco('#mae-busca')"></div>
-    <div class="card cst-lista">${l.map(x=>{const ab=mae.eqAbierto===x.clave;return `<div class="cst-li ${x.eq.length?'':'sinp'}" style="display:block">
+    <div class="card cst-lista">${l.map(x=>{const ab=mae.eqAbierto===x.clave;return `<div class="cst-li ${x.eq.length||x.p?.fuente==='nombre'?'':'sinp'}" style="display:block">
       <div style="display:flex;justify-content:space-between;gap:8px;cursor:pointer" onclick="maeEqAbrir(${esc(JSON.stringify(x.clave))})">
         <div style="min-width:0"><b>${esc(x.clave)}</b><small>${x.unidad?'por '+esc(x.unidad):''}${x.usos?` · en ${x.usos} pedido${x.usos>1?'s':''}`:''}${x.receta?' · receta de obra':''}</small>
-          <small>${x.eq.length?x.eq.map(c=>esc(maeNombre(c.insumo))+(c.factor!==1?' × '+fmt2(c.factor):'')).join(' + '):(x.p?'Sin emparejar · precio viejo':'Sin emparejar')}</small></div>
+          <small>${x.eq.length?x.eq.map(c=>esc(maeNombre(c.insumo))+(c.factor!==1?' × '+fmt2(c.factor):'')).join(' + '):(x.p&&x.p.fuente==='nombre'?'Toma el insumo '+esc(maeNombre(x.p.insumo))+' (mismo nombre)':x.p?'Sin emparejar · precio viejo':'Sin emparejar')}</small></div>
         <b style="white-space:nowrap">${x.p&&x.p.costo!=null?usd(x.p.costo):x.p&&x.p.falta?'<span style="color:var(--rojo)">falta costo</span>':'—'}</b></div>
       ${ab?maeEqEditorHTML(x.clave):''}</div>`;}).join('')}</div>`;
 }
@@ -358,6 +380,6 @@ async function maeEqGuardar(clave){
     if(comp.length) chk(await sb.from('cot_equivalencias').upsert({clave,composicion:comp,actualizado_en:new Date().toISOString()}));
     else chk(await sb.from('cot_equivalencias').delete().eq('clave',clave));
     if(comp.length) mae.eq[clave]=comp; else delete mae.eq[clave];
-    mae.eqAbierto=null; mae.eqBorr=null; toast('✅ Guardado: los proyectos se costean con esto'); renderMaestro();
+    mae.eqAbierto=null; mae.eqBorr=null; toast('✅ Guardado: los proyectos y los presupuestos abiertos ya usan este costo'); renderMaestro();
   }catch(e){toast(msgError(e));}
 }
