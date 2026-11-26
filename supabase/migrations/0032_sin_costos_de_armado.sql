@@ -1,7 +1,8 @@
--- 0031: Sin costos de armado (decisión de Cristian 26/11).
+-- 0032: Sin costos de armado (decisión de Cristian 26/11: ya están dentro de la mano de obra por m²).
 -- "Armado de oficina / baño / cocina / habitación…" ya no se cuentan en el precio ni figuran como "sin costo".
 -- La nota nueva ya no los manda; esto cubre los presupuestos guardados antes y las recetas de obra.
--- Necesita la 0030. Se puede correr más de una vez.
+-- Es la misma función de la 0031 (ventanas por m²) con ese único filtro agregado.
+-- Necesita la 0031. Se puede correr más de una vez.
 
 create or replace function _cot_calc_nota(p_lineas jsonb, p_prod text, p_tam text, p_unidades int) returns jsonb
 language plpgsql stable security definer set search_path = public as $$
@@ -16,6 +17,9 @@ declare
   elec boolean := not (coalesce(p_prod, '') ~ 'Company$') and exists (
     select 1 from jsonb_array_elements(case when jsonb_typeof(p_lineas) = 'array' then p_lineas else '[]'::jsonb end) x
     where trim(x->>'clave') in ('Instalación eléctrica', 'Mano de obra general'));
+  -- ventanas por m² (0031, todos menos Company): la nota nueva ya trae el ítem; en las guardadas antes,
+  -- los m² salen de la medida de cada ventana ("Ventana Módena · 100 × 100" → 1 m² por unidad)
+  vent_nueva boolean := exists (select 1 from jsonb_array_elements(case when jsonb_typeof(p_lineas) = 'array' then p_lineas else '[]'::jsonb end) x where trim(x->>'clave') = 'Aberturas: ventanas por m² (MO+MAT)');
 begin
   for r in
     with rec_todas as (
@@ -26,8 +30,17 @@ begin
       from jsonb_array_elements(case when jsonb_typeof(p_lineas) = 'array' then p_lineas else '[]'::jsonb end) x
       where coalesce(trim(x->>'clave'), '') <> '' and (x->>'cant') ~ '^-?[0-9]+([.][0-9]+)?$'
       group by 1),
+    vent_viejas as (   -- presupuestos guardados antes de la 0031 (no Company): m² y DVH desde la medida de cada ventana
+      select clave, cant, _cot_medida_ventana(clave) * cant as m2
+      from nota0
+      where not company and not vent_nueva and _cot_es_ventana(clave) and _cot_medida_ventana(clave) is not null),
     nota as (   -- presupuestos guardados antes de la 0030: la instalación eléctrica sale de los m² de la mano de obra
-      select clave, cant from nota0 where elec or clave <> 'Instalación eléctrica'   -- Company: no se suma
+      select clave, cant from nota0 where (elec or clave <> 'Instalación eléctrica')   -- Company: no se suma
+        and not (company and clave in ('Aberturas: ventanas por m² (MO+MAT)', 'Aberturas: adicional vidrio DVH por m²'))   -- Company: ventanas de su receta
+      union all
+      select 'Aberturas: ventanas por m² (MO+MAT)', sum(m2) from vent_viejas having sum(m2) > 0
+      union all
+      select 'Aberturas: adicional vidrio DVH por m²', sum(m2) from vent_viejas where clave ~* '^ventana dvh' having sum(m2) > 0
       union all
       select 'Instalación eléctrica', cant from nota0
       where elec and clave = 'Mano de obra general' and not exists (select 1 from nota0 where clave = 'Instalación eléctrica')),
@@ -44,12 +57,15 @@ begin
              clave ~ '^(Contenedor |Corte de contenedor|Flete$|Comisión de venta$|Amortización de planta)')
       union all select clave, cant from rec)
     select t.clave, t.cant from todo t
-    where t.cant > 0 and t.clave !~* '^armado de '   -- los costos de armado no se cuentan (decisión de Cristian 26/11)
+    where t.cant > 0 and t.clave !~* '^armado de '   -- sin costos de armado: van dentro de la mano de obra por m² (0032)
     order by t.clave
   loop
     -- tomas, luces, tablero, disyuntor, térmicas, cables… quedan incluidos en la instalación eléctrica por m²
     -- (siguen en la lista de materiales para el taller, pero con costo 0)
     incl := elec and r.clave <> 'Instalación eléctrica' and _cot_es_electrico(r.clave);
+    -- cada ventana suelta queda incluida en el costo por m² (MO+MAT): sigue para el taller, con costo 0
+    incl := incl or (not company and _cot_es_ventana(r.clave)
+                     and (vent_nueva or _cot_medida_ventana(r.clave) is not null));
     c := case when incl then 0 else (_cot_costo_item(r.clave)).costo end;
     det := det || jsonb_build_object('nombre', r.clave, 'cant', round(r.cant, 2));
     if c is null then sin := sin + 1; sin_nom := sin_nom || to_jsonb(r.clave);
