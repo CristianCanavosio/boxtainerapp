@@ -85,7 +85,7 @@ function maeInsumosHTML(){
       <div class="flex-btns" style="margin-top:8px;flex-wrap:wrap">
         <label class="btn btn-nar btn-sm" style="cursor:pointer">📥 Importar planilla del cotizador<input type="file" accept=".xlsx,.xls,.ods" style="display:none" onchange="maeLeerPlanilla(this)"></label>
         <button class="btn btn-sec btn-sm" onclick="maeBajarPlanilla()">⬇️ Bajar el maestro en Excel</button></div>
-      <div style="margin-top:6px;font-size:12px;color:var(--gris)">La planilla lleva las hojas Insumos_Maestra, Tipologias_DB, Receta_Tipologias y Parametros (como "Cotizador Boxtainer.xlsx"). Cuando conectemos Flexxus, los costos van a llegar solos y esta importación queda como respaldo.</div></div>
+      <div style="margin-top:6px;font-size:12px;color:var(--gris)">Se importa apenas la elegís y te muestra el resultado. La planilla lleva las hojas Insumos_Maestra, Tipologias_DB, Receta_Tipologias y Parametros (como "Cotizador Boxtainer.xlsx"). Cuando conectemos Flexxus, los costos van a llegar solos y esta importación queda como respaldo.</div></div>
     ${mae.imp?maeImpHTML():''}
     <div class="fg"><input type="search" id="mae-busca" placeholder="🔍 Buscar insumo, código o rubro…" value="${esc(mae.busca)}" oninput="mae.busca=this.value;renderMaestro();maeFoco('#mae-busca')"></div>
     <div class="card cst-lista">${vis.map(x=>`<div class="cst-li ${x.costo==null?'sinp':''}" style="${x.activo?'':'opacity:.5'}">
@@ -131,13 +131,18 @@ function maeFilas(m){ // primera fila = encabezados; devuelve objetos con claves
   return m.slice(1).map(r=>{const o={};h.forEach((k,i)=>o[k]=r[i]);return o;});
 }
 const maeCol=(o,...re)=>{for(const k of Object.keys(o)) if(re.some(r=>r.test(k))) return o[k]; return '';};
+// Pedido de Cristian 26/11: al subir la planilla se importa de una vez y queda a la vista un resultado claro
+// (qué se cargó, qué cambió de costo y qué no se pudo leer). Si algo falla, el aviso queda en pantalla.
 async function maeLeerPlanilla(input){
   const f=input.files[0]; input.value=''; if(!f) return;
+  mae.imp={estado:'leyendo',archivo:f.name}; renderMaestro();
+  let m;
   try{
     await cargarLib(LIB_XLSX);
     const wb=XLSX.read(await f.arrayBuffer(),{type:'array'});
+    const hojas=wb.SheetNames.join(', ');
     const I=maeFilas(maeHoja(wb,/insumo/)), T=maeFilas(maeHoja(wb,/tipolog/)), R=maeFilas(maeHoja(wb,/receta/)), P=maeHoja(wb,/parametro/);
-    if(!I.length) throw new Error('no encontré la hoja de insumos (Insumos_Maestra)');
+    if(!I.length) throw new Error('no encontré la hoja de insumos (Insumos_Maestra). Hojas del archivo: '+hojas);
     const num=v=>{if(v===''||v==null) return null; const n=typeof v==='number'?v:numAR(v); return isNaN(n)?null:n;};
     const ins=I.map(o=>({codigo:String(maeCol(o,/^id/,/codigo/)).trim(),nombre:String(maeCol(o,/nombre/)).trim(),rubro:String(maeCol(o,/rubro/)).trim(),
       unidad:String(maeCol(o,/unidad/)).trim(),costo:num(maeCol(o,/costo/))})).filter(x=>x.codigo&&x.nombre);
@@ -151,33 +156,52 @@ async function maeLeerPlanilla(input){
     // margen escrito como 30 en vez de 0,30
     tip.forEach(t=>{if(t.margen!=null&&t.margen>=1) t.margen=t.margen/100;});
     if(par.margen_default>=1) par.margen_default/=100; if(par.iva>=1) par.iva/=100;
-    const cambian=ins.filter(x=>x.costo!=null&&mae.ins[x.codigo]&&Math.abs((mae.ins[x.codigo].costo??-1)-x.costo)>=0.005);
-    const nuevos=ins.filter(x=>!mae.ins[x.codigo]);
-    mae.imp={archivo:f.name,ins,tip,rec,par,cambian,nuevos,sinCosto:ins.filter(x=>x.costo==null).length,
-      recMal:R.length-rec.length};
-    renderMaestro();
-  }catch(e){toast('⚠️ No pude leer la planilla: '+(e.message||e));}
-}
-function maeImpHTML(){
-  const m=mae.imp;
-  return `<div class="card" style="border-left:5px solid var(--nar);font-size:13px"><div class="card-title">📥 ${esc(m.archivo)}</div>
-    <div>${m.ins.length} insumos (${m.nuevos.length} nuevos, ${m.cambian.length} cambian de costo${m.sinCosto?`, ${m.sinCosto} sin costo`:''}) · ${m.tip.length} tipologías · ${m.rec.length} líneas de receta</div>
-    ${Object.keys(m.par).length?`<div>Parámetros: ${m.par.tipo_cambio!=null?'tipo de cambio '+crmNum(m.par.tipo_cambio):''}${m.par.margen_default!=null?' · margen por defecto '+maePct(m.par.margen_default)+'%':''}${m.par.iva!=null?' · IVA '+maePct(m.par.iva)+'%':''}</div>`:''}
-    ${m.cambian.length?`<details style="margin-top:6px"><summary style="cursor:pointer">Ver qué cambia</summary>${m.cambian.slice(0,60).map(x=>`<div class="crm-n">${esc(x.nombre)}: ${usd(mae.ins[x.codigo].costo)} → <b>${usd(x.costo)}</b></div>`).join('')}</details>`:''}
-    <div style="margin-top:6px;color:var(--gris-m);font-size:12px">Las recetas de las tipologías de la planilla se reemplazan enteras.</div>
-    <div class="flex-btns" style="margin-top:8px"><button class="btn btn-sec btn-sm" onclick="mae.imp=null;renderMaestro()">Cancelar</button>
-      <button class="btn btn-nar btn-sm" id="mae-imp-ok" onclick="maeImportar()">✅ Importar</button></div></div>`;
-}
-async function maeImportar(){
-  const m=mae.imp; if(!m) return;
-  const b=document.getElementById('mae-imp-ok'); if(b){if(b.disabled)return;b.disabled=true;}
+    const avisos=[];
+    if(!T.length) avisos.push('No encontré la hoja de tipologías (Tipologias_DB): el cotizador no va a tener productos para elegir.');
+    else if(!tip.length) avisos.push('La hoja de tipologías no tiene filas con ID y nombre.');
+    if(!R.length) avisos.push('No encontré la hoja de recetas (Receta_Tipologias).');
+    else if(R.length>rec.length) avisos.push(`${R.length-rec.length} fila${R.length-rec.length>1?'s':''} de receta sin tipología, insumo o cantidad: no se cargaron.`);
+    const codIns=new Set([...ins.map(x=>x.codigo),...Object.keys(mae.ins)]), codTip=new Set([...tip.map(x=>x.codigo),...mae.tip.map(x=>x.codigo)]);
+    const recSueltas=rec.filter(r=>!codIns.has(r.insumo)||!codTip.has(r.tipologia));
+    if(recSueltas.length) avisos.push(`${recSueltas.length} línea${recSueltas.length>1?'s':''} de receta con un código de insumo o tipología que no existe: no se cargaron.`);
+    const sinCosto=ins.filter(x=>x.costo==null);
+    if(sinCosto.length) avisos.push(`${sinCosto.length} insumo${sinCosto.length>1?'s':''} sin costo: ${sinCosto.slice(0,5).map(x=>x.nombre).join(', ')}${sinCosto.length>5?'…':''}.`);
+    m={archivo:f.name,ins,tip,rec,par,avisos,
+      cambian:ins.filter(x=>x.costo!=null&&mae.ins[x.codigo]&&Math.abs((mae.ins[x.codigo].costo??-1)-x.costo)>=0.005).map(x=>({...x,antes:mae.ins[x.codigo].costo})),
+      nuevos:ins.filter(x=>!mae.ins[x.codigo]).length};
+  }catch(e){mae.imp={estado:'error',archivo:f.name,error:'No pude leer la planilla: '+(e.message||e)};renderMaestro();return;}
+  mae.imp={estado:'subiendo',archivo:f.name}; renderMaestro();
   try{
     const r=await sb.rpc('cot_importar',{p_insumos:m.ins,p_tipologias:m.tip,p_recetas:m.rec,p_parametros:m.par});
     if(r.error) throw r.error;
-    mae.imp=null; await cargarMaestro(); if(typeof cot!=='undefined') cot.cat=null;
-    toast(`✅ Importado: ${r.data.insumos} insumos, ${r.data.tipologias} tipologías, ${r.data.recetas} líneas de receta`);
-    renderMaestro();
-  }catch(e){toast(msgError(e));if(b)b.disabled=false;}
+    await cargarMaestro(); if(typeof cot!=='undefined') cot.cat=null;
+    // se controla contra lo que quedó en la base, no contra lo que se mandó
+    const tipOk=mae.tip.filter(t=>t.activo).length, recOk=mae.rec.length;
+    if(m.tip.length&&!tipOk) m.avisos.unshift('Las tipologías no quedaron guardadas en la base. Avisale a Claude.');
+    mae.imp={estado:'ok',...m,res:r.data,tipOk,recOk,insOk:Object.keys(mae.ins).length,cuando:new Date()};
+    toast(tipOk?'✅ Planilla subida: materiales y costos actualizados':'⚠️ Planilla subida, pero el cotizador no tiene tipologías');
+  }catch(e){mae.imp={estado:'error',archivo:f.name,error:'No se pudo guardar en la base: '+(msgError(e)||'').replace(/^⚠️\s*/,'')};toast('⚠️ No se pudo subir la planilla');}
+  renderMaestro();
+  document.getElementById('mae-imp')?.scrollIntoView({behavior:'smooth',block:'center'});
+}
+function maeImpHTML(){
+  const m=mae.imp, cerrar=`<button class="btn btn-sec btn-sm" style="margin-top:8px" onclick="mae.imp=null;renderMaestro()">Cerrar</button>`;
+  if(m.estado==='leyendo'||m.estado==='subiendo') return `<div class="card" id="mae-imp" style="border-left:5px solid var(--azul);font-size:14px">⏳ ${m.estado==='leyendo'?'Leyendo':'Guardando'} <b>${esc(m.archivo)}</b>…</div>`;
+  if(m.estado==='error') return `<div class="card" id="mae-imp" style="border-left:5px solid var(--rojo);font-size:14px"><div class="card-title" style="color:var(--rojo)">❌ No se subió la planilla</div>
+    <div><b>${esc(m.archivo)}</b>: ${esc(m.error)}</div><div class="crm-n" style="margin-top:6px">No se cambió nada en la base.</div>${cerrar}</div>`;
+  const ok=!m.avisos.length;
+  return `<div class="card" id="mae-imp" style="border-left:5px solid ${ok?'var(--verde)':'var(--amarillo)'};font-size:14px">
+    <div class="card-title" style="color:${ok?'var(--verde)':'var(--amarillo)'}">${ok?'✅ La planilla se subió correctamente':'✅ La planilla se subió, con avisos'}</div>
+    <div class="crm-n">${esc(m.archivo)} · ${m.cuando.toLocaleString('es-AR',{dateStyle:'short',timeStyle:'short'})}</div>
+    <div style="margin-top:8px;line-height:1.6">
+      📦 <b>${m.ins.length} insumos</b> con su costo (${m.nuevos} nuevos, ${m.cambian.length} cambiaron de costo)<br>
+      🧩 <b>${m.tipOk} tipologías</b> disponibles en el cotizador<br>
+      📋 <b>${m.recOk} líneas de receta</b><br>
+      ${Object.keys(m.par).length?`⚙️ Parámetros: ${[m.par.tipo_cambio!=null?'dólar '+crmNum(m.par.tipo_cambio):'',m.par.margen_default!=null?'margen '+maePct(m.par.margen_default)+'%':'',m.par.iva!=null?'IVA '+maePct(m.par.iva)+'%':''].filter(Boolean).join(' · ')}<br>`:''}
+      🔗 Los costos de los proyectos y los precios del cotizador ya usan estos valores.</div>
+    ${m.avisos.length?`<div class="cst-aviso amar" style="margin-top:8px">${m.avisos.map(esc).join('<br>')}</div>`:''}
+    ${m.cambian.length?`<details style="margin-top:6px"><summary style="cursor:pointer">Ver los ${m.cambian.length} costos que cambiaron</summary>${m.cambian.slice(0,80).map(x=>`<div class="crm-n">${esc(x.nombre)}: ${x.antes==null?'sin costo':usd(x.antes)} → <b>${usd(x.costo)}</b></div>`).join('')}</details>`:''}
+    ${cerrar}</div>`;
 }
 async function maeBajarPlanilla(){
   try{
