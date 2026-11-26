@@ -58,7 +58,9 @@ function renderRecetas(){
   const cuenta=t=>recetas.filter(r=>r.tipo===t).length;
   const filas=recetas.filter(r=>r.tipo===rtSel.tipo&&r.tam===rtSel.tam).sort((a,b)=>a.clave.localeCompare(b.clave));
   const general=rtSel.tam?recetas.filter(r=>r.tipo===rtSel.tipo&&r.tam===''):[];
-  const claves=[...new Set(recetas.map(r=>r.clave))].sort();
+  // también los insumos del maestro (solo el admin los ve): un material con el mismo nombre toma su costo solo
+  const insMae=typeof mae!=='undefined'&&mae.listo?Object.values(mae.ins).filter(x=>x.activo).map(x=>cotLindoRec(x.nombre)):[];
+  const claves=[...new Set([...recetas.map(r=>r.clave),...insMae])].sort();
   el.innerHTML=`<div class="card">
     <div style="font-size:14px;font-weight:800">📐 Receta por tipología</div>
     <div style="font-size:12px;color:var(--gris-m);margin:4px 0 10px">Qué materiales lleva cada tipología, por unidad. Al asignar un proyecto se suman a los de la nota y el supervisor controla lo usado contra eso. Si algo cambia según el contenedor, cargalo en el tamaño.</div>
@@ -279,3 +281,6 @@ async function planillaModeloRecetas(){
     XLSX.writeFile(wb,'recetas-boxtainer.xlsx');
   }catch(e){toast('⚠️ No se pudo armar la planilla: '+(e.message||e));}
 }
+
+// "MESA PLEGABLE" → "Mesa plegable" (la base compara sin importar mayúsculas)
+function cotLindoRec(n){n=String(n||'').trim();return n===n.toUpperCase()?n.charAt(0)+n.slice(1).toLowerCase():n;}
