@@ -29,11 +29,14 @@ function costeoDe(p){
   // instalación eléctrica por m² (migración 0030): lo eléctrico suelto queda incluido, con costo 0 (menos en Company)
   const company=/Company$/.test(NotaPedido.tipologia(p.ficha||{}).prod||'');
   if(company&&typeof ELEC_M2!=='undefined') base=base.filter(x=>x.clave!==ELEC_M2);   // Company sigue con lo eléctrico de su receta
+  if(company&&typeof VENT_M2!=='undefined') base=base.filter(x=>x.clave!==VENT_M2&&x.clave!==DVH_M2);   // y con las ventanas de su receta
   const elec=typeof esElectrico==='function'&&!company&&base.some(x=>x.clave===ELEC_M2);
+  // ventanas por m² (migración 0031): cada ventana suelta queda incluida en el costo por m², con costo 0 (menos en Company)
+  const vent=typeof esVentana==='function'&&!company&&base.some(x=>x.clave===VENT_M2);
   const lineas=base.map(x=>{
     const k=x.clave+(x.det?' | '+x.det:'');
     // costo: del maestro de insumos (migración 0025); si el ítem no está emparejado, la lista de costos vieja
-    const precio=elec&&x.clave!==ELEC_M2&&esElectrico(x.clave)?{costo:0,fuente:'incluido'}:typeof precioItem==='function'?precioItem(x.clave):listaCostos[x.clave];
+    const precio=(elec&&x.clave!==ELEC_M2&&esElectrico(x.clave))||(vent&&esVentana(x.clave))?{costo:0,fuente:'incluido'}:typeof precioItem==='function'?precioItem(x.clave):listaCostos[x.clave];
     const cant=c.ajustes[k]!=null?Number(c.ajustes[k]):x.cant;
     return {...x,k,cant,cantNota:x.cant,ajustada:c.ajustes[k]!=null,
       rubro:precio?.rubro||x.rubro,unidad:precio?.unidad||x.unidad,costo:precio?precio.costo:null,fuente:precio?.fuente||'',

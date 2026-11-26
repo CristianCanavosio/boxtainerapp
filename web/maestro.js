@@ -50,6 +50,10 @@ const maeMoRef=()=>Number(mae.par.mo_m2_referencia)>0?Number(mae.par.mo_m2_refer
 const ELEC_M2='Instalación eléctrica';
 const ELEC_RE=/^(instalacion electrica|tablero|toma|luz|plafon|tubo led|disyuntor|termica|llave termica|interruptor|cable|caja de luz|punto de luz|portalampara|lampara|disyuntores|termicas|tomas)/;
 const esElectrico=clave=>ELEC_RE.test(String(clave||'').trim().toLowerCase().replace(/[áéíóú]/g,c=>'aeiou'['áéíóú'.indexOf(c)]));
+// Ventanas por m² (migración 0031): un solo costo por m² (MO+MAT) + adicional por m² si el vidrio es DVH.
+// Cada ventana suelta ("Ventana Módena · 100 × 100"…) queda incluida, con costo 0. Mismo criterio que _cot_es_ventana en la base.
+const VENT_M2='Aberturas: ventanas por m² (MO+MAT)', DVH_M2='Aberturas: adicional vidrio DVH por m²';
+const esVentana=clave=>/^ventana/i.test(String(clave||'').trim());
 // mismo criterio que la base (_cot_costo_item, migración 0028): código exacto o nombre igual sin importar mayúsculas
 function maeInsIgual(clave){
   if(!mae.listo) return null;

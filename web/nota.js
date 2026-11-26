@@ -53,6 +53,11 @@ const PUERTA_VIEJA={'De abrir':'Puerta ingreso','Corrediza':'Puerta ventana corr
 const VENTANA_VIEJA={'Corrediza':'Ventana corrediza'};
 function normAbert(x){(x.puertas||[]).forEach(p=>{if(p&&PUERTA_VIEJA[p.tipo])p.tipo=PUERTA_VIEJA[p.tipo]});(x.ventanas||[]).forEach(v=>{if(v&&VENTANA_VIEJA[v.tipo])v.tipo=VENTANA_VIEJA[v.tipo]})}
 // En la lista de materiales (y en Costos) las puertas conservan el nombre de siempre, para no perder los costos cargados
+// Líneas y vidrios de ventanas (pedido de Cristian 26/11): Herrero y DVH dejan de ser línea; el DVH pasa a ser tipo de vidrio.
+// Las notas viejas con línea Herrero/DVH se siguen mostrando como estaban (listaCon), y una línea DVH vieja cuenta como vidrio DVH.
+const LINEAS=['Módena','A30','A40'], VIDRIOS=['Simple','DVH (3+3 / Cam 9)'];
+const esDVH=()=>/^DVH/.test(d.vidrio||'')||d.linea==='DVH';
+const VENT_M2='Aberturas: ventanas por m² (MO+MAT)', DVH_M2='Aberturas: adicional vidrio DVH por m²';
 const PUERTA_MAT={'Puerta ingreso':'De abrir','Puerta ventana corrediza':'Corrediza'};
 const mmTxt=mm=>Number(mm).toLocaleString('es-AR')+' mm';
 function limTxt(t){const L=LIM.find(x=>x.tipologia===t);if(!L)return '';const a=[];if(L.ancho_max_mm)a.push('ancho hasta '+mmTxt(L.ancho_max_mm));if(L.alto_max_mm)a.push('alto hasta '+mmTxt(L.alto_max_mm));return a.join(' y ')}
@@ -101,7 +106,7 @@ function nuevo(){return {empresa:'',arq:'Sí',sol:'',cli:'',tel:'',mail:'',cuit:
   unidades:1,prod:'',cont:'',ot:false,tam:'',motor:'',corte:'',lado:'',largo:'',ancho:'',alto:'',
   espacios:[],
   pExt:'',pExtOtro:'',pExtP:false,pInt:'',pIntOtro:'',piso:'',rev:[],revAsig:{},revExt:'',pInterior:'',
-  linea:'',puertas:[nuevaPuerta()],puertaP:false,ventanas:[],segunPlano:false,
+  linea:'',vidrio:'',puertas:[nuevaPuerta()],puertaP:false,ventanas:[],segunPlano:false,
   elec:{},aa:'',aaFrig:'',aaEsp:'',aaCant:'',termo:'',termoL:'',termoTipo:'',tanque:'',tanqueL:'',
   obs:'',archivos:[],confirmado:false}}
 let d=nuevo();
@@ -137,7 +142,7 @@ function errores(){
   if(esSolo(d.prod)&&paso>=2&&paso<=5)return e;
   if(paso===2){if(esModulo(d.prod)&&!total())e.push('Elegí al menos un espacio');d.espacios.forEach(x=>{if(!x.ubi)e.push(`Elegí dónde va ${etiqueta(x).toLowerCase()}`);})}
   if(paso===3){if(!d.pExt&&!d.pExtP)e.push('Elegí la pintura exterior o marcala a confirmar');if(d.pExt==='Otro'&&!d.pExtOtro.trim()&&!d.pExtP)e.push('Escribí el color o código exterior');if(d.pInt==='Otro'&&!d.pIntOtro.trim())e.push('Escribí el color o código interior');if(!d.revExt)e.push('Elegí el revestimiento exterior');if(!d.piso)e.push('Elegí el piso');if(!d.rev.length)e.push('Elegí el revestimiento interior');if(d.rev.length>1)revDestinos().forEach(x=>{if(!d.rev.includes(d.revAsig[x.k]))e.push(`Elegí qué revestimiento va en ${x.n.toLowerCase()}`)});if(total()>1&&!d.pInterior)e.push('Elegí las puertas interiores')}
-  if(paso===4){if(!d.linea&&!d.segunPlano)e.push('Elegí la línea de aberturas');
+  if(paso===4){if(!d.linea&&!d.segunPlano)e.push('Elegí la línea de aberturas');if(d.ventanas.length&&!d.vidrio&&!esDVH()&&!revisandoGuardada)e.push('Elegí el tipo de vidrio de las ventanas');
     if(!d.puertaP)puertasVal().forEach((p,i)=>{const n=d.puertas.length>1?' '+(i+1):'';if(!p.tipo||!p.pared||!p.mano)e.push(`Completá tipo, pared y apertura de la puerta${n} (o marcá las puertas a confirmar)`);else if(esLateral(p.pared)&&!p.pos)e.push(`Elegí en qué parte del ${p.pared.toLowerCase()} va la puerta${n}`);if(p.med==='Otra'&&(!p.ancho||!p.alto))e.push(`Poné ancho y alto de la puerta${n}`);if(!revisandoGuardada){const m=msgExceso(p,true,'Puerta'+n);if(m)e.push(m)}});
     d.ventanas.forEach((v,i)=>{if(!v.esp||!v.ancho||!v.alto||!v.tipo||!v.pared)e.push(`Completá la ventana ${i+1}`);else if(esLateral(v.pared)&&!v.pos)e.push(`Elegí en qué parte del ${v.pared.toLowerCase()} va la ventana ${i+1}`);if(!revisandoGuardada){const m=msgExceso(v,false,'Ventana '+(i+1));if(m)e.push(m)}});
     const L=largoTot(),A=Number(d.ancho)||244;
@@ -222,7 +227,8 @@ function render(){
     ${hayPlano()?`<div class="card ${d.segunPlano?'pend':''}"><label class="chk"><input type="checkbox" data-c="segunPlano" ${d.segunPlano?'checked':''}> <b>Seguir tal cual plano adjunto</b></label>
       <div class="aviso" style="text-align:left">${d.segunPlano?'Puertas y ventanas van como en el plano. Podés avanzar sin cargarlas, o cargar alguna igual si querés dejarla aclarada.':'Si el cliente o arquitectura ya mandaron un plano con las aberturas, tildalo y avanzá sin cargarlas una por una.'}</div></div>`
       :`<div class="aviso" style="text-align:left;margin-bottom:8px">¿Hay un plano con las aberturas? Subilo en Distribución y vas a poder seguirlo tal cual.</div>`}
-    <div class="card"><div class="lbl">Línea de aberturas${d.segunPlano?' <small>opcional</small>':''}</div>${ops('linea',['Herrero','Módena','DVH'],d.linea)}</div>
+    <div class="card"><div class="lbl">Línea de aberturas${d.segunPlano?' <small>opcional</small>':''}</div>${ops('linea',listaCon(LINEAS,d.linea),d.linea)}</div>
+    <div class="card"><div class="lbl">Tipo de vidrio de las ventanas${d.ventanas.length?'':' <small>si hay ventanas</small>'}</div>${ops('vidrio',listaCon(VIDRIOS,d.vidrio),d.vidrio)}</div>
     <div class="card">${barraAbert()}${abertSVG(true)}</div>
     <div class="card ${d.puertaP?'pend':''}"><div class="lbl">Puertas exteriores <small>${d.puertas.length} cargada${d.puertas.length>1?'s':''}</small> ${confBox('puertaP',d.puertaP)}</div>
       ${d.puertas.map((p,i)=>`<div class="abert"><div class="abert-h">Puerta ${i+1} <span style="color:var(--nar)">(P${i+1})</span>${d.puertas.length>1?`<button class="x" data-quitarp="${i}">Quitar</button>`:''}</div>
@@ -289,7 +295,7 @@ function resumenCuerpo(){
       <h4>Producto</h4><p>${unidades()>1?`<b>${unidades()} unidades iguales</b>, cada una: `:''}${esc(d.cont||((d.prod||'?')+' '+d.tam))}${d.prod==='Contenedor cortado'?`, cortado a ${esc(d.corte)} cm conservando ${esc(d.lado.toLowerCase())}`:''}${d.prod==='Reefer'&&d.cont?' '+esc(d.tam):''}${d.motor?', '+esc(d.motor.toLowerCase()):''}. Medidas exteriores ${esc(d.largo)} × ${esc(d.ancho)} × ${esc(d.alto)} cm.</p>
       <h4>Distribución</h4><p>${esc(espTxt)}.</p>
       <h4>Terminaciones</h4><p>Pintura exterior ${d.pExtP?'<span class="tag">a confirmar</span>':(d.pExt===SIN_PINT?'no lleva':esc((d.pExt==='Otro'?d.pExtOtro:d.pExt)||'?'))}, revestimiento exterior ${esc((d.revExt||'?').toLowerCase())}, pintura interior ${esc((d.pInt==='Otro'?d.pIntOtro:d.pInt)||'—')}. Piso ${esc(d.piso.toLowerCase()||'?')}, revestimiento interior ${esc(revTexto())}.</p>
-      <h4>Aberturas</h4><p>${d.segunPlano?'<b>Tal cual plano adjunto.</b> ':''}${d.linea||!d.segunPlano?`Línea ${esc(d.linea||'?')}. `:''}${d.puertaP?'Puertas exteriores <span class="tag">a confirmar</span>.':puertasVal().map((p,i)=>`Puerta ${i+1} (P${i+1}): ${esc(p.tipo.toLowerCase())} de ${p.med==='Otra'?esc(p.ancho)+' × '+esc(p.alto):esc(p.med||'?')} cm en ${esc(dondeTxt(p))}, ${esc(p.mano.toLowerCase())}${p.prot?', '+esc(p.prot.toLowerCase()):''}.`).join(' ')}
+      <h4>Aberturas</h4><p>${d.segunPlano?'<b>Tal cual plano adjunto.</b> ':''}${d.linea||!d.segunPlano?`Línea ${esc(d.linea||'?')}. `:''}${d.vidrio&&(d.ventanas.length||d.segunPlano)?`Vidrio ${esc(d.vidrio)}. `:''}${d.puertaP?'Puertas exteriores <span class="tag">a confirmar</span>.':puertasVal().map((p,i)=>`Puerta ${i+1} (P${i+1}): ${esc(p.tipo.toLowerCase())} de ${p.med==='Otra'?esc(p.ancho)+' × '+esc(p.alto):esc(p.med||'?')} cm en ${esc(dondeTxt(p))}, ${esc(p.mano.toLowerCase())}${p.prot?', '+esc(p.prot.toLowerCase()):''}.`).join(' ')}
         ${d.ventanas.length?d.ventanas.map((v,i)=>` Ventana ${i+1} (V${i+1}): ${esc(v.esp)}, ${esc(v.ancho)} × ${esc(v.alto)} cm en ${esc(dondeTxt(v))}, ${esc([(v.tipo||''),(v.prot||'')].filter(Boolean).join(', ').toLowerCase())}.`).join(''):d.segunPlano?'':' Sin ventanas.'}</p>
       <h4>Instalaciones</h4><p>${Object.entries(d.elec).map(([e,x])=>`${esc(e)}: ${x.tomas} tomas, ${x.luces} luces ${esc(x.tipo.toLowerCase())} ${esc(x.luz.toLowerCase())}`).join(' · ')||'—'}. Aire: ${esc(d.aa||'?')}${d.aa&&d.aa!=='No'?' × '+aaCant():''}${d.aaFrig?' '+esc(d.aaFrig):''}. Termotanque: ${esc(d.termo||'?')}${d.termoL?' '+esc(d.termoL)+' l '+esc(d.termoTipo.toLowerCase()):''}. Tanque: ${esc(d.tanque||'?')}${d.tanqueL?' '+esc(d.tanqueL)+' l':''}.</p>`;
 }
@@ -607,9 +613,9 @@ async function descargarPDF(btn,extra,pid){
 function mapsUrl(){return 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(d.loc||'')}
 function modelo(m){
   const E=(tipo,ubi,items)=>({id:nid(),tipo,ubi,items:items||[]});
-  const base={oficina:{prod:'Oficina',tam:'20 DV',espacios:[E('oficina','Extremo izquierdo'),E('bano','Extremo derecho',['Inodoro','Bacha'])],piso:'Flotante PVC',rev:['PVC'],pInterior:'Aluminio',linea:'Módena'},
-    sanitario:{prod:'Sanitario',tam:'20 DV',espacios:[E('bano','Extremo izquierdo',['Inodoro','Mingitorio','Bacha']),E('bano','Centro',['Inodoro','Bacha']),E('bano','Extremo derecho',['Ducha','Bacha'])],piso:'Original epoxy alto tránsito',rev:['PVC'],pInterior:'Aluminio',linea:'Herrero'},
-    vivienda:{prod:'Módulo habitable',tam:'40 HC',espacios:[E('habitacion','Extremo izquierdo'),E('habitacion','Extremo derecho'),E('cocina','Centro',['Bacha monocomando','Bajo mesada','Alacena']),E('bano','Centro',['Inodoro','Bidet','Bacha','Ducha','Espejo'])],piso:'Flotante madera',rev:['Durlock'],pInterior:'Madera',linea:'DVH'},
+  const base={oficina:{prod:'Oficina',tam:'20 DV',espacios:[E('oficina','Extremo izquierdo'),E('bano','Extremo derecho',['Inodoro','Bacha'])],piso:'Flotante PVC',rev:['PVC'],pInterior:'Aluminio',linea:'Módena',vidrio:'Simple'},
+    sanitario:{prod:'Sanitario',tam:'20 DV',espacios:[E('bano','Extremo izquierdo',['Inodoro','Mingitorio','Bacha']),E('bano','Centro',['Inodoro','Bacha']),E('bano','Extremo derecho',['Ducha','Bacha'])],piso:'Original epoxy alto tránsito',rev:['PVC'],pInterior:'Aluminio',linea:'Módena',vidrio:'Simple'},
+    vivienda:{prod:'Módulo habitable',tam:'40 HC',espacios:[E('habitacion','Extremo izquierdo'),E('habitacion','Extremo derecho'),E('cocina','Centro',['Bacha monocomando','Bajo mesada','Alacena']),E('bano','Centro',['Inodoro','Bidet','Bacha','Ducha','Espejo'])],piso:'Flotante madera',rev:['Durlock'],pInterior:'Madera',linea:'Módena',vidrio:'DVH (3+3 / Cam 9)'},
     otro:{}}[m];
   d.modelo=m;if(m==='otro'){render();toast('Empezás de cero: cargá todo en los pasos siguientes');return}
   Object.assign(d,limpio(base));d.espacios=base.espacios;d.revAsig={};d.elec={};const [l,a,h]=MED[d.tam];d.largo=l;d.ancho=a;d.alto=h;
@@ -759,7 +765,12 @@ function lineasCosteo(){
   else if(d.segunPlano&&!d.puertas.some(p=>p.tipo))add('Puerta exterior (según plano)','mat','c/u',1,'',true);
   else d.puertas.forEach(p=>{if(!p.tipo)return;add('Puerta exterior · '+(PUERTA_MAT[p.tipo]||p.tipo)+(p.tipo===PUERTA_ORIG?'':' '+(p.med==='Otra'?'medida especial':(p.med||'90')+' cm')),'mat','c/u',1,p.med==='Otra'?p.ancho+' × '+p.alto+' cm':'');
     if(p.prot==='Reja')add('Reja de puerta','mat','c/u',1);if(p.prot==='Postigón')add('Postigón','mat','c/u',1)});
-  d.ventanas.forEach(v=>{add('Ventana '+(d.linea||'')+' · '+(v.med==='Otra'?'medida especial':(v.med||'').replace(' (baño)','')),'mat','c/u',1,v.med==='Otra'?v.ancho+' × '+v.alto+' cm':'');
+  // ventanas: el costo es uno solo por m² (MO+MAT) y el DVH suma un adicional por m² (pedido de Cristian 26/11).
+  // Cada ventana sigue como ítem para el taller y la carpintería, con costo 0 (queda incluida en el m²).
+  const m2V=d.ventanas.reduce((s,v)=>{const m=String(v.med||'').match(/(\d+) × (\d+)/);const an=Number(v.ancho)||(m?+m[1]:0),al=Number(v.alto)||(m?+m[2]:0);return s+an*al/10000},0);
+  add(VENT_M2,'mo','m²',m2V);
+  if(esDVH())add(DVH_M2,'mo','m²',m2V);
+  d.ventanas.forEach(v=>{add('Ventana '+(d.linea||'')+(esDVH()&&d.linea!=='DVH'?' DVH':'')+' · '+(v.med==='Otra'?'medida especial':(v.med||'').replace(' (baño)','')),'mat','c/u',1,v.med==='Otra'?v.ancho+' × '+v.alto+' cm':'');
     if(v.prot==='Reja')add('Reja de ventana','mat','c/u',1);if(v.prot==='Mosquitero')add('Mosquitero','mat','c/u',1)});
   // instalaciones
   const el=Object.values(d.elec||{});
