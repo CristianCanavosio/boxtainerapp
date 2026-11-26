@@ -115,7 +115,8 @@ async function quitarReceta(id){
 // sin importar las que no reconoce. Toma las filas con cantidad mayor a 0 hasta la fila "COSTO";
 // el contenedor y el flete quedan afuera porque salen de la nota. Cada receta importada reemplaza
 // la que había para esa tipología y tamaño. Si entra el administrador, los precios unitarios pasan
-// a Costos; cuando un insumo tiene precios distintos (entre solapas o con Costos) se elige cuál vale.
+// a la lista de costos vieja (la usan solo los ítems que todavía no están emparejados con el maestro de
+// insumos); cuando un insumo tiene precios distintos (entre solapas o con esa lista) se elige cuál vale.
 let rtImp=null; // {archivo, hojas:[{nombre,tipo,tam,filas,error}], precios:{clave:{vals:{solapa:precio},ant,elegido}}}
 const RT_MAPA_KEY='rt_mapa_solapas';
 function mapaSolapas(){try{return JSON.parse(localStorage.getItem(RT_MAPA_KEY)||'{}')}catch(e){return {}}}
@@ -173,7 +174,7 @@ function leerHojaReceta(ws){
   }
   return filas.length?filas:null;
 }
-// precios por insumo en las solapas elegidas, y si chocan entre sí o con Costos
+// precios por insumo en las solapas elegidas, y si chocan entre sí o con la lista de costos
 function armarPrecios(){
   const prev=rtImp.precios||{}, P={};
   rtImp.hojas.filter(h=>h.tipo).forEach(h=>h.filas.forEach(x=>{if(!x.costo) return;
@@ -182,7 +183,7 @@ function armarPrecios(){
   Object.entries(P).forEach(([k,p])=>{
     const distintos=[...new Set(Object.values(p.vals))];
     p.choca=distintos.length>1||(p.ant>0&&!distintos.includes(p.ant));
-    // por defecto: se mantiene el de Costos; si no hay, el único o el más repetido
+    // por defecto: se mantiene el de la lista de costos; si no hay, el único o el más repetido
     const cuenta={};Object.values(p.vals).forEach(v=>cuenta[v]=(cuenta[v]||0)+1);
     p.elegido=prev[k]?.elegido??(p.ant>0?p.ant:Number(Object.entries(cuenta).sort((a,b)=>b[1]-a[1])[0][0]));
   });
@@ -205,10 +206,10 @@ function importRecetaHTML(){
           ${h.tipo?`<select onchange="rtImp.hojas[${i}].tam=this.value;renderRecetas()"><option value="">Cualquier tamaño</option>${TM.map(t=>`<option ${t===h.tam?'selected':''}>${esc(t)}</option>`).join('')}</select>`:''}</div>
       </div>`;}).join('')}
     ${choques.length?`<div class="sec-title" style="font-size:14px;margin-top:10px">⚠️ ${choques.length} precio${choques.length>1?'s':''} que no coinciden</div>
-      <div style="font-size:12px;color:var(--gris-m);margin-bottom:6px">En Costos cada insumo tiene un solo precio. Elegí cuál vale (cambia el costo de todos los productos que lo usan).</div>
+      <div style="font-size:12px;color:var(--gris-m);margin-bottom:6px">Cada insumo tiene un solo precio en la lista de costos. Elegí cuál vale. Los ítems emparejados con el maestro de insumos (Materiales y costos → Ítems de proyectos) toman el costo del maestro, no este.</div>
       ${choques.map(([k,p])=>{const ops=[...new Set([...(p.ant>0?[p.ant]:[]),...Object.values(p.vals)])];
-        return `<div class="rt-pr"><span>${esc(k)}<small>${p.ant>0?`Costos: ${usd(p.ant)} · `:''}${Object.entries(p.vals).map(([s,v])=>`${esc(s)}: ${usd(v)}`).join(' · ')}</small></span>
-          <select onchange="rtImp.precios[${esc(JSON.stringify(k))}].elegido=Number(this.value)">${ops.map(v=>`<option value="${v}" ${v===p.elegido?'selected':''}>${usd(v)}${v===p.ant?' (el de Costos)':''}</option>`).join('')}</select></div>`;}).join('')}`:''}
+        return `<div class="rt-pr"><span>${esc(k)}<small>${p.ant>0?`Lista: ${usd(p.ant)} · `:''}${Object.entries(p.vals).map(([s,v])=>`${esc(s)}: ${usd(v)}`).join(' · ')}</small></span>
+          <select onchange="rtImp.precios[${esc(JSON.stringify(k))}].elegido=Number(this.value)">${ops.map(v=>`<option value="${v}" ${v===p.elegido?'selected':''}>${usd(v)}${v===p.ant?' (el de la lista)':''}</option>`).join('')}</select></div>`;}).join('')}`:''}
     <div class="flex-btns" style="margin-top:10px"><button class="btn btn-verde btn-sm" ${elegidas.length?'':'disabled'} onclick="guardarRecetaImp(this)">✅ Importar ${elegidas.length} receta${elegidas.length===1?'':'s'}</button>
       <button class="btn btn-sec btn-sm" onclick="rtImp=null;renderRecetas()">Cancelar</button></div>
   </div>`;
@@ -237,17 +238,17 @@ async function guardarRecetaImp(btn){
         const v=p.elegido; if(!(v>0)||v===p.ant) continue;
         const prev=listaCostos[k]||{};
         const fila={clave:k,costo:v,rubro:prev.rubro||rubroReceta(k),unidad:prev.unidad||'c/u'};
-        if(proveedoresListo) Object.assign(fila,{proveedor:'Planilla '+r.archivo.replace(/\.\w+$/,''),fuente:'excel',referencia:null});
+        Object.assign(fila,{proveedor:'Planilla '+r.archivo.replace(/\.\w+$/,''),fuente:'excel',referencia:null});
         chk(await sb.from('lista_costos').upsert(fila,{onConflict:'clave'})); listaCostos[k]={...prev,...fila}; np++;
       }
     }
-    toast(`✅ ${elegidas.length} recetas importadas${np?` · ${np} precios actualizados en Costos`:''}`);
+    toast(`✅ ${elegidas.length} recetas importadas${np?` · ${np} precios actualizados en la lista de costos`:''}`);
     rtImp=null; renderRecetas();
   }catch(e){toast(msgError(e)); btn.disabled=false;}
 }
 
 // ── Planilla modelo: una solapa por tipología con el formato que la app lee ──
-// Trae lo que ya está cargado (receta y, solo para el administrador, el precio de Costos) para
+// Trae lo que ya está cargado (receta y, solo para el administrador, el precio de la lista de costos) para
 // completarla y volver a subirla con "Importar". Si una tipología cambia según el contenedor, se
 // copia la solapa y se le agrega el tamaño al nombre (ej: "R · Oficina Company 40 HC").
 async function planillaModeloRecetas(){

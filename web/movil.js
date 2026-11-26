@@ -9,7 +9,7 @@
 const VISTAS={
   dashboard:{i:'🏠',t:'Hoy'}, proyectos:{i:'📋',t:'Proyectos'}, kanban:{i:'📊',t:'Kanban'}, alertas:{i:'🚨',t:'Avisos'},
   pedidos:{i:'🛠️',t:'Órdenes'}, stock:{i:'🗃️',t:'Stock'}, personal:{i:'👷',t:'Personal'}, contenedores:{i:'📦',t:'Contenedores'},
-  materiales:{i:'🔧',t:'Materiales'}, costos:{i:'🔒',t:'Costos'}, usuarios:{i:'👤',t:'Usuarios'}, reportes:{i:'📈',t:'Reportes'},
+  materiales:{i:'🔧',t:'Materiales'}, usuarios:{i:'👤',t:'Usuarios'}, reportes:{i:'📈',t:'Reportes'},
   sugerencias:{i:'💡',t:'Sugerencias'}, recursos:{i:'🎬',t:'Recursos'}, crm:{i:'🎯',t:'CRM'},
 };
 // Lo de todos los días va en la barra; lo ocasional, en "Más"

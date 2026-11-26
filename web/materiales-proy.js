@@ -167,7 +167,7 @@ function seccionMateriales(p){
   return `<div class="dsec" id="mp-sec"><h3>📦 Materiales: planificado vs usado</h3>
     <div style="font-size:12px;color:var(--gris-m);margin-bottom:8px">${puedeCargar?'Cargá cuánto se usó de cada material (el total acumulado). ':''}${R.cerrado?'Proyecto finalizado: el desvío compara todo lo usado contra lo planificado.':'Mientras la obra sigue, el desvío marca solo lo que se pasó de lo planificado.'}</div>
     ${R.sobre?`<div class="cst-aviso">⚠️ ${R.sobre} material${R.sobre>1?'es':''} por encima de lo planificado</div>`:''}
-    ${esAdmin()&&(R.cargados||R.cerrado)?`<div class="mp-usd ${R.usd>0?'rojo':'verde'}">🔒 Desvío en materiales: <b>${R.usd>0?'+':''}${usd(R.usd)}</b> <small>solo vos lo ves${R.sinPrecio?` · ${R.sinPrecio} ítem${R.sinPrecio>1?'s':''} sin precio en la lista de costos`:''}</small></div>`:''}
+    ${esAdmin()&&(R.cargados||R.cerrado)?`<div class="mp-usd ${R.usd>0?'rojo':'verde'}">🔒 Desvío en materiales: <b>${R.usd>0?'+':''}${usd(R.usd)}</b> <small>solo vos lo ves${R.sinPrecio?` · ${R.sinPrecio} ítem${R.sinPrecio>1?'s':''} sin costo cargado`:''}</small></div>`:''}
     <div class="mp-tabla">
       <div class="mp-h"><span>Material</span><span>Plan</span><span>Usado</span><span>Desvío</span></div>
       ${it.map((x,i)=>{const dv=desvioItem(x,R.cerrado);const pr=esAdmin()?(typeof precioItem==='function'?precioItem(x.clave):listaCostos[x.clave]):null;

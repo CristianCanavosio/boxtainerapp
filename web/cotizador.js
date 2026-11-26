@@ -92,7 +92,7 @@ function cotPintar(){
     <div id="cot-precio">${cotPrecioHTML()}</div>
     <details class="dsec crm-sec" ${e.precio?'open':''} ontoggle="cot.ed&&(cot.ed.precio=this.open)"><summary style="cursor:pointer;font-weight:800">✏️ Cambiar el precio</summary>
       <p class="crm-ayuda" style="margin-top:6px">Precio total en USD sin IVA${e.uni>1?' (las '+e.uni+' unidades)':''}. Si es más bajo que el de lista, lo tiene que autorizar el líder de ventas${lider?' (vos lo autorizás al guardar)':''}.</p>
-      <div class="fg"><input type="number" inputmode="decimal" min="0" placeholder="USD" value="${esc(e.pedido)}" oninput="cot.ed.pedido=this.value;cot.ed.sucio=true;cotPintarBotones()"></div>
+      <div class="fg"><input type="number" inputmode="decimal" min="0" placeholder="USD" value="${esc(e.pedido)}" oninput="cot.ed.pedido=this.value;cot.ed.sucio=true;cotPintarPrecio();cotPintarBotones()"></div>
       <div class="fg"><textarea rows="2" placeholder="¿Por qué? (lo lee el líder de ventas)" oninput="cot.ed.motivo=this.value;cot.ed.sucio=true">${esc(e.motivo)}</textarea></div></details>
     <div class="fg"><label>Notas para el cliente <small>(opcional, van en el PDF)</small></label><textarea rows="2" oninput="cot.ed.notas=this.value;cot.ed.sucio=true;cotPintarBotones()">${esc(e.notas)}</textarea></div>
     <div id="cot-botones">${cotBotonesHTML()}</div>`
@@ -123,7 +123,7 @@ function cotCalcular(ms){
     const r=await sb.rpc('cot_calcular',{p_tipologia:e.tip,p_cambios:e.cambios,p_unidades:e.uni});
     if(s!==cotSeq||cot.ed!==e) return;
     if(r.error){toast(msgError(r.error));return;}
-    e.calc=r.data; const el=document.getElementById('cot-precio'); if(el) el.innerHTML=cotPrecioHTML(); cotPintarBotones();
+    e.calc=r.data; cotPintarPrecio(); cotPintarBotones();
   },ms??300);
 }
 function cotPrecioHTML(){
@@ -153,6 +153,7 @@ function cotBotonesHTML(){
     <div class="crm-sec-btns"><button class="btn btn-sec btn-sm" onclick="cotPdf('${esc(c.id)}')">📄 Descargar PDF</button>
       <button class="btn btn-sec btn-sm" style="color:var(--rojo)" onclick="cotBorrar('${esc(c.id)}')">🗑️ Borrar</button></div>`;
 }
+function cotPintarPrecio(){const el=document.getElementById('cot-precio'); if(el&&cot.ed) el.innerHTML=cotPrecioHTML();}
 function cotPintarBotones(){const el=document.getElementById('cot-botones'); if(el&&cot.ed) el.innerHTML=cotBotonesHTML();}
 async function cotGuardar(){
   const e=cot.ed; if(!e||!e.tip) return;

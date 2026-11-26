@@ -164,7 +164,7 @@ function crmFilaTarea(t){
     <div class="crm-acc">${crmBotonesContacto(o,true)}<button class="btn btn-verde btn-sm" onclick="crmTareaHecha('${esc(t.id)}',event)" aria-label="Marcar hecha">✓</button></div></div>`;
 }
 function crmHoyHTML(){
-  const mias=veTodoCRM()?crm.ops:crm.ops.filter(o=>o.vendedor_id===myId||rolCRM()!=='ventas');
+  const mias=veTodoCRM()?crm.ops:crm.ops.filter(o=>o.vendedor_id===myId);
   const ids=new Set(mias.map(o=>o.id));
   const hoy=crmTareasHoy().filter(t=>ids.has(t.oportunidad_id));
   const prox=crm.tareas.filter(t=>!t.hecha_en&&ids.has(t.oportunidad_id)&&t.vence>hoyISO()&&t.vence<=crmMas(7)).sort((a,b)=>a.vence.localeCompare(b.vence));
@@ -306,10 +306,10 @@ function crmPronosticoHTML(){
 function crmTasaCierre(lista){const c=lista.filter(o=>CRM_CERRADAS.includes(o.etapa));if(!c.length)return '—';return Math.round(c.filter(o=>o.etapa==='ganado').length*100/c.length)+'%';}
 function crmPorVendedorHTML(){
   const vs=crmVendedores(); if(!vs.length) return '';
-  const mes=hoyISO().slice(0,7), h=hoyISO();
+  const mes=hoyISO().slice(0,7), h=hoyISO(), conv=crmConversion(crm.ops);   // la conversión del equipo, una sola vez
   return `<div class="card"><div class="card-title">👥 Gestión por vendedor</div>
     <table class="crm-tabla"><tr><th>Vendedor</th><th>Abiertas</th><th>Ganado mes (USD)</th><th>Cierre</th><th>Pronóstico (USD)</th><th>Atrasadas</th></tr>
-    ${vs.map(id=>{const l=crm.ops.filter(o=>o.vendedor_id===id), conv=crmConversion(crm.ops);
+    ${vs.map(id=>{const l=crm.ops.filter(o=>o.vendedor_id===id);
       const ab=l.filter(o=>CRM_ABIERTAS.includes(o.etapa)), gm=l.filter(o=>o.etapa==='ganado'&&crmFechaGanado(o).slice(0,7)===mes);
       const ids=new Set(l.map(o=>o.id)), atr=crm.tareas.filter(t=>!t.hecha_en&&ids.has(t.oportunidad_id)&&t.vence<h).length;
       return `<tr onclick="crm.vend='${esc(id)}';crm.tab='embudo';renderCRM()" style="cursor:pointer"><td>${esc(nombreDe(id))}</td><td>${ab.length}</td>

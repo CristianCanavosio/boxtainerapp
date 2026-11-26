@@ -774,7 +774,7 @@ async function iniciarNube(){
 const RENDERS={
   dashboard:()=>renderDash(), proyectos:()=>renderProyectos(), kanban:()=>renderKanban(),
   alertas:()=>renderAlertas(), personal:()=>renderPersonal(), contenedores:()=>{updContSel();renderContenedores()},
-  materiales:()=>renderMaterialesTab(), pedidos:()=>{pintarBurbujaPC();renderPedidosCarp()}, stock:()=>renderStockTaller(), usuarios:()=>renderUsuarios(), costos:()=>renderCostos(), reportes:()=>renderReportes(), sugerencias:()=>renderSugerencias(), recursos:()=>renderRecursos(), crm:()=>renderCRM()
+  materiales:()=>renderMaterialesTab(), pedidos:()=>{pintarBurbujaPC();renderPedidosCarp()}, stock:()=>renderStockTaller(), usuarios:()=>renderUsuarios(), reportes:()=>renderReportes(), sugerencias:()=>renderSugerencias(), recursos:()=>renderRecursos(), crm:()=>renderCRM()
 };
 function showView(name){
   const t=tabsPermitidas();

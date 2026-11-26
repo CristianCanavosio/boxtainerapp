@@ -17,7 +17,6 @@ async function cargarCosteo(){
     c.forEach(r=>costeos[r.proyecto_id]={ajustes:r.ajustes||{},extras:r.extras||[],total:r.total});
     costeoListo=true;
   }catch(e){console.warn('Costeo no disponible (¿falta la migración 0004?)',e);}
-  if(costeoListo) await cargarProveedores();
 }
 
 // Líneas del costeo: lo que sale de la nota + correcciones + líneas a mano
@@ -105,18 +104,6 @@ async function ajustarCant(pid,k,v,cantNota){
   if(v===''||Math.abs(n-cantNota)<0.005) delete c.ajustes[k]; else c.ajustes[k]=n;
   await guardarFilaCosteo(pid); verDetalle(pid);
 }
-async function ponerPrecio(clave,v,rubro,unidad,pid){
-  const costo=num(v);
-  const prev=listaCostos[clave];
-  const fila={clave,costo,rubro:prev?.rubro||rubro,unidad:prev?.unidad||unidad};
-  if(proveedoresListo) Object.assign(fila,{proveedor:null,fuente:'manual',referencia:null});
-  try{
-    chk(await sb.from('lista_costos').upsert(fila,{onConflict:'clave'}));
-    listaCostos[clave]={...(prev||{}),...fila};
-    toast('✅ Precio guardado en la lista de costos');
-  }catch(e){toast(msgError(e));return;}
-  if(pid){verDetalle(pid);} else renderCostos();
-}
 async function agregarExtra(pid){
   const desc=document.getElementById('cx-desc').value.trim();
   if(!desc){toast('⚠️ Escribí qué es el ítem');return;}
@@ -130,8 +117,7 @@ async function quitarExtra(ev,pid,i){
   const c=costeos[pid]; if(!c) return;
   c.extras.splice(i,1); await guardarFilaCosteo(pid); verDetalle(pid);
 }
-// ── Pestaña Costos: lista de precios unitarios ──
-let filtroCostos='';
+// ── Ítems que salen de las notas de pedido (para emparejarlos con el maestro de insumos) ──
 function catalogoCostos(){
   // todos los ítems que aparecen en las notas cargadas + los que ya tienen precio
   const items={};
@@ -143,41 +129,4 @@ function catalogoCostos(){
       if(!vistos.has(l.clave)){it.usos++;vistos.add(l.clave);}
     });});
   return Object.values(items).sort((a,b)=>((a.costo?1:0)-(b.costo?1:0))||a.clave.localeCompare(b.clave));
-}
-let costosAbierto=null;
-function origenPrecio(x){
-  const l=listaCostos[x.clave]; if(!l||!x.costo) return '';
-  const f={excel:'Excel',pdf:'PDF',manual:'a mano',flexxus:'Flexxus'}[l.fuente]||'a mano';
-  return `<small class="cst-orig">${l.proveedor?esc(l.proveedor)+' · ':''}${f}${l.referencia?` · <a href="#" onclick="verArchivoCosto(event,'${esc(l.referencia)}')">ver archivo</a>`:''}</small>`;
-}
-function renderCostos(){
-  const el=document.getElementById('lista-costos'); if(!el) return;
-  if(!esAdmin()){el.innerHTML='';return;}
-  if(!costeoListo){el.innerHTML=`<div class="card">Para usar la lista de costos hay que correr la migración <b>0004_costeo_solo_admin.sql</b> en Supabase (SQL Editor).</div>`;return;}
-  const f=filtroCostos.toLowerCase();
-  const cat=catalogoCostos().filter(x=>!f||x.clave.toLowerCase().includes(f));
-  const faltan=cat.filter(x=>!x.costo).length;
-  const sueltos=preciosProv.filter(x=>!x.clave&&(!f||normTxt(x.descripcion+' '+x.proveedor).includes(normTxt(f))));
-  el.innerHTML=`<div class="card" style="font-size:13px">Precio unitario de cada ítem que se elige en la nota de pedido. Con estos precios cada pedido se costea solo. <b>Solo el administrador ve esta pestaña.</b>
-      ${faltan?`<div style="margin-top:6px;color:var(--rojo);font-weight:700">${faltan} ítem${faltan>1?'s':''} sin precio</div>`:''}
-      <div style="margin-top:6px;font-size:12px;color:var(--gris)">La forma más simple: bajá la <b>planilla de costos</b> (una fila por ítem de la app), poné el costo de cada uno y subila. Si un ítem junta varios productos del proveedor, agrupalos en la planilla y poné el total.</div>
-      <div class="flex-btns" style="margin-top:8px;flex-wrap:wrap"><button class="btn btn-sec btn-sm" onclick="planillaModeloCostos()">⬇️ Planilla de costos</button>
-        <label class="btn btn-nar btn-sm" style="cursor:pointer">📤 Subir planilla de costos<input type="file" accept=".xlsx,.xls,.csv,.ods" style="display:none" onchange="leerPlanillaCostos(this)"></label></div></div>
-    ${typeof previaPlanillaCostosHTML==='function'?previaPlanillaCostosHTML():''}
-    ${proveedoresListo?`<div style="font-size:12px;color:var(--gris-m);margin:4px 0">Precios sueltos de un proveedor (quedan en su catálogo; elegís a qué ítem va cada uno en ese momento):</div><div class="cst-imp">
-      <button class="btn btn-nar btn-sm" onclick="abrirImport('excel')">📥 Excel / CSV</button>
-      <button class="btn btn-nar btn-sm" onclick="abrirImport('pdf')">📄 PDF de proveedor</button>
-      <button class="btn btn-sec btn-sm" onclick="abrirImport('manual')">✍️ A mano</button></div>`
-      :`<div class="card" style="font-size:12px">Para importar Excel y PDF de proveedores hay que correr la migración <b>0005_precios_de_proveedores.sql</b>.</div>`}
-    <div class="fg"><input type="search" placeholder="Buscar ítem o producto…" value="${esc(filtroCostos)}" oninput="filtroCostos=this.value;renderCostos();const i=document.querySelector('#lista-costos input[type=search]');i.focus();i.setSelectionRange(i.value.length,i.value.length)"></div>
-    <div class="card cst-lista">${cat.length?cat.map(x=>{const otros=proveedoresListo?preciosDeClave(x.clave):[];return `<div class="cst-li ${x.costo?'':'sinp'}">
-      <div><b>${esc(x.clave)}</b><small>${esc(RUBROS[x.rubro]||'Otros')} · por ${esc(x.unidad)}${x.usos?` · en ${x.usos} pedido${x.usos>1?'s':''}`:''}</small>${origenPrecio(x)}
-        ${otros.length?`<a href="#" class="cst-otros" onclick="event.preventDefault();costosAbierto=costosAbierto===${esc(JSON.stringify(x.clave))}?null:${esc(JSON.stringify(x.clave))};renderCostos()">${otros.length} precio${otros.length>1?'s':''} de proveedores</a>`:''}</div>
-      <input type="number" step="0.01" placeholder="USD" value="${x.costo??''}" onchange="ponerPrecio(${esc(JSON.stringify(x.clave))},this.value,'${x.rubro}','${esc(x.unidad)}')">
-    </div>${costosAbierto===x.clave?`<div class="cst-alt">${otros.map(o=>`<div><span>${esc(o.proveedor)} · ${esc(o.descripcion)}<small>${esc(o.fecha)} · ${esc(o.fuente)}${o.moneda==='ARS'?` · ARS ${Number(o.costo_original).toLocaleString('es-AR')} a ${Number(o.tipo_cambio).toLocaleString('es-AR')}`:''}</small></span>
-      <b>${usd(o.costo)}</b><button class="btn btn-sec btn-sm" onclick="usarPrecioProv('${o.id}')">Usar</button></div>`).join('')}</div>`:''}`}).join(''):'<div style="font-size:13px;color:var(--gris-m)">Todavía no hay ítems: aparecen cuando ventas carga notas de pedido.</div>'}</div>
-    ${sueltos.length?`<div class="sec-title" style="font-size:15px;margin-top:14px">Productos de proveedores sin vincular (${sueltos.length})</div>
-      <div class="card cst-lista">${sueltos.slice(0,200).map(o=>`<div class="cst-li cst-suelto"><div><b>${esc(o.descripcion)}</b><small>${esc(o.proveedor)} · ${esc(o.fecha)} · ${usd(o.costo)}</small>
-        <select onchange="vincularPrecioProv('${o.id}',this.value)">${opcionesClave('')}</select></div></div>`).join('')}
-        ${sueltos.length>200?`<div style="font-size:12px;color:var(--gris-m)">Mostrando 200: usá el buscador.</div>`:''}</div>`:''}`;
 }

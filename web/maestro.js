@@ -101,14 +101,15 @@ function maeInsumosHTML(){
       <button class="btn btn-nar btn-sm" onclick="maeNuevoIns()">+ Agregar</button></details>`;
 }
 async function maeSetIns(cod,cambios){
-  try{chk(await sb.from('cot_insumos').update(cambios).eq('codigo',cod)); Object.assign(mae.ins[cod],cambios); toast('✅ Guardado');}
-  catch(e){toast(msgError(e));renderMaestro();}
+  try{chk(await sb.from('cot_insumos').update(cambios).eq('codigo',cod)); Object.assign(mae.ins[cod],cambios); toast('✅ Guardado'); return true;}
+  catch(e){toast(msgError(e));renderMaestro();return false;}
 }
 async function maeCosto(cod,v){
   const n=maeNum(v);
   if(v!==''&&(isNaN(n)||n<0)){toast('⚠️ Costo inválido');renderMaestro();return;}
   const c=v===''?null:n;
-  await maeSetIns(cod,{costo_usd:c,fuente:'manual',costo_actualizado_en:new Date().toISOString()});
+  // si no se pudo guardar, la pantalla vuelve al costo que hay en la base
+  if(!await maeSetIns(cod,{costo_usd:c,fuente:'manual',costo_actualizado_en:new Date().toISOString()})) return;
   mae.ins[cod].costo=c; renderMaestro();
 }
 async function maeNuevoIns(){
