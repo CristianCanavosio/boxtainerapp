@@ -69,7 +69,7 @@ El semáforo muestra los pedidos sin responder y los que vencen pronto.`},
     pasos:`En Usuarios aprobá a quien se registró eligiendo su rol. Ahí mismo cambiás el rol, el nombre o la empresa de cada uno.
 Si un vendedor se va, creale la cuenta al nuevo y pasale los pedidos con "Pasar sus pedidos a otro vendedor": en el recorrido queda anotado el cambio.
 Si cambiás el rol de un supervisor con proyectos a cargo, la app avisa para reasignarlos.
-En Costos mantenés la lista de precios (a mano o importando Excel o PDF de proveedores). Toda la plata la ves solo vos.
+En Materiales y costos mantenés el maestro de insumos: el costo de cada insumo (a mano o importando la planilla del cotizador), las tipologías con su margen y de qué insumos sale cada ítem de los proyectos. Toda la plata la ves solo vos (el líder de ventas ve la del cotizador).
 En cada proyecto ves el costeo y el desvío de materiales en dólares.
 En Sugerencias ves todas las ideas del equipo, les cambiás el estado y les respondés.
 En Recursos tocá "Editar" en cualquier tarjeta para reemplazar el video, corregir los pasos o elegir para qué roles es. Con "Nuevo recurso" sumás otro video, un manual en PDF o un enlace.`},

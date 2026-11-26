@@ -10,8 +10,8 @@ module.exports={
     });
     await g.decir('En la lista del equipo cambiás el rol de cada uno, y a los vendedores les asignás su empresa. Si un supervisor deja de serlo, la app avisa qué proyectos hay que reasignar.',
       ()=>g.mostrar('#lista-usuarios .persona-item:has-text("Martín Ríos")'));
-    await g.decir('En Costos mantenés la lista de precios: a mano, o importando el Excel o el PDF de un proveedor.',
-      ()=>g.pestana('costos'));
+    await g.decir('En Materiales y costos mantenés el maestro de insumos: el costo de cada insumo, las tipologías con su margen y los parámetros.',
+      ()=>g.pestana('materiales'));
     await g.decir('En cada proyecto ves el costeo del pedido y el desvío de materiales en dólares. Nadie más ve esos montos.',async()=>{
       await g.abrirProyecto(g.P.obra);
       await g.mostrar('#mp-sec');

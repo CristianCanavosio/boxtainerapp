@@ -46,6 +46,7 @@ Correr en orden, una sola vez cada uno:
 18. `supabase/migrations/0018_avisos_al_celular.sql` (avisos al celular con la app cerrada; antes hay que publicar la función `avisar-pedido` y cargar sus claves)
 19. `0019` a `0024` (Company y órdenes de trabajo, metas de indicadores, posiciones en planta, limitaciones de aberturas, supervisor y arquitectura solo lo suyo, CRM de ventas)
 20. `supabase/migrations/0025_cotizador_de_ventas.sql` (cotizador del vendedor en el CRM, maestro de insumos con tipologías, recetas y parámetros, y costeo de proyectos desde el maestro). Después, el administrador sube la planilla del cotizador en **Materiales y costos → 📦 Insumos → Importar planilla del cotizador**.
+21. `supabase/migrations/0026_revision_cotizador.sql` (revisión del cotizador: una cotización no cambia de contacto y un costo negativo no frena la actualización de costos)
 
 Para ver cuáles ya están corridas, `tools/verificar-migraciones.sql` (solo lee, no cambia nada).
 
@@ -113,15 +114,17 @@ En la app anterior (artefacto), pestaña Reportes → **Descargar respaldo compl
 
 ## Costeo del pedido (solo administrador)
 
-`web/costeo.js`. Cada nota de pedido se convierte en una lista de ítems con cantidades (contenedor, espacios, artefactos, m² de pintura, revestimientos y piso calculados con las medidas del contenedor, puertas, ventanas, eléctrica, etc.). El administrador carga el precio unitario de cada ítem en la pestaña **🔒 Costos** (o directo en el proyecto) y el pedido se costea solo, con margen contra el valor de venta. Puede corregir cantidades y agregar ítems a mano, y pasar los totales por rubro al presupuesto de obra que ve el líder.
+`web/costeo.js`. Cada nota de pedido se convierte en una lista de ítems con cantidades (contenedor, espacios, artefactos, m² de pintura, revestimientos y piso calculados con las medidas del contenedor, puertas, ventanas, eléctrica, etc.) y el pedido se costea solo, con margen contra el valor de venta. El administrador puede corregir cantidades y agregar ítems a mano, y pasar los totales por rubro al presupuesto de obra que ve el líder.
 
-Las tablas `lista_costos` y `costeos` tienen Row Level Security que solo deja leer y escribir al rol `admin`: ninguna otra área puede verlas, ni siquiera usando la API de Supabase.
+El costo de cada ítem sale del **maestro de insumos** (`web/maestro.js`, migración 0025), en **🔧 Materiales y costos**: cada ítem de la nota se arma con uno o más insumos y un factor (subsolapa *Ítems de proyectos*). Si un ítem todavía no está emparejado, se usa el precio viejo de `lista_costos` y la app lo marca para emparejarlo.
 
-### Precios de proveedores
+Las tablas de costos (`lista_costos`, `costeos`, `cot_insumos`, `cot_equivalencias`…) tienen Row Level Security: solo las lee el administrador (y el líder de ventas las del cotizador), ni siquiera se pueden ver con la API de Supabase.
 
-`web/costeo-import.js`. En **🔒 Costos** el administrador puede importar un Excel/CSV (elige las columnas de descripción y precio), un PDF de presupuesto (se lee el texto y se proponen las líneas con precio) o cargar precios a mano, en USD o en ARS con el dólar del día. Cada fila queda en el catálogo del proveedor (`precios_proveedor`) con el archivo original guardado en el depósito privado `costos`. Al vincular una fila a un ítem de la lista, ese ítem toma el precio, y la próxima lista del mismo proveedor se vincula sola. Para un mismo ítem se pueden comparar precios de varios proveedores y elegir cuál usar.
+## CRM y cotizador de ventas
 
-Pendiente: traer costos desde Flexxus (necesita acceso a su API o a la base y un proceso de sincronización fuera del navegador).
+`web/crm.js` (migración 0024) y `web/cotizador.js` (migración 0025). El vendedor carga cada contacto y lo pasa por las etapas (Pre-calificado → Calificado → Presupuesto → Acuerdo mutuo → Ganado, o Perdido / No calificado), con seguimientos agendados. Cotiza desde la ficha del contacto: elige la tipología, agrega o saca insumos, y **la base** calcula el precio (costo × (1 + margen)); al vendedor le llega solo el precio final. Si pide un precio más bajo que el de lista, lo autoriza el líder de ventas, que ve costo y margen. Al enviarla (PDF por WhatsApp o mail) el contacto pasa a Presupuesto con ese precio. Al ganar, se abre la nota de pedido con los datos del cliente.
+
+Pendiente: traer costos desde Flexxus. El maestro ya está preparado: cada insumo tiene `codigo_externo` y el programa de sincronización solo tiene que llamar a `cot_actualizar_costos(...)` con la clave `service_role`.
 
 ## Buzón de sugerencias
 
