@@ -33,6 +33,7 @@ function precioItem(clave){
   if(e&&e.length){
     let s=0;
     for(const c of e){const i=mae.ins[c.insumo]; if(!i||i.costo==null) return {costo:null,fuente:'maestro',falta:i?i.nombre:c.insumo}; s+=i.costo*c.factor;}
+    if(clave===MO_M2) s/=maeMoRef();   // mano de obra por m²: módulo de referencia ÷ sus m²
     return {costo:Math.round(s*100)/100,fuente:'maestro'};
   }
   // sin emparejar: el insumo del maestro que se llama igual (o tiene ese código) manda sobre el precio viejo
@@ -41,6 +42,9 @@ function precioItem(clave){
   const l=typeof listaCostos!=='undefined'&&listaCostos[clave];
   return l&&l.costo?{costo:l.costo,fuente:'viejo',rubro:l.rubro,unidad:l.unidad}:null;
 }
+// Mano de obra por regla de tres (migración 0028): "Mano de obra general" (m² de piso) cuesta el módulo de referencia ÷ sus m²
+const MO_M2='Mano de obra general';
+const maeMoRef=()=>Number(mae.par.mo_m2_referencia)>0?Number(mae.par.mo_m2_referencia):29.74;
 // mismo criterio que la base (_cot_costo_item, migración 0028): código exacto o nombre igual sin importar mayúsculas
 function maeInsIgual(clave){
   if(!mae.listo) return null;
@@ -302,13 +306,14 @@ async function maeAgregarRec(tip){
 // ── Parámetros ──
 function maeParametrosHTML(){
   const P=[['tipo_cambio','Tipo de cambio','Pesos por dólar, para mostrar el precio en pesos',''],['margen_default','Margen por defecto','Para tipologías sin margen propio','%'],
-    ['iva','IVA','Se suma al precio de lista','%'],['validez_dias','Validez de la cotización','Días','días']];
+    ['iva','IVA','Se suma al precio de lista','%'],['validez_dias','Validez de la cotización','Días','días'],
+    ['mo_m2_referencia','m² del módulo de referencia de la mano de obra','La mano de obra de cada presupuesto = m² del módulo ÷ estos m² × el costo de "Mano de obra general" (Ítems de proyectos). 40 pies = 29,74 m²','m²']];
   return `<div class="card">${P.map(([k,t,d,u])=>`<div class="fg"><label>${t} <small>${d}</small></label>
     <div style="display:flex;gap:6px;align-items:center"><input type="text" inputmode="decimal" value="${u==='%'?maePct(mae.par[k]):mae.par[k]??''}" onchange="maePar('${k}',this.value,${u==='%'})"> ${u}</div></div>`).join('')}
     <div style="font-size:12px;color:var(--gris-m)">El vendedor ve solo el precio final. El margen y los costos los ven vos y el líder de ventas.</div></div>`;
 }
 async function maePar(k,v,esPct){
-  let n=maeNum(v); if(isNaN(n)||n<0){toast('⚠️ Valor inválido');renderMaestro();return;}
+  let n=maeNum(v); if(isNaN(n)||n<0||(k==='mo_m2_referencia'&&n===0)){toast('⚠️ Valor inválido');renderMaestro();return;}
   if(esPct) n=n/100;
   try{chk(await sb.from('cot_parametros').upsert({clave:k,valor:n,actualizado_en:new Date().toISOString()})); mae.par[k]=n; if(typeof cot!=='undefined') cot.cat=null; toast('✅ Guardado'); renderMaestro();}
   catch(e){toast(msgError(e));}
@@ -364,7 +369,7 @@ function maeEqEditorHTML(clave){
     ${maeInsDatalist()}
     <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
       <button class="btn btn-sec btn-sm" onclick="mae.eqBorr.push({insumo:'',factor:1});renderMaestro()">+ Insumo</button>
-      <span style="flex:1;text-align:right;font-size:13px">Costo: <b>${usd(tot)}</b></span></div>
+      <span style="flex:1;text-align:right;font-size:13px">Costo: <b>${usd(tot)}</b>${clave===MO_M2?` del módulo de referencia → <b>${usd(tot/maeMoRef())}</b> por m² (÷ ${fmt2(maeMoRef())} m², se cambia en Parámetros)`:''}</span></div>
     <div class="flex-btns" style="margin-top:8px"><button class="btn btn-sec btn-sm" onclick="mae.eqAbierto=null;renderMaestro()">Cancelar</button>
       <button class="btn btn-nar btn-sm" onclick="maeEqGuardar(${esc(JSON.stringify(clave))})">Guardar</button></div></div>`;
 }
