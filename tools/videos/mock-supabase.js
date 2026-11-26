@@ -63,6 +63,21 @@
     return {tipologia:tip,tipologia_nombre:t.nombre,unidades:u,costo_unit:Math.round(costo*100)/100,costo_total:Math.round(costo*u*100)/100,margen:m,
       precio_unit:pu,precio_total:pu*u,detalle:det,sin_costo:sin.length,sin_costo_nombres:sin,iva:par('iva')||0,tipo_cambio:par('tipo_cambio'),validez_dias:par('validez_dias')||7};
   }
+  function cotNota(a){
+    const u=Math.max(1,Math.min(999,a.p_unidades||1)), company=/Company$/.test(a.p_prod||''), m=par('margen_default')||0;
+    const rec={}; tabla('recetas_tipologia').filter(r=>r.tipologia===a.p_prod&&(r.tam===''||r.tam===(a.p_tam||''))).sort((x,y)=>(x.tam===''?0:1)-(y.tam===''?0:1)).forEach(r=>rec[r.clave]=Number(r.cant)*u);
+    const nota={}; (a.p_lineas||[]).forEach(x=>{if(x.clave&&Number(x.cant)>0)nota[x.clave]=(nota[x.clave]||0)+Number(x.cant);});
+    const hayRec=Object.keys(rec).length, todo={...rec};
+    Object.entries(nota).forEach(([k,c])=>{if(rec[k]!=null)return;if(company&&hayRec&&!/^(Contenedor |Corte de contenedor|Flete$|Comisión de venta$|Amortización de planta)/.test(k))return;todo[k]=c;});
+    let costo=0; const sin=[], det=[];
+    Object.keys(todo).sort().forEach(k=>{const cant=todo[k]; if(!(cant>0)) return; det.push({nombre:k,cant});
+      const e=tabla('cot_equivalencias').find(x=>x.clave===k), l=tabla('lista_costos').find(x=>x.clave===k); let c=null;
+      if(e&&(e.composicion||[]).length){c=0;for(const q of e.composicion){const i=tabla('cot_insumos').find(x=>x.codigo===q.insumo);if(!i||i.costo_usd==null){c=null;break;}c+=Number(i.costo_usd)*Number(q.factor||0);}}
+      else if(l&&Number(l.costo)>0) c=Number(l.costo);
+      if(c==null) sin.push(k); else costo+=cant*c;});
+    return {unidades:u,costo_total:Math.round(costo*100)/100,margen:m,precio_total:Math.round(costo*(1+m)),detalle:det,sin_costo:sin.length,sin_costo_nombres:sin,
+      iva:par('iva')||0,tipo_cambio:par('tipo_cambio'),validez_dias:par('validez_dias')||7};
+  }
   function cotMock(fn,a){
     try{
       const yo=(tabla('perfiles').find(x=>x.id===ME.id)||{}).rol, lider=['admin','lider_ventas'].includes(yo);
@@ -90,6 +105,7 @@
       if(fn==='cot_autorizar'){const v=tabla('cotizaciones').find(x=>x.id===a.p_id);
         if(a.p_aprobar) Object.assign(v,{estado:'autorizada',precio_final:a.p_precio??v.precio_pedido,precio_pedido:a.p_precio??v.precio_pedido,respuesta:a.p_respuesta,autorizado_por:ME.id});
         else Object.assign(v,{estado:'rechazada',precio_final:null,respuesta:a.p_respuesta,autorizado_por:ME.id});
+        if(a.p_aprobar&&v.origen==='nota'&&!v.sin_costo){const o=tabla('oportunidades').find(x=>x.id===v.oportunidad_id);if(o)o.precio_cliente=v.precio_final;}
         avisar(); return {data:null,error:null};}
       if(fn==='cot_enviar'){const v=tabla('cotizaciones').find(x=>x.id===a.p_id);
         if(!['lista','autorizada','enviada'].includes(v.estado)) throw new Error('El precio todavía no está autorizado');
@@ -97,6 +113,38 @@
         const o=tabla('oportunidades').find(x=>x.id===v.oportunidad_id);
         Object.assign(o,{precio_estandar:v.precio_lista,precio_cliente:v.precio_final,unidades:v.unidades,presupuesto_via:a.p_via||o.presupuesto_via});
         avisar(); return {data:null,error:null};}
+      // Precio de la nota de pedido (migración 0027): nota + receta de la tipología × maestro (o lista vieja)
+      if(fn==='cot_calcular_nota'){const c=cotNota(a);if(!lider){delete c.costo_total;delete c.margen;}return {data:c,error:null};}
+      if(fn==='cot_guardar_nota'){
+        const c=cotNota(a), lista=c.precio_total, o=tabla('oportunidades').find(x=>x.id===a.p_oportunidad);
+        if(!o) throw new Error('No encontré ese contacto del CRM');
+        let v=tabla('cotizaciones').filter(x=>x.proyecto_id===a.p_proyecto&&x.origen==='nota')[0], ped=a.p_precio_pedido||null, est, fin=null;
+        if(v&&v.estado==='enviada') throw new Error('El cliente ya aceptó ese presupuesto: el precio no cambia');
+        if(ped==null||ped>=lista){est='lista';fin=ped??lista;if(ped===lista)ped=null;}
+        else if(lider){est='autorizada';fin=ped;}
+        else if(v&&v.estado==='autorizada'&&Number(v.precio_final)===ped&&Number(v.precio_lista)===lista){est='autorizada';fin=ped;}
+        else if(v&&v.estado==='pendiente'&&Number(v.precio_pedido)===ped&&Number(v.precio_lista)===lista){est='pendiente';}
+        else{est='pendiente';if(!String(a.p_motivo||'').trim()) throw new Error('Contale al líder de ventas por qué pedís otro precio');}
+        const fila={oportunidad_id:o.id,vendedor_id:o.vendedor_id,cliente:o.cliente,tipologia:null,tipologia_nombre:a.p_nombre,origen:'nota',proyecto_id:a.p_proyecto,
+          unidades:c.unidades,cambios:{},detalle:c.detalle,precio_lista:lista,precio_pedido:ped,motivo_pedido:a.p_motivo,precio_final:fin,estado:est,
+          iva:c.iva,tipo_cambio:c.tipo_cambio,validez_dias:c.validez_dias,sin_costo:c.sin_costo,actualizado_en:ahora()};
+        if(v) Object.assign(v,fila); else{v=Object.assign({id:uuid(),numero:++serial,creado_en:ahora()},fila);tabla('cotizaciones').push(v);}
+        const k=tabla('cotizaciones_costo').find(x=>x.cotizacion_id===v.id);
+        if(k) Object.assign(k,{costo_total:c.costo_total,margen:c.margen}); else tabla('cotizaciones_costo').push({cotizacion_id:v.id,costo_total:c.costo_total,margen:c.margen});
+        const cam={proyecto_id:o.proyecto_id||a.p_proyecto,unidades:c.unidades};
+        if(!c.sin_costo){cam.precio_estandar=lista;if(fin!=null)cam.precio_cliente=fin;}
+        if(['precalificado','calificado'].includes(o.etapa)){cam.etapa='presupuesto';cam.etapa_en=ahora();cam.historial=(o.historial||[]).concat([{etapa:'presupuesto',en:ahora(),por:ME.id}]);}
+        Object.assign(o,cam);
+        avisar(); return {data:v.id,error:null};
+      }
+      if(fn==='cot_nota_aceptada'){
+        const v=tabla('cotizaciones').filter(x=>x.proyecto_id===a.p_proyecto&&x.origen==='nota')[0]; if(!v) return {data:null,error:null};
+        if(!['lista','autorizada','enviada'].includes(v.estado)) throw new Error('El precio del presupuesto todavía no está autorizado');
+        Object.assign(v,{estado:'enviada',enviada_en:v.enviada_en||ahora(),enviada_via:v.enviada_via||'nota'});
+        const o=tabla('oportunidades').find(x=>x.id===v.oportunidad_id);
+        if(o&&o.etapa!=='ganado') Object.assign(o,{etapa:'ganado',etapa_en:ahora(),precio_cliente:v.precio_final,historial:(o.historial||[]).concat([{etapa:'ganado',en:ahora(),por:ME.id}])});
+        avisar(); return {data:v.precio_final,error:null};
+      }
       if(fn==='cot_importar'){
         (a.p_insumos||[]).forEach(x=>{const f={codigo:x.codigo,nombre:x.nombre,rubro:x.rubro,unidad:x.unidad,costo_usd:x.costo,fuente:'planilla',activo:true,para_vendedor:x.rubro!=='Otros',costo_actualizado_en:ahora()};
           const y=tabla('cot_insumos').find(i=>i.codigo===x.codigo); if(y) Object.assign(y,f); else tabla('cot_insumos').push(f);});

@@ -1079,6 +1079,9 @@ const esNota=p=>!!(p&&p.ficha&&p.ficha.v===2);
 const unidadesDe=p=>esNota(p)?Math.max(1,Math.floor(Number(p.ficha.unidades))||1):1;
 // Arquitectura es opcional: la nota dice si necesita plano
 const destinoNota=f=>f&&f.arq==='No'?'asignacion':'arquitectura';
+const esPresupuesto=p=>esNota(p)&&p.ficha.sol==='Presupuesto';
+// el cliente aceptó el presupuesto: con el cotizador, controla el precio; si no, abre la nota como orden de compra
+function pasarAOC(id){if(typeof cotPasarAOC==='function'&&puedeCRM()) cotPasarAOC(id); else{closeOverlay('m-det');editarNota(id,{sol:'Orden de compra confirmada',paso:6});}}
 const pasoPorArq=p=>(p.flujo||[]).some(x=>x.a==='arquitectura');
 // Crea el proyecto con lo que cargó ventas en la nota de pedido
 // extra: datos que vienen del CRM (vendedor de la oportunidad y precio del cliente como valor de venta)
@@ -1088,22 +1091,26 @@ async function crearDesdeNota(f,{enviar,archivos},extra){
     vendId:rol()==='ventas'?myId:null,nombre:NotaPedido.nombreSugerido(f),cli:(f.cli||'').trim()||'Sin nombre',emp:f.empresa||'',
     tipo:NotaPedido.tipoTrabajo(f),entrega:f.fecha||'',val:'',vend:currentUser?.nombre||'',dep:'',pri:'normal',obs:'',
     ficha:NotaPedido.compat(f)};
-  if(extra) Object.assign(p,extra);
-  p.etapa=rol()==='ventas'?'ventas':'asignacion';
+  if(extra){const {oportunidad,...resto}=extra;Object.assign(p,resto);}
+  p.etapa=rol()==='ventas'||f.sol==='Presupuesto'?'ventas':'asignacion';   // un presupuesto queda en ventas hasta que el cliente lo acepta
   p.flujo.push({fecha:hoyISO(),a:p.etapa,autor:currentUser.nombre});
   try{await guardarProyectoOError(p);}catch(e){return false;}
   for(const a of archivos||[]) await subirCroquis(p.id,a);
+  // presupuesto: guarda el precio y deja al cliente en el CRM (cotizador.js)
+  const msg=window.notaPrecio?await notaPrecio.guardado(p.id,f,extra&&extra.oportunidad):'';
   if(enviar) await moverEtapa(p.id,destinoNota(f));
-  else toast('✅ Nota de pedido guardada');
+  else toast(msg||'✅ Nota de pedido guardada');
   refrescar();
   return p.id;
 }
-function editarNota(id){
+// ajuste: {sol, paso} para abrirla ya cambiada (por ejemplo, un presupuesto que el cliente aceptó pasa a orden de compra)
+function editarNota(id,ajuste){
   const p=todos[id]; if(!p||!puedeEditar(p)) return;
   const enVentas=etapaDe(p)==='ventas';
   if(!enVentas&&!esOp()){toast('🔒 La nota ya fue confirmada con el cliente: solo el líder la corrige');return;}
   const confirmada=notaConfirmada(p);
-  NotaPedido.abrir({ficha:esNota(p)?p.ficha:null,cliente:p.cli,empresa:p.emp||perfiles[p.vendId]?.empresa||perfiles[p.creadoPorId]?.empresa||'',croquisPrevios:croquisDe(p),planosPrevios:(p.planos||[]).length,adjuntos:()=>adjuntosPDF(id),titulo:'Nota de pedido · '+p.nombre,enviar:enVentas,
+  const ficha=esNota(p)?(ajuste&&ajuste.sol?{...p.ficha,sol:ajuste.sol}:p.ficha):null;
+  NotaPedido.abrir({ficha,proyectoId:id,paso:ajuste&&ajuste.paso,cliente:p.cli,empresa:p.emp||perfiles[p.vendId]?.empresa||perfiles[p.creadoPorId]?.empresa||'',croquisPrevios:croquisDe(p),planosPrevios:(p.planos||[]).length,adjuntos:()=>adjuntosPDF(id),titulo:'Nota de pedido · '+p.nombre,enviar:enVentas,
     aviso:confirmada?'⚠️ <b>Esta nota ya la confirmó el cliente.</b> Si la cambiás, queda registrado quién y qué cambió, le avisamos a ventas para que se la mande al cliente, y el proyecto no pasa a ejecución hasta que el cliente apruebe el cambio.':'',
     onGuardar:async(f,{enviar:env,archivos})=>{
       const q=limpiar(todos[id]); if(!q) return false;
@@ -1118,7 +1125,9 @@ function editarNota(id){
       try{await guardarProyectoOError(q);}catch(e){return false;}
       if(cambio.length) await avisarCambioNota(id,cambio);
       for(const a of archivos||[]) await subirCroquis(id,a);
+      const msg=window.notaPrecio?await notaPrecio.guardado(id,f):'';
       if(env) await moverEtapa(id,destinoNota(f));
+      else if(msg&&!cambio.length) toast(msg);
       else toast(cambio.length?'✏️ Nota cambiada: le avisamos a ventas para que la apruebe el cliente':'✅ Nota de pedido guardada');
       refrescar();
       return true;
@@ -1126,7 +1135,7 @@ function editarNota(id){
 }
 async function pdfNota(id,btn){
   const p=todos[id]; if(!p||!esNota(p)) return;
-  try{await NotaPedido.pdf(p.ficha,btn,()=>adjuntosPDF(id));}catch(e){toast('⚠️ No se pudo armar el PDF');}
+  try{await NotaPedido.pdf(p.ficha,btn,()=>adjuntosPDF(id),id);}catch(e){toast('⚠️ No se pudo armar el PDF');}
 }
 // Planos del proyecto para el PDF que firma el cliente: primero los de arquitectura, después los croquis del cliente.
 // Los archivos se bajan del depósito; los enlaces (Drive, etc.) van como link.
@@ -1214,13 +1223,18 @@ function verDetalle(id){
   let acciones='';
   const pie={principal:null,segunda:null,menu:[]};
   { // una acción por etapa
-    if(e==='ventas'&&(esOp()||(r==='ventas'&&p.creadoPorId===myId)))
+    if(e==='ventas'&&(esOp()||(r==='ventas'&&p.creadoPorId===myId))&&esPresupuesto(p)){
+      // un presupuesto no va a arquitectura: primero el cliente lo acepta y pasa a orden de compra
+      acciones+=`<div class="accion"><p>Es un <b>presupuesto</b>. Cuando el cliente lo acepte, pasalo a orden de compra confirmada: se abre la nota ya cargada, la revisás y la enviás.</p></div>`;
+      pie.principal={t:'✅ El cliente aceptó',f:`pasarAOC('${esc(id)}')`};
+    }else if(e==='ventas'&&(esOp()||(r==='ventas'&&p.creadoPorId===myId))){
       acciones+=`<div class="accion"><p>Cuando el pedido del cliente esté completo, envialo a arquitectura para que agregue el plano.</p>
         ${sinPlano(p)?`<button class="btn btn-sec" onclick="moverEtapa('${esc(id)}','arquitectura')">📐 Mejor mandarlo a Arquitectura</button>
           <div style="font-size:12px;color:var(--gris-m);margin-top:6px">La nota dice que no necesita plano: con el botón de abajo va directo al líder de operaciones.</div>`
           :`<button class="btn btn-sec" onclick="moverEtapa('${esc(id)}','asignacion')">🧭 Directo al líder (sin plano)</button>
           <div style="font-size:12px;color:var(--gris-m);margin-top:6px">Si el proyecto no necesita plano, mandalo directo al líder de operaciones.</div>`}</div>`;
       pie.principal=sinPlano(p)?{t:'🧭 Enviar al líder',f:`moverEtapa('${esc(id)}','asignacion')`}:{t:'📐 Enviar a Arquitectura',f:`moverEtapa('${esc(id)}','arquitectura')`};
+    }
     if(e==='arquitectura'&&(r==='arquitectura'||esOp())){
       acciones+=`<div class="accion"><p><b>Arquitectura:</b> subí el plano (PDF o imagen) y enviá el proyecto al líder de operaciones.</p>
         <label class="btn btn-sec" style="cursor:pointer;display:block;text-align:center">⬆️ Subir plano
@@ -1367,6 +1381,7 @@ async function moverEtapa(id,a){
   const p=limpiar(todos[id]); if(!p) return;
   const desde=etapaDe(p);
   if((a==='arquitectura'||a==='asignacion')&&desde==='ventas'){
+    if(esPresupuesto(p)){toast('Es un presupuesto: cuando el cliente lo acepte, pasalo a orden de compra');pasarAOC(id);return;}
     const falta=fichaFaltantes(p);
     if(falta.length){
       if(esNota(p)){toast('⚠️ Completá la nota de pedido: '+falta[0]);closeOverlay('m-det');editarNota(id);return;}
@@ -1554,6 +1569,7 @@ function seccionFicha(p){
       <div class="nota-vars nota-dib">${NotaPedido.dibujos(f)}</div>
       <div class="flex-btns" style="margin-top:8px"><button class="btn btn-sec btn-sm" onclick="pdfNota('${id}',this)">📄 PDF para el cliente</button>
         ${puedeEditar(p)&&(etapaDe(p)==='ventas'||esOp())?`<button class="btn btn-nar btn-sm" onclick="closeOverlay('m-det');editarNota('${id}')">✏️ ${notaConfirmada(p)?'Corregir nota':'Editar nota'}</button>`:''}</div>
+      ${window.notaPrecio?notaPrecio.seccion(p):''}
       ${seccionVersiones(p)}
       ${p.verifArq?`<div style="font-size:12px;color:var(--verde);margin-top:6px">✅ Plano verificado por ${esc(p.verifArq.autor)} (${esc(p.verifArq.fecha)})</div>`:''}
     </div>`;
