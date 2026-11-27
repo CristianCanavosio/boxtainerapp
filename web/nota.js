@@ -106,7 +106,7 @@ function errPlazo(){if(revisandoGuardada||!d.fecha||!d.prod||sinCambioFecha())re
   return d.fecha<fechaMin(n)?`Para ${nomProd()} la entrega es como mínimo a ${n} días: poné la fecha desde el ${fechaMin(n).split('-').reverse().join('/')} (paso 1)`:null}
 function nuevo(){return {empresa:'',arq:'Sí',sol:'',cli:'',tel:'',mail:'',cuit:'',loc:'',maps:'',mapsOk:false,fecha:'',modelo:'',
   unidades:1,prod:'',cont:'',ot:false,tam:'',motor:'',corte:'',lado:'',largo:'',ancho:'',alto:'',
-  espacios:[],
+  espacios:[],tab:null,
   pExt:'',pExtOtro:'',pExtP:false,pInt:'',pIntOtro:'',piso:'',rev:[],revAsig:{},revExt:'',pInterior:'',
   linea:'',vidrio:'',puertas:[nuevaPuerta()],puertaP:false,ventanas:[],segunPlano:false,
   elec:{},aa:'',aaFrig:'',aaEsp:'',aaCant:'',termo:'',termoL:'',termoTipo:'',tanque:'',tanqueL:'',
@@ -142,7 +142,7 @@ function errores(){
     if(d.prod==='Reefer'&&!d.motor)e.push('Indicá si es con o sin motor');
     const u=Number(d.unidades);if(!Number.isInteger(u)||u<1)e.push('La cantidad de unidades tiene que ser un número entero, 1 o más');else if(u>MAX_U)e.push(`Máximo ${MAX_U} unidades por nota`)}
   if(esSolo(d.prod)&&paso>=2&&paso<=5)return e;
-  if(paso===2){if(esModulo(d.prod)&&!total())e.push('Elegí al menos un espacio');d.espacios.forEach(x=>{if(!x.ubi)e.push(`Elegí dónde va ${etiqueta(x).toLowerCase()}`);})}
+  if(paso===2){if(esModulo(d.prod)&&!total())e.push('Elegí al menos un espacio');d.espacios.forEach(x=>{if(!x.ubi)e.push(`Elegí dónde va ${etiqueta(x).toLowerCase()}`);});if(!revisandoGuardada)e.push(...cortos())}
   if(paso===3){if(!d.pExt&&!d.pExtP)e.push('Elegí la pintura exterior o marcala a confirmar');if(d.pExt==='Otro'&&!d.pExtOtro.trim()&&!d.pExtP)e.push('Escribí el color o código exterior');if(d.pInt==='Otro'&&!d.pIntOtro.trim())e.push('Escribí el color o código interior');if(!d.revExt)e.push('Elegí el revestimiento exterior');if(!d.piso)e.push('Elegí el piso');if(!d.rev.length)e.push('Elegí el revestimiento interior');if(d.rev.length>1)revDestinos().forEach(x=>{if(!d.rev.includes(d.revAsig[x.k]))e.push(`Elegí qué revestimiento va en ${x.n.toLowerCase()}`)});if(total()>1&&!d.pInterior)e.push('Elegí las puertas interiores')}
   if(paso===4){if(!d.linea&&!d.segunPlano)e.push('Elegí la línea de aberturas');if(d.ventanas.length&&!d.vidrio&&!esDVH()&&!revisandoGuardada)e.push('Elegí el tipo de vidrio de las ventanas');
     if(!d.puertaP)puertasVal().forEach((p,i)=>{const n=d.puertas.length>1?' '+(i+1):'';if(!p.tipo||!p.pared||!p.mano)e.push(`Completá tipo, pared y apertura de la puerta${n} (o marcá las puertas a confirmar)`);else if(esLateral(p.pared)&&!p.pos)e.push(`Elegí en qué parte del ${p.pared.toLowerCase()} va la puerta${n}`);if(p.med==='Otra'&&(!p.ancho||!p.alto))e.push(`Poné ancho y alto de la puerta${n}`);if(!revisandoGuardada){const m=msgExceso(p,true,'Puerta'+n);if(m)e.push(m)}});
@@ -201,9 +201,9 @@ function render(){
       ${CONT[d.cont]&&CONT[d.cont].lado?`<div class="auto" style="margin-top:12px">Se conserva: <b>${esc(d.lado.toLowerCase())}</b>.</div>`:`<div class="lbl" style="margin-top:12px">¿Qué parte se conserva?</div>${ops('lado',['Puertas originales','Parte trasera'],d.lado)}`}</div>`:''}`;
   }
   if(paso===2){
-    h=`<div class="paso-t">Distribución</div><div class="paso-s">Cada espacio se personaliza por separado. Elegí qué querés poner y tocá en el dibujo dónde va.</div><div class="card">${barraEsp()}${planoSVG(true)}</div><div class="card">
+    h=`<div class="paso-t">Distribución</div><div class="paso-s">Cada espacio se personaliza por separado. Elegí qué querés poner y tocá en el dibujo dónde va.</div><div class="card" id="np-croq">${croquisEsp()}</div><div class="card">
     ${Object.keys(ESP).map(k=>`<div class="esp"><div class="esp-h"><b>${ESP[k]}</b><div class="cnt"><button data-menos="${k}">−</button><span>${cuenta(k)}</span><button data-mas="${k}">+</button></div></div>
-      ${d.espacios.filter(x=>x.tipo===k).map(x=>`<div class="sub"><div class="lbl">${esc(etiqueta(x))}: ¿dónde va?</div>${ops('ubi.'+x.id,UBI,x.ubi||'')}
+      ${d.espacios.filter(x=>x.tipo===k).map(x=>`<div class="sub"><div class="lbl">${esc(etiqueta(x))}: ¿dónde va?</div>${ops('ubi.'+x.id,UBI,x.ubi||'')}${puertaOps(x)}
       ${ITEMS[k]?`<div class="lbl" style="margin-top:10px">¿Qué lleva ${esc(etiqueta(x).toLowerCase())}? <small>tocá todo lo que aplique</small></div>${multi('it.'+x.id,ITEMS[k],x.items)}<div class="lbl" style="margin-top:10px">Revestimiento de paredes <small>opcional · tocá de nuevo para sacarlo</small></div>${ops('rh.'+x.id,REV_HUM,x.rev||'')}<div class="lbl" style="margin-top:10px">Revestimiento de techo <small>opcional · tocá de nuevo para sacarlo</small></div>${ops('rt.'+x.id,REV_HUM,x.revT||'')}`:''}</div>`).join('')}</div>`).join('')}
     </div><div class="card"><div class="lbl">Croquis o plano del cliente <small>recomendado · hasta ${MAX_CROQUIS} archivos</small></div>
       ${opts.croquisPrevios?`<div class="auto">Ya ${opts.croquisPrevios===1?'hay 1 archivo subido':'hay '+opts.croquisPrevios+' archivos subidos'} en este proyecto.</div>`:''}
@@ -291,8 +291,14 @@ function render(){
   // precio al cliente (lo pinta el cotizador de la app: acá no hay costos)
   if(paso===6&&window.notaPrecio){try{window.notaPrecio.pintar($('#np-precio'),limpio(d),opts)}catch(e){console.error(e)}}
 }
+// el dibujo queda arriba y quieto; lo que se elige va debajo
+function croquisEsp(){const c=cortos();return planoSVG(true)+(c.length?`<div class="err" style="margin-top:6px">⚠️ ${esc(c.join('. '))}</div>`:'')+barraEsp()}
+// Texto de un espacio para el resumen y el PDF: parte, medidas, puerta interior y sanitarios ubicados a mano
+function espDesc(x){const g=geoEsp(x);return `${etiqueta(x)} (${(x.ubi||'?').toLowerCase()}${g?', '+mTxt(g.largo)+' × '+mTxt(g.ancho):''})`}
+function puertaTxt(x){const g=geoEsp(x),pu=g&&puertaDe(x,g.i,g.j,g.n);if(!pu)return '';const q=posTxt(pu.pared,pu.pos);return ', puerta interior hacia '+haciaTxt(x,g,pu.pared).toLowerCase()+' '+q[0].toLowerCase()+q.slice(1)}
+function sinTabTxt(){const T=tabs();return [0,1].filter(k=>T.off[k]&&tabUsada(k)).map(k=>`. Sin tabique entre ${(nomZona(k)||'el espacio libre').toLowerCase()} y ${(nomZona(k+1)||'el espacio libre').toLowerCase()}`).join('')}
 function resumenCuerpo(){
-  const espTxt=d.espacios.map(x=>`${etiqueta(x)} (${(x.ubi||'?').toLowerCase()})${x.items&&x.items.length?' con '+x.items.join(', ').toLowerCase():''}${x.rev?', revestimiento '+x.rev.toLowerCase():''}${x.revT?', techo '+x.revT.toLowerCase():''}`).join('; ')||'sin divisiones';
+  const espTxt=(d.espacios.map(x=>`${espDesc(x)}${x.items&&x.items.length?' con '+x.items.join(', ').toLowerCase():''}${x.rev?', revestimiento '+x.rev.toLowerCase():''}${x.revT?', techo '+x.revT.toLowerCase():''}${x.art&&Object.keys(x.art).length?', sanitarios ubicados como en el dibujo':''}${puertaTxt(x)}`).join('; ')||'sin divisiones')+sinTabTxt();
   return `      <h4>Pedido</h4><p>${d.empresa?`Vende <b>${esc(d.empresa)}</b>. `:''}<b>${esc(d.sol||'?')}</b> para <b>${esc(d.cli||'?')}</b>${d.tel||d.mail?` (${esc([d.tel,d.mail].filter(Boolean).join(' · '))})`:''}, entrega en ${esc(d.loc||'?')}${d.maps?' (<a href="'+esc(d.maps)+'" target="_blank" rel="noopener">ubicación</a>)':''} el ${esc(d.fecha?d.fecha.split('-').reverse().join('/'):'?')}.</p>
       <h4>Producto</h4><p>${unidades()>1?`<b>${unidades()} unidades iguales</b>, cada una: `:''}${esc(d.cont||((d.prod||'?')+' '+d.tam))}${d.prod==='Contenedor cortado'?`, cortado a ${esc(d.corte)} cm conservando ${esc(d.lado.toLowerCase())}`:''}${d.prod==='Reefer'&&d.cont?' '+esc(d.tam):''}${d.motor?', '+esc(d.motor.toLowerCase()):''}. Medidas exteriores ${esc(d.largo)} × ${esc(d.ancho)} × ${esc(d.alto)} cm.</p>
       <h4>Distribución</h4><p>${esc(espTxt)}.</p>
@@ -324,92 +330,170 @@ function leyendaAmb(){const usados=[];d.espacios.forEach(x=>{const it=x.items||[
   return `<div class="aviso" style="text-align:left;margin-top:6px;display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center">${u.map(k=>{
     const g=k==='Mesada'?`<rect x="-8" y="1" width="16" height="9" fill="var(--azul-l)" stroke="var(--azul)" stroke-width=".8"/>`:k==='Alacena'?`<rect x="-8" y="1" width="16" height="6" fill="none" stroke="var(--azul)" stroke-width=".8" stroke-dasharray="2 1.5"/>`:`<g fill="none" stroke="var(--azul)" stroke-width="1"${k==='Espejo'?'':''}>${icono(k,'',14)}</g>`;
     return `<span style="display:inline-flex;align-items:center;gap:4px"><svg viewBox="-9 0 18 17" width="18" height="17" data-w="18">${g}</svg>${esc(nom[k]||k.toLowerCase())}</span>`}).join('')}</div>`}
-// Dibuja cada espacio dentro del contenedor visto desde arriba: tabiques, puerta interior de baños y habitaciones
-// y lo que lleva cada baño o cocina (inodoro, vanitory, ducha, mesada...). Cada espacio ocupa su zona (UBI);
-// si hay varios en la misma zona se reparten en franjas. Es un esquema, no un plano a escala.
-// Supuesto de la puerta interior de baños y habitaciones: da a un espacio abierto (cocina, oficina o una zona libre).
-// Primero a la cocina u oficina de la misma zona; si no, al centro (los del centro, al lado que quede abierto).
-// Si alrededor solo hay baños o habitaciones (por ejemplo un sanitario), no se dibuja: la puerta es exterior y va en Aberturas.
-function ambientesSVG(X0,X1,Y0,Y1,fs){
-  const w=(X1-X0)/3,ln='var(--tx2)',az='var(--azul)';let s='';
+// ---- Medidas del croquis: líneas divisorias movibles ----
+// Hay dos líneas divisorias posibles: la 0 (entre extremo izquierdo y centro) y la 1 (entre centro y extremo derecho).
+// Se guardan en d.tab = {L: largo interior, p: [cm desde el lado puertas], off: [borrada?]}; sin d.tab quedan en tercios.
+// Largo y ancho interior: el exterior menos las paredes (supuesto: 8 cm por pared, con aislación y revestimiento).
+// La línea se mueve de a 10 cm y ningún espacio puede quedar más corto que su mínimo (MIN_ESP).
+const PARED_CM=8, PASO_TAB=10;
+const MIN_ESP={bano:120,cocina:120,habitacion:180,oficina:120}, MIN_LIBRE=30;
+const largoInt=()=>Math.max(100,(largoTot()||606)-2*PARED_CM);
+const anchoInt=()=>Math.max(100,(Number(d.ancho)||244)-2*PARED_CM);
+const zonaEsp=i=>d.espacios.filter(e=>e.ubi===UBI[i]);
+const minZona=i=>Math.max(MIN_LIBRE,...zonaEsp(i).map(x=>MIN_ESP[x.tipo]||MIN_LIBRE));
+// una línea divisoria existe si separa algún espacio (si los dos lados están libres no hay tabique)
+const tabUsada=k=>!!(zonaEsp(k).length||zonaEsp(k+1).length);
+const mTxt=cm=>(Math.round(cm)/100).toFixed(2).replace('.',',')+' m';
+const rnd=v=>Math.round(v/PASO_TAB)*PASO_TAB;
+function tabs(){const Li=largoInt(),t=d.tab;
+  let p=[rnd(Li/3),rnd(2*Li/3)],off=[false,false];
+  if(t&&Array.isArray(t.p)){const k=t.L&&t.L!==Li?Li/t.L:1;p=t.p.map(v=>k===1?Number(v)||0:rnd(Number(v)*k));off=[0,1].map(j=>!!(t.off||[])[j])}
+  p[0]=Math.max(MIN_LIBRE,Math.min(Li-2*MIN_LIBRE,p[0]));p[1]=Math.max(p[0]+MIN_LIBRE,Math.min(Li-MIN_LIBRE,p[1]));
+  return {Li,p,off}}
+const largoZona=(T,i)=>[T.p[0],T.p[1]-T.p[0],T.Li-T.p[1]][i];
+// Mueve la línea k a v cm (de a 10 cm), sin achicar ningún espacio por debajo de su mínimo. Devuelve si topó.
+function moverTab(k,v){const T=tabs();
+  let lo=0;for(let z=k;z>=0;z--){lo+=minZona(z);if(z>0&&tabUsada(z-1)){lo+=T.p[z-1];break}}
+  let s=0,base=T.Li;for(let z=k+1;z<=2;z++){s+=minZona(z);if(z<2&&tabUsada(z)){base=T.p[z];break}}
+  const hi=base-s,pide=rnd(v);let nv=Math.max(lo,Math.min(hi,pide));if(lo>hi)nv=rnd((lo+hi)/2);
+  T.p[k]=nv;const j=1-k;
+  if(!tabUsada(j)){if(j<k)T.p[j]=Math.max(minZona(0),Math.min(T.p[j],T.p[k]-minZona(1)));else T.p[j]=Math.min(T.Li-minZona(2),Math.max(T.p[j],T.p[k]+minZona(1)))}
+  d.tab={L:T.Li,p:T.p,off:T.off};return {tope:nv!==pide}}
+const MIN_TXT=()=>`baño y cocina ${mTxt(MIN_ESP.bano)}, oficina ${mTxt(MIN_ESP.oficina)}, habitación ${mTxt(MIN_ESP.habitacion)}`;
+// Cortes de las líneas que existen: [0, línea..., largo interior]
+function cortesTab(T){return [0,...[0,1].filter(tabUsada).map(k=>T.p[k]),T.Li]}
+function nomZona(z){const e=zonaEsp(z);return e.length?e.map(etiqueta).join(' / '):''}
+function nomTramo(T,a,b){const n=[0,1,2].filter(z=>{const z0=z?T.p[z-1]:0,z1=z<2?T.p[z]:T.Li;return z0>=a-1&&z1<=b+1}).map(nomZona).filter(Boolean);return n.length?n.join(' + '):'Libre'}
+// Geometría del dibujo: bordes de cada parte (zona) y rectángulo de cada espacio (si hay varios en una parte, en franjas)
+function geo(X0,X1,Y0,Y1){const T=tabs(),sx=(X1-X0)/T.Li,xb=[X0,X0+T.p[0]*sx,X0+T.p[1]*sx,X1];
+  const zonas=UBI.map((u,i)=>{const esp=zonaEsp(i),n=esp.length,hh=(Y1-Y0)/(n||1);
+    return {i,x:xb[i],w:xb[i+1]-xb[i],esp,n,hh,rects:esp.map((x,j)=>({x,j,x0:xb[i],x1:xb[i+1],y0:Y0+j*hh,y1:Y0+(j+1)*hh}))}});
+  return {T,xb,zonas}}
+// Medidas de un espacio: largo de su parte × ancho interior (repartido si comparte la parte)
+function geoEsp(x){const i=UBI.indexOf(x.ubi);if(i<0)return null;const T=tabs(),esp=zonaEsp(i),n=esp.length;
+  return {i,j:esp.indexOf(x),n,largo:largoZona(T,i),ancho:anchoInt()/n}}
+function cortos(){const T=tabs();return d.espacios.filter(x=>{const i=UBI.indexOf(x.ubi);return i>=0&&largoZona(T,i)<(MIN_ESP[x.tipo]||0)})
+  .map(x=>`${etiqueta(x)} queda de ${mTxt(largoZona(T,UBI.indexOf(x.ubi)))} de largo y el mínimo es ${mTxt(MIN_ESP[x.tipo])}: tocá la línea divisoria y correla`)}
+// ---- Puertas interiores ----
+// Cada espacio puede llevar una puerta interior en un tabique: 'izq'/'der' (las líneas divisorias, hacia el lado puertas
+// o el lado opuesto) o 'arr'/'abj' (el tabique con el espacio de al lado en la misma parte). pos: 'a' cerca del lateral A
+// (o del lado puertas), 'c' al centro, 'b' cerca del lateral B (o del lado opuesto). x.pi={pared,pos}; {pared:'no'} sin puerta.
+// Si el vendedor no la elige, va donde la ponía el croquis: baños y habitaciones abren a un espacio abierto.
+const cerrado=x=>x.tipo==='bano'||x.tipo==='habitacion';
+function paredesPuerta(i,j,n){const T=tabs(),o=[];if(i>0&&!T.off[i-1])o.push('izq');if(i<2&&!T.off[i])o.push('der');if(j>0)o.push('arr');if(j<n-1)o.push('abj');return o}
+function puertaAuto(x,i,j,esp){if(!cerrado(x))return null;const n=esp.length,abierta=z=>{const e=zonaEsp(z);return !e.length||e.some(y=>!cerrado(y))};let p=null;
+  if(j>0&&!cerrado(esp[j-1]))p={pared:'arr',pos:'b'};else if(j<n-1&&!cerrado(esp[j+1]))p={pared:'abj',pos:'b'};
+  else if(i===0&&abierta(1))p={pared:'der',pos:'c'};else if(i===2&&abierta(1))p={pared:'izq',pos:'c'};
+  else if(i===1)p=abierta(0)?{pared:'izq',pos:'c'}:abierta(2)?{pared:'der',pos:'c'}:null;
+  return p&&paredesPuerta(i,j,n).includes(p.pared)?p:null}
+function puertaDe(x,i,j,n){if(x.pi){if(x.pi.pared==='no')return null;if(paredesPuerta(i,j,n).includes(x.pi.pared))return {pared:x.pi.pared,pos:x.pi.pos||'c'}}
+  return puertaAuto(x,i,j,zonaEsp(i))}
+function haciaTxt(x,g,pared){const esp=zonaEsp(g.i);
+  const n=pared==='izq'?nomZona(g.i-1):pared==='der'?nomZona(g.i+1):pared==='arr'?etiqueta(esp[g.j-1]):etiqueta(esp[g.j+1]);return n||'el espacio libre'}
+function posTxt(pared,pos){const v=pared==='izq'||pared==='der';
+  return pos==='a'?(v?'Cerca del lateral A':'Cerca del '+(d.prod==='Contenedor cortado'&&d.lado==='Parte trasera'?'lado del corte':'lado puertas')):pos==='b'?(v?'Cerca del lateral B':'Cerca del lado opuesto'):'Al centro'}
+function puertaOps(x){const g=geoEsp(x);if(!g)return '';const ps=paredesPuerta(g.i,g.j,g.n);if(!ps.length)return '';const act=puertaDe(x,g.i,g.j,g.n);
+  return `<div class="lbl" style="margin-top:10px">Puerta interior de ${esc(etiqueta(x).toLowerCase())}</div><div class="ops">${ps.map(p=>`<div class="op ${act&&act.pared===p?'sel':''}" data-croq="pi" data-id="${x.id}" data-v="${p}">Hacia ${esc(haciaTxt(x,g,p))}</div>`).join('')}<div class="op ${act?'':'sel'}" data-croq="pi" data-id="${x.id}" data-v="no">Sin puerta</div></div>
+  ${act?`<div class="ops" style="margin-top:6px">${['a','c','b'].map(q=>`<div class="op ${act.pos===q?'sel':''}" data-croq="pip" data-id="${x.id}" data-v="${q}">${esc(posTxt(act.pared,q))}</div>`).join('')}</div>`:''}`}
+// ---- Artefactos del baño movibles ----
+// x.art = {Inodoro:{pared:'arr'|'abj'|'izq'|'der', f:0..1 a lo largo de esa pared}}. Bacha, vanitory y mueble son 'Lavatorio'.
+const artKey=k=>k==='Bacha'||k==='Vanitory'||k==='Mueble'?'Lavatorio':k;
+const artDe=(x,k)=>x.art&&x.art[artKey(k)];
+function piezasBano(x){const it=x.items||[],hay=k=>it.includes(k);const p=['Ducha','Inodoro','Bidet','Mingitorio'].filter(hay);
+  if(hay('Bacha'))p.push(hay('Mueble')?'Vanitory':'Bacha');else if(hay('Mueble'))p.push('Mueble');if(hay('Lavamatic'))p.push('Lavamatic');return p}
+function artTf(a,x0,x1,y0,y1,sz){const m=sz*.6+2,cl=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
+  if(a.pared==='arr'||a.pared==='abj'){const cx=cl(x0+a.f*(x1-x0),x0+m,x1-m);return a.pared==='arr'?`translate(${cx} ${y0})`:`translate(${cx} ${y1}) rotate(180)`}
+  const cy=cl(y0+a.f*(y1-y0),y0+m,y1-m);return a.pared==='izq'?`translate(${x0} ${cy}) rotate(-90)`:`translate(${x1} ${cy}) rotate(90)`}
+// Dibuja cada espacio dentro del contenedor visto desde arriba: tabiques (en la posición de las líneas divisorias),
+// puertas interiores y lo que lleva cada baño o cocina (inodoro, vanitory, ducha, mesada...). Cada espacio ocupa su zona (UBI);
+// si hay varios en la misma zona se reparten en franjas. Es un esquema: el largo de cada parte es proporcional, el ancho no.
+// Los artefactos que el vendedor no movió van contra la pared exterior, empezando lejos de la puerta.
+function ambientesSVG(X0,X1,Y0,Y1,fs,tactil){
+  const G=geo(X0,X1,Y0,Y1),T=G.T,ln='var(--tx2)',az='var(--azul)';let s='';
   const ic=icono;
-  const zonas=UBI.map(u=>d.espacios.filter(e=>e.ubi===u));
-  const huecos={1:[],2:[]}; // puertas en los tabiques entre zonas (x = X0+i*w)
+  const huecos={1:[],2:[]}; // puertas en los tabiques entre zonas (x = xb[i])
   const hh_={}; // puertas en los tabiques entre franjas de una misma zona ('zona|franja' de abajo)
-  const cerrado=x=>x.tipo==='bano'||x.tipo==='habitacion';
-  const abierta=i=>!zonas[i].length||zonas[i].some(x=>!cerrado(x)); // zona libre o con cocina/oficina
-  zonas.forEach((esp,i)=>{const n=esp.length;if(!n)return;const zx=X0+i*w,hh=(Y1-Y0)/n;
+  G.zonas.forEach(Z=>{const {i,esp,n,hh}=Z,zx=Z.x,w=Z.w;if(!n)return;
     esp.forEach((x,j)=>{const y0=Y0+j*hh,y1=y0+hh;
-      // puerta interior (ver el supuesto arriba): lado 1 derecha, -1 izquierda; vert -1 arriba, 1 abajo (a la misma zona)
-      let lado=0,vert=0;
-      if(cerrado(x)){if(j>0&&!cerrado(esp[j-1]))vert=-1;else if(j<n-1&&!cerrado(esp[j+1]))vert=1;
-        else if(i===0&&abierta(1))lado=1;else if(i===2&&abierta(1))lado=-1;else if(i===1)lado=abierta(0)?-1:abierta(2)?1:0}
-      const bx=lado?zx+(lado>0?w:0):0, adentro=-lado; // hacia dónde abre (dentro del espacio)
-      if(lado){const g=Math.min(hh*.62,20),ga=(y0+y1)/2-g/2;huecos[lado>0?i+1:i].push([ga,ga+g]);
+      const pu=puertaDe(x,i,j,n);
+      const lado=pu&&pu.pared==='der'?1:pu&&pu.pared==='izq'?-1:0;
+      if(lado){const bx=zx+(lado>0?w:0),adentro=-lado,g=Math.min(hh*.62,20,w*.8),ga=pu.pos==='a'?y0+3:pu.pos==='b'?y1-3-g:(y0+y1)/2-g/2;huecos[lado>0?i+1:i].push([ga,ga+g]);
         s+=`<path d="M${bx} ${ga}L${bx+adentro*g} ${ga}" stroke="${ln}" stroke-width="1.5"/><path d="M${bx+adentro*g} ${ga}A${g} ${g} 0 0 ${adentro>0?1:0} ${bx} ${ga+g}" fill="none" stroke="${ln}" stroke-dasharray="2 2"/>`}
-      if(vert){const g=Math.min(hh*.8,w*.3,20),by=vert<0?y0:y1,ga=zx+w-g-3,dn=-vert;hh_[i+'|'+(vert<0?j:j+1)]=[ga,ga+g];
+      if(pu&&!lado){const arr=pu.pared==='arr',g=Math.min(hh*.8,w*.3,20),by=arr?y0:y1,dn=arr?1:-1,ga=pu.pos==='a'?zx+3:pu.pos==='c'?zx+w/2-g/2:zx+w-g-3;hh_[i+'|'+(arr?j:j+1)]=[ga,ga+g];
         s+=`<path d="M${ga} ${by}L${ga} ${by+dn*g}" stroke="${ln}" stroke-width="1.5"/><path d="M${ga} ${by+dn*g}A${g} ${g} 0 0 ${dn>0?0:1} ${ga+g} ${by}" fill="none" stroke="${ln}" stroke-dasharray="2 2"/>`}
-      // artefactos contra la pared exterior (arriba; la última franja, abajo), empezando lejos de la puerta
       const it=x.items||[];let pzs=[];
-      if(x.tipo==='bano'){const hay=k=>it.includes(k);pzs=['Ducha','Inodoro','Bidet','Mingitorio'].filter(hay);
-        if(hay('Bacha'))pzs.push(hay('Mueble')?'Vanitory':'Bacha');else if(hay('Mueble'))pzs.push('Mueble');
-        if(hay('Lavamatic'))pzs.push('Lavamatic')}
+      if(x.tipo==='bano')pzs=piezasBano(x);
       else if(x.tipo==='cocina')pzs=['Bacha monocomando','Cocina eléctrica'].filter(k=>it.includes(k));
       const abajo=n>1&&j===n-1, wy=abajo?y1:y0, dy=abajo?-1:1;
       const conMesada=x.tipo==='cocina'&&(it.includes('Bajo mesada')||pzs.length), conAlacena=x.tipo==='cocina'&&it.includes('Alacena');
-      const nSlots=Math.max(pzs.length,conMesada||conAlacena?1:0);
+      const libres=pzs.filter(k=>!artDe(x,k)),nSlots=Math.max(libres.length,conMesada||conAlacena?1:0),nTot=Math.max(pzs.length,nSlots,1);
+      const sz=Math.max(5,Math.min(16,hh*.42,(w-12-(lado?8:0))/(nTot*1.3))),paso=sz*1.3;
+      const pieza=(tf,k)=>{s+=`<g transform="${tf}" fill="none" stroke="${az}" stroke-width="1"><title>${esc(etiqueta(x))}: ${esc(k.toLowerCase())}</title>${ic(k,x.tipo,sz)}</g>`;
+        if((k==='Vanitory'||k==='Bacha')&&it.includes('Espejo'))s+=`<g transform="${tf}" stroke="${az}"><title>espejo</title>${ic('Espejo',x.tipo,sz)}</g>`};
       let ty=(y0+y1)/2+fs*.35;
-      if(nSlots){const sz=Math.max(5,Math.min(16,hh*.42,(w-12-(lado?8:0))/(nSlots*1.3))),paso=sz*1.3,largo=nSlots*paso;
+      if(nSlots){const largo=nSlots*paso;
         // si la puerta está a la derecha, se arranca desde la izquierda y al revés
         const x0=lado>0?zx+5:zx+w-5-largo;
         if(conMesada)s+=`<rect x="${x0}" y="${abajo?wy-sz*.62:wy}" width="${largo}" height="${sz*.62}" fill="var(--azul-l)" stroke="${az}" stroke-width=".8"><title>${esc(etiqueta(x))}: mesada</title></rect>`;
         if(conAlacena)s+=`<rect x="${x0}" y="${abajo?wy-sz*.35:wy}" width="${largo}" height="${sz*.35}" fill="none" stroke="${az}" stroke-width=".8" stroke-dasharray="2 1.5"><title>${esc(etiqueta(x))}: alacena</title></rect>`;
-        pzs.forEach((k,q)=>{const cx=x0+paso*(q+.5);
-          s+=`<g transform="translate(${cx} ${wy}) scale(1 ${dy})" fill="none" stroke="${az}" stroke-width="1"><title>${esc(etiqueta(x))}: ${esc(k.toLowerCase())}</title>${ic(k,x.tipo,sz)}</g>`;
-          if(k==='Vanitory'||k==='Bacha'){if(it.includes('Espejo'))s+=`<g transform="translate(${cx} ${wy}) scale(1 ${dy})" stroke="${az}"><title>espejo</title>${ic('Espejo',x.tipo,sz)}</g>`}});
+        libres.forEach((k,q)=>pieza(`translate(${x0+paso*(q+.5)} ${wy}) scale(1 ${dy})`,k));
         ty=abajo?y0+Math.min(hh*.42,fs+3):Math.max(y0+sz+fs*.9,y1-hh*.25)}
-      const f2=Math.min(fs,hh*.34);
-      s+=`<text x="${zx+w/2+(lado?-lado*4:vert?-12:0)}" y="${ty}" text-anchor="middle" font-size="${f2}" font-weight="700" fill="var(--tx)">${esc(etiqueta(x))}</text>`});
+      // los que el vendedor ubicó a mano, contra la pared que eligió
+      pzs.filter(k=>artDe(x,k)).forEach(k=>pieza(artTf(artDe(x,k),zx,zx+w,y0,y1,sz),k));
+      const nom=etiqueta(x),f2=Math.max(5,Math.min(fs,hh*.34,(w-4)/(nom.length*.62))),tx=zx+w/2+(lado?-lado*4:0);
+      // medidas del espacio debajo del nombre (si entra)
+      const g=geoEsp(x),med=g?(g.largo/100).toFixed(2).replace('.',',')+' × '+(g.ancho/100).toFixed(2).replace('.',','):'';
+      const f3=Math.min(f2*.85,(w-4)/((med.length+2)*.56));let ty2=ty+f2*.95;
+      if(med&&hh>=44&&f3>=5){if(ty2>y1-2){ty-=ty2-(y1-2);ty2=y1-2}}
+      s+=`<text x="${tx}" y="${ty}" text-anchor="middle" font-size="${f2}" font-weight="700" fill="var(--tx)">${esc(nom)}</text>`;
+      if(med&&hh>=44&&f3>=5)s+=`<text x="${tx}" y="${ty2}" text-anchor="middle" font-size="${f3}" fill="var(--tx2)">${med} m</text>`});
     // tabiques entre franjas de la misma zona, con el hueco de la puerta si hay
     for(let j=1;j<n;j++){const y=Y0+j*hh,gp=hh_[i+'|'+j];
       s+=gp?`<line x1="${zx}" y1="${y}" x2="${gp[0]}" y2="${y}" stroke="${ln}" stroke-width="1.5"/><line x1="${gp[1]}" y1="${y}" x2="${zx+w}" y2="${y}" stroke="${ln}" stroke-width="1.5"/>`
         :`<line x1="${zx}" y1="${y}" x2="${zx+w}" y2="${y}" stroke="${ln}" stroke-width="1.5"/>`}});
-  // tabiques entre zonas: llenos si separan algún espacio (con el hueco de las puertas), punteados si no
-  [1,2].forEach(i=>{const x=X0+i*w;
-    if(!zonas[i-1].length&&!zonas[i].length){s+=`<line x1="${x}" y1="${Y0}" x2="${x}" y2="${Y1}" stroke="${ln}" stroke-dasharray="4 4" opacity=".6"/>`;return}
+  // tabiques entre zonas: llenos si separan algún espacio (con el hueco de las puertas), punteados si no.
+  // Una línea borrada no lleva tabique: queda punteada suave (naranja en pantalla, para poder volver a ponerla).
+  [1,2].forEach(i=>{const x=G.xb[i],k=i-1;
+    if(!tabUsada(k)){s+=`<line x1="${x}" y1="${Y0}" x2="${x}" y2="${Y1}" stroke="${ln}" stroke-dasharray="4 4" opacity=".6"/>`;return}
+    if(T.off[k]){s+=`<line x1="${x}" y1="${Y0}" x2="${x}" y2="${Y1}" stroke="${tactil?'var(--nar)':ln}" stroke-dasharray="2 4" opacity="${tactil?.8:.35}"/>`;return}
     let y=Y0;huecos[i].sort((a,b)=>a[0]-b[0]).forEach(([a,b])=>{if(a>y)s+=`<line x1="${x}" y1="${y}" x2="${x}" y2="${a}" stroke="${ln}" stroke-width="1.5"/>`;y=Math.max(y,b)});
     if(y<Y1)s+=`<line x1="${x}" y1="${y}" x2="${x}" y2="${Y1}" stroke="${ln}" stroke-width="1.5"/>`});
   return s;
 }
+// Nombres de las partes debajo del dibujo, centrados en cada parte (abreviados si la parte es angosta)
+function nombresZonas(G,y,fs,sub){const L=[['Extremo izquierdo','Ext. izq.'],['Centro','Centro'],['Extremo derecho','Ext. der.']];
+  return G.zonas.map(Z=>{const cx=Z.x+Z.w/2,t=Z.w>=fs*8.4?L[Z.i][0]:Z.w>=fs*4.4?L[Z.i][1]:'';if(!t)return '';
+    return `<text x="${cx}" y="${y}" text-anchor="middle" font-size="${fs}" font-weight="700" fill="var(--tx)">${t}</text>`+(sub&&sub[Z.i]&&Z.w>=fs*6?`<text x="${cx}" y="${y+15}" text-anchor="middle" font-size="${fs*.875}" fill="var(--tx2)">${sub[Z.i]}</text>`:'')}).join('')}
 function planoSVG(tactil){
-  const X0=24,X1=336,Y0=46,Y1=118,w=(X1-X0)/3;
-  const zonas=UBI.map((u,i)=>({u,x:X0+i*w,items:d.espacios.filter(e=>e.ubi===u).map(etiqueta)}));
+  const X0=24,X1=336,Y0=46,Y1=118,G=geo(X0,X1,Y0,Y1),T=G.T;
   const linea='var(--tx2)';
   const puertas=d.prod==='Contenedor cortado'&&d.lado==='Parte trasera'?false:true;
-  return `<div class="lbl">Ubicación de los espacios <small>vista desde arriba</small></div>
-  <svg viewBox="0 0 360 176" width="100%" role="img" aria-label="Contenedor visto desde arriba con lado puertas a la izquierda" style="display:block;font-family:inherit">
-    <text x="180" y="18" text-anchor="middle" font-size="11" fill="var(--tx2)">${d.tam?esc(d.tam)+' · ':''}${d.largo?esc(d.corte||d.largo)+' cm de largo':'contenedor'}</text>
-    ${zonas.map((z,i)=>`<rect x="${z.x}" y="${Y0}" width="${w}" height="${Y1-Y0}" fill="${z.items.length?'var(--nar-l)':'none'}"/>`).join('')}
+  // cota: metros de cada tramo entre las líneas divisorias que existen
+  const c=cortesTab(T),px=cm=>X0+cm/T.Li*(X1-X0),yc=Y1+11;let cota='';
+  for(let q=0;q<c.length-1;q++){const a=px(c[q]),b=px(c[q+1]),f=Math.min(10.5,(b-a)/3.4);
+    cota+=`<line x1="${a}" y1="${yc}" x2="${b}" y2="${yc}" stroke="${linea}" stroke-width=".8"/><line x1="${a}" y1="${yc-4}" x2="${a}" y2="${yc+4}" stroke="${linea}" stroke-width=".8"/><line x1="${b}" y1="${yc-4}" x2="${b}" y2="${yc+4}" stroke="${linea}" stroke-width=".8"/>`+
+      (f>=5?`<text x="${(a+b)/2}" y="${yc+12}" text-anchor="middle" font-size="${f}" font-weight="700" fill="var(--nar)">${mTxt(c[q+1]-c[q])}</text>`:'')}
+  return `<div class="lbl">Ubicación de los espacios <small>vista desde arriba · medidas interiores</small></div>
+  <svg viewBox="0 0 360 200" width="100%" role="img" aria-label="Contenedor visto desde arriba con lado puertas a la izquierda" style="display:block;font-family:inherit">
+    <text x="180" y="18" text-anchor="middle" font-size="11" fill="var(--tx2)">${d.tam?esc(d.tam==='40 ST'?'40 DV':d.tam)+' · ':''}${d.largo?esc(d.corte||d.largo)+' cm de largo · '+mTxt(T.Li)+' útiles adentro':'contenedor'}</text>
+    ${G.zonas.map(Z=>`<rect x="${Z.x}" y="${Y0}" width="${Z.w}" height="${Y1-Y0}" fill="${Z.n?'var(--nar-l)':'none'}"/>`).join('')}
     <rect x="${X0}" y="${Y0}" width="${X1-X0}" height="${Y1-Y0}" fill="none" stroke="${linea}" stroke-width="2" rx="2"/>
-    ${ambientesSVG(X0,X1,Y0,Y1,11.5)}
+    ${ambientesSVG(X0,X1,Y0,Y1,11.5,tactil)}
     ${puertas?`<rect x="${X0-6}" y="${Y0+4}" width="6" height="${(Y1-Y0)/2-6}" fill="var(--nar)"/><rect x="${X0-6}" y="${(Y0+Y1)/2+2}" width="6" height="${(Y1-Y0)/2-6}" fill="var(--nar)"/>
-    <text x="${X0-2}" y="${Y0-8}" font-size="11" font-weight="700" fill="var(--nar)">🚪 PUERTAS</text>`:''}
-    <text x="${X0+w/2}" y="${Y1+20}" text-anchor="middle" font-size="12" font-weight="700" fill="var(--tx)">Extremo izquierdo</text>
-    <text x="${X0+w/2}" y="${Y1+35}" text-anchor="middle" font-size="10.5" fill="var(--tx2)">${puertas?'lado puertas':'lado del corte'}</text>
-    <text x="${X0+1.5*w}" y="${Y1+20}" text-anchor="middle" font-size="12" font-weight="700" fill="var(--tx)">Centro</text>
-    <text x="${X0+2.5*w}" y="${Y1+20}" text-anchor="middle" font-size="12" font-weight="700" fill="var(--tx)">Extremo derecho</text>
-    <text x="${X0+2.5*w}" y="${Y1+35}" text-anchor="middle" font-size="10.5" fill="var(--tx2)">lado opuesto</text>
-    ${tactil?capaEsp(zonas,X0,Y0,Y1,w):''}
+    <text x="10" y="${(Y0+Y1)/2}" transform="rotate(-90 10 ${(Y0+Y1)/2})" text-anchor="middle" font-size="9.5" font-weight="700" fill="var(--nar)">PUERTAS</text>`:''}
+    ${cota}
+    ${nombresZonas(G,Y1+44,12,[puertas?'lado puertas':'lado del corte','','lado opuesto'])}
+    ${tactil?capaEsp(G,X0,X1,Y0,Y1):''}
   </svg>${leyendaAmb()}`;
 }
 function abertSVG(tactil){
-  const X0=44,X1=316,Y0=58,Y1=128,w=(X1-X0)/3,L=largoTot()||606,A=Number(d.ancho)||244,esc2=(X1-X0)/L,ln='var(--tx2)';
+  const X0=44,X1=316,Y0=58,Y1=128,G=geo(X0,X1,Y0,Y1),L=largoTot()||606,A=Number(d.ancho)||244,esc2=(X1-X0)/L,ln='var(--tx2)';
   const cortado=d.prod==='Contenedor cortado'&&d.lado==='Parte trasera';
   const todas=[...d.puertas.map((p,i)=>({...p,ref:'p'+i,cod:'P'+(i+1),col:'var(--nar)',an:anchoPuerta(p)})),...d.ventanas.map((v,i)=>({...v,ref:'v'+i,cod:'V'+(i+1),col:'var(--azul)',an:Number(v.ancho)||100}))].filter(o=>o.pared&&(!esLateral(o.pared)||o.pos));
   const grupos={};todas.forEach(o=>{const g=o.pared+'|'+(esLateral(o.pared)?o.pos:'');(grupos[g]=grupos[g]||[]).push(o)});
   let marcas='';
   Object.entries(grupos).forEach(([g,arr])=>{const [pa,pos]=g.split('|');arr.forEach((o,j)=>{const f=(j+1)/(arr.length+1);
-    if(esLateral(pa)){const zi=UBI.indexOf(pos);const cx=X0+zi*w+w*f;const lw=Math.max(14,Math.min(w/arr.length-4,o.an*esc2));const y=pa==='Lateral A'?Y0:Y1;
+    if(esLateral(pa)){const zi=UBI.indexOf(pos),zx=G.xb[zi],zw=G.xb[zi+1]-zx;const cx=zx+zw*f;const lw=Math.max(14,Math.min(zw/arr.length-4,o.an*esc2));const y=pa==='Lateral A'?Y0:Y1;
       o.cx=cx;o.cy=y;marcas+=`<rect x="${cx-lw/2}" y="${y-4}" width="${lw}" height="8" rx="2" fill="${o.col}"/><text x="${cx}" y="${pa==='Lateral A'?y-9:y+18}" text-anchor="middle" font-size="11" font-weight="700" fill="${o.col}">${o.cod}</text>`}
     else{const cy=Y0+(Y1-Y0)*f;const lh=Math.max(12,Math.min((Y1-Y0)/arr.length-4,o.an*(Y1-Y0)/A));const x=pa==='Lado puertas'?X0:X1;
       o.cx=x;o.cy=cy;marcas+=`<rect x="${x-4}" y="${cy-lh/2}" width="8" height="${lh}" rx="2" fill="${o.col}"/><text x="${pa==='Lado puertas'?x-7:x+7}" y="${cy+4}" text-anchor="${pa==='Lado puertas'?'end':'start'}" font-size="11" font-weight="700" fill="${o.col}">${o.cod}</text>`}})});
@@ -422,27 +506,49 @@ function abertSVG(tactil){
     <text x="16" y="${(Y0+Y1)/2}" transform="rotate(-90 16 ${(Y0+Y1)/2})" text-anchor="middle" font-size="11" font-weight="700" fill="var(--nar)">${cortado?'Lado del corte':'Lado puertas'}</text>
     <text x="344" y="${(Y0+Y1)/2}" transform="rotate(90 344 ${(Y0+Y1)/2})" text-anchor="middle" font-size="11" font-weight="700" fill="var(--tx)">Lado opuesto</text>
     <text x="180" y="${Y1+40}" text-anchor="middle" font-size="12" font-weight="700" fill="var(--tx)">Lateral B</text>
-    <text x="${X0+w/2}" y="${Y1+58}" text-anchor="middle" font-size="9.5" fill="var(--tx2)">extremo izq.</text><text x="${X0+1.5*w}" y="${Y1+58}" text-anchor="middle" font-size="9.5" fill="var(--tx2)">centro</text><text x="${X0+2.5*w}" y="${Y1+58}" text-anchor="middle" font-size="9.5" fill="var(--tx2)">extremo der.</text>
-    ${tactil?capaAbert(todas,X0,X1,Y0,Y1,w):''}
+    ${G.zonas.map(Z=>{const t=Z.w>=52?['extremo izq.','centro','extremo der.'][Z.i]:Z.w>=30?['ext. izq.','centro','ext. der.'][Z.i]:'';return t?`<text x="${Z.x+Z.w/2}" y="${Y1+58}" text-anchor="middle" font-size="9.5" fill="var(--tx2)">${t}</text>`:''}).join('')}
+    ${tactil?capaAbert(todas,X0,X1,Y0,Y1):''}
   </svg>
   <div class="aviso" style="text-align:left;margin-top:4px"><b style="color:var(--nar)">P</b> puertas · <b style="color:var(--azul)">V</b> ventanas. Lateral A es el que queda a la izquierda parado en el lado puertas mirando hacia adentro.</div>`+leyendaAmb();
 }
 // ---- Croquis táctil: ubicar espacios y aberturas tocando el dibujo con el dedo ----
 // Las capas son rectángulos transparentes encima del dibujo; solo se agregan en pantalla (no en el PDF).
+function barraTab(){const k=herr.tab,T=tabs(),c=cortesTab(T),q=c.indexOf(T.p[k]);
+  const izq=c[q]-c[q-1],der=c[q+1]-c[q],nI=nomTramo(T,c[q-1],c[q]),nD=nomTramo(T,c[q],c[q+1]);
+  const conBano=zonaEsp(k).concat(zonaEsp(k+1)).some(x=>x.tipo==='bano');
+  return `<div class="croq-bar sel"><div class="croq-t"><b>Línea divisoria${T.off[k]?' (borrada: no lleva tabique)':''}</b><br>${esc(nI)}: <b>${mTxt(izq)}</b> · ${esc(nD)}: <b>${mTxt(der)}</b><br><small>Arrastrala con el dedo o usá los botones. Se mueve de a 10 cm. Mínimos: ${MIN_TXT()}.</small></div>
+    <div class="ops"><div class="op" data-croq="tabm" data-v="-10">◀ 10 cm</div><div class="op" data-croq="tabm" data-v="10">10 cm ▶</div></div>
+    <div class="fila" style="align-items:center"><div class="lbl" style="margin:0;flex:1">${esc(nI)} mide</div><div class="unidad" style="flex:1"><input type="number" inputmode="numeric" step="10" data-tabcm="${k}" value="${izq}"><b>cm</b></div></div>
+    <div class="ops" style="margin-top:8px">${conBano&&!T.off[k]?'':`<div class="op" data-croq="taboff">${T.off[k]?'Volver a poner la línea':'Borrar la línea'}</div>`}<div class="op" data-croq="listo">Listo</div></div>
+    ${conBano&&!T.off[k]?'<div class="aviso" style="text-align:left;margin-top:6px">Esta línea es tabique de un baño: no se puede borrar.</div>':''}</div>`}
+function artNom(x,k){return k==='Lavatorio'?((x.items||[]).includes('Bacha')?((x.items||[]).includes('Mueble')?'Vanitory':'Bacha'):'Mueble'):k}
 function barraEsp(){
+  if(herr.tab!=null)return barraTab();
   const sel=herr.sel&&d.espacios.find(x=>x.id===herr.sel);
-  if(sel)return `<div class="croq-bar sel"><div class="croq-t"><b>${esc(etiqueta(sel))}</b> seleccionado: tocá otra parte del dibujo para moverlo, o la misma parte para pasar al siguiente.</div>
-    <div class="ops"><div class="op" data-croq="quitar">Quitar</div><div class="op" data-croq="listo">Listo</div></div></div>`;
+  if(sel){const g=geoEsp(sel),keys=sel.tipo==='bano'?[...new Set(piezasBano(sel).map(artKey))]:[];
+    const txt=herr.mov?`Tocá dentro de ${esc(etiqueta(sel).toLowerCase())} dónde va <b>${esc(artNom(sel,herr.mov).toLowerCase())}</b>: se pega a la pared más cercana.`
+      :`Tocá otra parte del dibujo para moverlo. Para cambiar sus medidas, tocá o arrastrá la línea divisoria (⇆).`;
+    return `<div class="croq-bar sel"><div class="croq-t"><b>${esc(etiqueta(sel))}</b>${g?` · ${mTxt(g.largo)} × ${mTxt(g.ancho)}`:''}<br>${txt}</div>
+    ${puertaOps(sel)}
+    ${keys.length?`<div class="lbl" style="margin-top:10px">Mover sanitarios <small>elegí uno y tocá dónde va</small></div><div class="ops">${keys.map(k=>`<div class="op ${herr.mov===k?'sel':''}" data-croq="mov" data-v="${k}">${esc(artNom(sel,k))}</div>`).join('')}${sel.art&&Object.keys(sel.art).length?'<div class="op" data-croq="auto">Acomodar solos</div>':''}</div>`:''}
+    <div class="ops" style="margin-top:10px"><div class="op" data-croq="quitar">Quitar ${esc(etiqueta(sel).toLowerCase())}</div><div class="op" data-croq="listo">Listo</div></div></div>`}
   const sinUbi=d.espacios.filter(x=>!x.ubi).length;
-  return `<div class="croq-bar"><div class="croq-t">${herr.pon?`Tocá en el dibujo dónde va ${ESP[herr.pon]==='Habitación'?'la':ESP[herr.pon]==='Baño'?'el':'la'} <b>${esc(ESP[herr.pon].toLowerCase())}</b>. Podés tocar varias veces.`:'Elegí qué querés poner y tocá en el dibujo dónde va. Para mover un espacio, tocalo en el dibujo (si hay varios en la misma parte, tocá de nuevo para pasar al siguiente).'}</div>
+  return `<div class="croq-bar"><div class="croq-t">${herr.pon?`Tocá en el dibujo dónde va ${ESP[herr.pon]==='Habitación'?'la':ESP[herr.pon]==='Baño'?'el':'la'} <b>${esc(ESP[herr.pon].toLowerCase())}</b>. Podés tocar varias veces.`:'Elegí qué querés poner y tocá en el dibujo dónde va. Tocá un espacio para moverlo, elegir su puerta o mover sus sanitarios. Para cambiar medidas, tocá o arrastrá la línea divisoria (⇆).'}</div>
     <div class="ops">${Object.keys(ESP).map(k=>`<div class="op ${herr.pon===k?'sel':''}" data-croq="pon" data-v="${k}">+ ${ESP[k]}</div>`).join('')}</div>
     ${sinUbi?`<div class="aviso" style="text-align:left;margin-top:6px">${sinUbi===1?'Hay 1 espacio':'Hay '+sinUbi+' espacios'} sin ubicar: tocá una parte del dibujo y se ubica${sinUbi===1?'':' el primero'}.</div>`:''}</div>`;
 }
-function capaEsp(zonas,X0,Y0,Y1,w){
-  // una zona tocable por parte del contenedor; el espacio seleccionado se marca con su zona
-  const sel=herr.sel&&d.espacios.find(x=>x.id===herr.sel);
-  return zonas.map((z,i)=>(sel&&sel.ubi===UBI[i]?`<rect x="${z.x+2}" y="${Y0+2}" width="${w-4}" height="${Y1-Y0-4}" rx="4" fill="none" stroke="var(--nar)" stroke-width="3"/>`:'')+
-    `<rect class="croq-z" x="${z.x}" y="${Y0-6}" width="${w}" height="${Y1-Y0+44}" fill="transparent" data-croq="zona" data-v="${UBI[i]}"/>`).join('');
+function capaEsp(G,X0,X1,Y0,Y1){
+  // una zona tocable por parte del contenedor; el espacio seleccionado se marca con su rectángulo.
+  // Encima, una manija por línea divisoria que existe: se toca para elegirla o se arrastra para moverla.
+  const sel=herr.sel&&d.espacios.find(x=>x.id===herr.sel),gg=`${X0},${X1},${Y0},${Y1}`;let h='';
+  G.zonas.forEach(Z=>{Z.rects.forEach(r=>{if(sel&&r.x===sel)h+=`<rect x="${r.x0+2}" y="${r.y0+2}" width="${Math.max(2,r.x1-r.x0-4)}" height="${r.y1-r.y0-4}" rx="4" fill="none" stroke="var(--nar)" stroke-width="3"${herr.mov?' stroke-dasharray="6 4"':''}/>`});
+    h+=`<rect class="croq-z" x="${Z.x}" y="${Y0-6}" width="${Z.w}" height="${Y1-Y0+62}" fill="transparent" data-croq="zona" data-v="${UBI[Z.i]}" data-g="${gg}"/>`});
+  // mientras se ubica un sanitario no hay manijas, para que el toque caiga en el baño
+  if(!herr.mov)[0,1].filter(tabUsada).forEach(k=>{const x=G.xb[k+1],on=herr.tab===k,yh=Y0-13;
+    h+=(on?`<line x1="${x}" y1="${Y0}" x2="${x}" y2="${Y1}" stroke="var(--nar)" stroke-width="4" opacity=".5"/>`:'')+
+      `<g pointer-events="none"><line x1="${x}" y1="${yh+8}" x2="${x}" y2="${Y0}" stroke="var(--nar)" stroke-width="1.5"/><circle cx="${x}" cy="${yh}" r="9" fill="${on?'var(--nar)':'#fff'}" stroke="var(--nar)" stroke-width="2"/><text x="${x}" y="${yh+4}" text-anchor="middle" font-size="11" font-weight="800" fill="${on?'#fff':'var(--nar)'}">⇆</text></g>`+
+       `<rect class="croq-tab" x="${x-10}" y="${yh-11}" width="20" height="${Y1-yh+11}" fill="transparent" data-croq="tab" data-v="${k}" data-g="${gg}"/>`});
+  return h;
 }
 function barraAbert(){
   const o=herr.sel&&abertDe(herr.sel);
@@ -451,7 +557,7 @@ function barraAbert(){
   return `<div class="croq-bar"><div class="croq-t">${herr.pon?`Tocá la pared donde va la <b>${herr.pon}</b>. En los laterales, tocá cerca del extremo o del centro.`:'Elegí qué querés poner y tocá la pared en el dibujo. Tocá una P o una V para moverla.'}</div>
     <div class="ops"><div class="op ${herr.pon==='puerta'?'sel':''}" data-croq="pon" data-v="puerta">+ Puerta</div><div class="op ${herr.pon==='ventana'?'sel':''}" data-croq="pon" data-v="ventana">+ Ventana</div></div></div>`;
 }
-function capaAbert(todas,X0,X1,Y0,Y1,w){
+function capaAbert(todas,X0,X1,Y0,Y1){
   // toda el área del dibujo es tocable; la pared se calcula por cercanía
   let h=`<rect x="0" y="0" width="360" height="196" fill="transparent" data-croq="pared" data-g="${X0},${X1},${Y0},${Y1}"/>`;
   todas.forEach(o=>{if(o.cx==null)return;
@@ -468,7 +574,7 @@ function paredDe(p,g){const [X0,X1,Y0,Y1]=g.split(',').map(Number);
   // dentro de los extremos del contenedor pesan más los laterales (son las paredes largas)
   if(p.x>X0+12&&p.x<X1-12){dist['Lado puertas']+=30;dist['Lado opuesto']+=30}
   const pared=Object.keys(dist).sort((a,b)=>dist[a]-dist[b])[0];
-  const zi=Math.max(0,Math.min(2,Math.floor((p.x-X0)/((X1-X0)/3))));
+  const xb=geo(X0,X1,Y0,Y1).xb,zi=p.x<xb[1]?0:p.x<xb[2]?1:2;
   return {pared,pos:esLateral(pared)?UBI[zi]:''};
 }
 function espEn(ubi){const x=d.espacios.find(y=>y.ubi===ubi);return x?etiqueta(x):''}
@@ -482,15 +588,37 @@ function tocarCroquis(e){
     else if(herr.sel){const arr=herr.sel[0]==='p'?d.puertas:d.ventanas;arr.splice(+herr.sel.slice(1),1);if(!d.puertas.length)d.puertas.push(nuevaPuerta())}
     herr={};render();return true}
   if(c==='ab'){herr=herr.sel===v?{}:{sel:v};render();return true}
+  // líneas divisorias: elegir, mover de a 10 cm, borrar o volver a poner
+  if(c==='tab'){const k=+v;herr=herr.tab===k?{}:{tab:k};render();return true}
+  if(c==='tabm'&&herr.tab!=null){const T=tabs(),r=moverTab(herr.tab,T.p[herr.tab]+Number(v));render();if(r.tope)toast(`⚠️ Hasta ahí: mínimos ${MIN_TXT()}`);return true}
+  if(c==='taboff'&&herr.tab!=null){const T=tabs(),k=herr.tab;
+    if(!T.off[k]&&zonaEsp(k).concat(zonaEsp(k+1)).some(x=>x.tipo==='bano')){toast('⚠️ El baño necesita su tabique: esta línea no se puede borrar');return true}
+    T.off[k]=!T.off[k];d.tab={L:T.Li,p:T.p,off:T.off};render();toast(T.off[k]?'Línea borrada: los dos lados quedan como un solo ambiente':'Línea puesta de nuevo');return true}
+  // puerta interior de un espacio: hacia qué tabique y en qué parte
+  if(c==='pi'||c==='pip'){const x=d.espacios.find(y=>y.id===t.dataset.id);if(!x)return true;const g=geoEsp(x);
+    if(c==='pi')x.pi=v==='no'?{pared:'no'}:{pared:v,pos:(x.pi&&x.pi.pos)||(g&&(puertaDe(x,g.i,g.j,g.n)||{}).pos)||'c'};
+    else{const act=g&&puertaDe(x,g.i,g.j,g.n);if(act)x.pi={pared:act.pared,pos:v}}
+    render();return true}
+  // sanitarios: elegir cuál mover (después se toca dónde va) o volver a acomodarlos solos
+  if(c==='mov'){herr=herr.mov===v?{sel:herr.sel}:{sel:herr.sel,mov:v};render();return true}
+  if(c==='auto'){const x=d.espacios.find(y=>y.id===herr.sel);if(x)delete x.art;herr={sel:herr.sel};render();return true}
   if(c==='zona'){
     const sel=herr.sel&&d.espacios.find(x=>x.id===herr.sel);
     const aqui=d.espacios.filter(x=>x.ubi===v);
-    // tocar la zona del seleccionado pasa al siguiente espacio de esa zona; otra zona lo mueve
-    if(sel&&sel.ubi===v){const n=aqui[(aqui.indexOf(sel)+1)%aqui.length];herr=n===sel?{}:{sel:n.id};render();return true}
+    // el espacio tocado: si hay varios en la misma parte, el de la franja tocada
+    const p=puntoSVG(e,t),G=t.dataset.g?geo(...t.dataset.g.split(',').map(Number)):null,Z=G&&G.zonas[UBI.indexOf(v)];
+    const r=p&&Z?Z.rects.find(q=>p.y>=q.y0&&p.y<q.y1)||(p.y<Z.rects[0]?.y0?Z.rects[0]:Z.rects.at(-1)):null,tocado=r?r.x:aqui[0];
+    if(sel&&herr.mov){const q=p&&G&&G.zonas.flatMap(z=>z.rects).find(z=>z.x===sel);
+      if(!q||p.x<q.x0||p.x>q.x1||p.y<q.y0||p.y>q.y1){toast(`Tocá dentro de ${etiqueta(sel).toLowerCase()}`);return true}
+      const dist={arr:p.y-q.y0,abj:q.y1-p.y,izq:p.x-q.x0,der:q.x1-p.x},pared=Object.keys(dist).sort((a,b)=>dist[a]-dist[b])[0];
+      const f=pared==='arr'||pared==='abj'?(p.x-q.x0)/(q.x1-q.x0):(p.y-q.y0)/(q.y1-q.y0);
+      sel.art=Object.assign(sel.art||{},{[herr.mov]:{pared,f:Math.round(f*1000)/1000}});herr={sel:sel.id};render();return true}
+    // tocar el seleccionado lo suelta; otro espacio de la misma parte lo elige; otra parte lo mueve
+    if(sel&&sel.ubi===v){herr=tocado&&tocado!==sel?{sel:tocado.id}:{};render();return true}
     if(sel){sel.ubi=v;herr={};render();toast(`${etiqueta(sel)} movido a ${v.toLowerCase()}`);return true}
     if(herr.pon){d.espacios.push({id:nid(),tipo:herr.pon,ubi:v,items:[]});const x=d.espacios.at(-1);render();toast(`${etiqueta(x)} en ${v.toLowerCase()}. Completá abajo qué lleva.`);return true}
     const libre=d.espacios.find(x=>!x.ubi);if(libre){libre.ubi=v;render();return true}
-    if(aqui.length){herr={sel:aqui[0].id};render();return true}
+    if(tocado){herr={sel:tocado.id};render();return true}
     toast('Primero elegí arriba qué querés poner (baño, cocina, habitación u oficina)');return true}
   if(c==='pared'){const p=puntoSVG(e,t);if(!p)return true;const {pared,pos}=paredDe(p,t.dataset.g);
     const o=abertDe(herr.sel);
@@ -625,7 +753,7 @@ function modelo(m){
     vivienda:{prod:'Módulo habitable',tam:'40 HC',espacios:[E('habitacion','Extremo izquierdo'),E('habitacion','Extremo derecho'),E('cocina','Centro',['Bacha monocomando','Bajo mesada','Alacena']),E('bano','Centro',['Inodoro','Bidet','Bacha','Ducha','Espejo'])],piso:'Flotante madera',rev:['Durlock'],pInterior:'Madera',linea:'Módena',vidrio:'DVH (3+3 / Cam 9)'},
     otro:{}}[m];
   d.modelo=m;if(m==='otro'){render();toast('Empezás de cero: cargá todo en los pasos siguientes');return}
-  Object.assign(d,limpio(base));d.espacios=base.espacios;d.revAsig={};d.elec={};const [l,a,h]=MED[d.tam];d.largo=l;d.ancho=a;d.alto=h;
+  Object.assign(d,limpio(base));d.espacios=base.espacios;d.tab=null;d.revAsig={};d.elec={};const [l,a,h]=MED[d.tam];d.largo=l;d.ancho=a;d.alto=h;
   render();toast('Modelo cargado: revisá y cambiá lo que haga falta');
 }
 // Aviso de medida fuera de límite mientras se escribe (sin redibujar, para no perder el foco)
@@ -665,6 +793,18 @@ R0.addEventListener('click',e=>{
   if(k==='tam'){const [l,a,h]=MED[v];d.largo=l;d.ancho=a;d.alto=h}
   render();
 });
+// arrastrar una línea divisoria con el dedo o el mouse: se redibuja solo el croquis mientras se mueve
+let arrastre=null;
+R0.addEventListener('pointerdown',e=>{const t=e.target.closest('[data-croq="tab"]');if(!t||paso!==2)return;
+  const k=+t.dataset.v,[X0,X1]=t.dataset.g.split(',').map(Number);e.preventDefault();
+  arrastre={k,x0:e.clientX,mov:false};
+  const mover=ev=>{if(!arrastre)return;if(!arrastre.mov&&Math.abs(ev.clientX-arrastre.x0)<4)return;arrastre.mov=true;ev.preventDefault();
+    const sv=$('#np-croq svg');const p=sv&&puntoSVG(ev,sv);if(!p)return;herr={tab:k};moverTab(k,(p.x-X0)/(X1-X0)*tabs().Li);const c=$('#np-croq');if(c)c.innerHTML=croquisEsp()};
+  const fin=()=>{document.removeEventListener('pointermove',mover);document.removeEventListener('pointerup',fin);document.removeEventListener('pointercancel',fin);
+    if(arrastre&&arrastre.mov){arrastre.fin=true;herr={tab:k};render();setTimeout(()=>{arrastre=null},0)}else arrastre=null};
+  document.addEventListener('pointermove',mover,{passive:false});document.addEventListener('pointerup',fin);document.addEventListener('pointercancel',fin)});
+// el click que sigue a un arrastre no cuenta como toque
+R0.addEventListener('click',e=>{if(arrastre&&arrastre.fin){arrastre=null;e.stopImmediatePropagation();e.preventDefault()}},true);
 R0.addEventListener('input',e=>{const t=e.target;
   if(t.dataset.i==='unidades'){d.unidades=t.value===''?'':Number(t.value);return}
   if(t.dataset.i){d[t.dataset.i]=t.value;if(t.dataset.i==='loc'){const a=$('#np-maps-a');if(a)a.href=mapsUrl()}}
@@ -672,6 +812,7 @@ R0.addEventListener('input',e=>{const t=e.target;
   if(t.dataset.vi){const [i,c]=t.dataset.vi.split('.');d.ventanas[+i][c]=t.value;pintarLim('v',+i)}
 });
 R0.addEventListener('change',e=>{const t=e.target;
+  if(t.dataset.tabcm!=null){const k=+t.dataset.tabcm,T=tabs(),c=cortesTab(T),q=c.indexOf(T.p[k]);const r=moverTab(k,c[q-1]+(Number(t.value)||0));render();if(r.tope)toast(`⚠️ Hasta ahí: mínimos ${MIN_TXT()}`);return}
   if(t.dataset.c){d[t.dataset.c]=t.checked;render()}
   if(t.dataset.i==='unidades'){if(t.value!=='')d.unidades=Math.min(MAX_U,Math.max(1,Math.floor(Number(t.value))||1));render()}
   if(t.id==='np-confirmado'){d.confirmado=t.checked}
@@ -749,12 +890,15 @@ function lineasCosteo(){
   // sin costos de armado (decisión de Cristian 26/11): la mano de obra va por m²
   esp.forEach(x=>{
     (x.items||[]).forEach(it=>add((x.tipo==='bano'?'Sanitario · ':'Cocina · ')+it,'mat','c/u',1))});
-  if(esp.length>1)add('Tabique divisorio','mat','m²',(esp.length-1)*A*H);
+  // líneas borradas: ese tabique no se hace
+  const T=tabs(),borradas=[0,1].filter(k=>T.off[k]&&tabUsada(k)).length;
+  if(esp.length>1)add('Tabique divisorio','mat','m²',Math.max(0,esp.length-1-borradas)*A*H);
   if(humedos.length)add('Instalación sanitaria por ambiente','mo','c/u',humedos.length);
   const enZona=u=>Math.max(1,esp.filter(x=>x.ubi===u).length);
+  const Lz=u=>{const i=UBI.indexOf(u);return d.tab&&i>=0?largoZona(T,i)/T.Li*L:L/3};
   let humedo=0;
-  humedos.forEach(x=>{const m=2*(L/3+A)*H/enZona(x.ubi);humedo+=m;if(x.rev)x.rev==='Melamina'?add(MELAMINA,'mat','m²',m):add('Revestimiento '+x.rev.toLowerCase()+' (baño/cocina)','mat','m²',m,etiqueta(x));
-    const mT=L/3*A/enZona(x.ubi);
+  humedos.forEach(x=>{const m=2*(Lz(x.ubi)+A)*H/enZona(x.ubi);humedo+=m;if(x.rev)x.rev==='Melamina'?add(MELAMINA,'mat','m²',m):add('Revestimiento '+x.rev.toLowerCase()+' (baño/cocina)','mat','m²',m,etiqueta(x));
+    const mT=Lz(x.ubi)*A/enZona(x.ubi);
     if(x.revT)x.revT==='Melamina'?add(MELAMINA,'mat','m²',mT):add('Revestimiento de techo '+x.revT.toLowerCase()+' (baño/cocina)','mat','m²',mT,etiqueta(x))});
   // terminaciones
   // pintura: un solo ítem (exterior + interior), en tachos de 20 l. Se redondea para arriba al final.
