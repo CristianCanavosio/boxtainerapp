@@ -596,6 +596,7 @@ cotAbrir=async function(id){
     ${cotLiderHTML(c)}${typeof aprCotAvisoHTML==='function'?aprCotAvisoHTML(c):''}
     ${puede?`<button class="btn btn-verde" style="width:100%;margin-bottom:8px" onclick="cotPasarAOC('${esc(c.proyecto_id)}')">✅ El cliente aceptó: pasar a orden de compra</button>`:''}
     <div class="flex-btns">${p?`<button class="btn btn-sec" onclick="pdfNota('${esc(p.id)}',this)">📄 PDF</button>
+      ${typeof correoBotonHTML==='function'?correoBotonHTML(p).replace('btn-sm',''):''}
       <button class="btn btn-nar" onclick="cotCerrar();crmCerrar();verDetalle('${esc(p.id)}')">📋 Ver la nota</button>`:'<p class="crm-ayuda">La nota de pedido ya no está.</p>'}</div>`;
   openOverlay(m.id);
 };
