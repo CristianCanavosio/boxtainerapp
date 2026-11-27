@@ -599,6 +599,11 @@ async function sumarPlanos(blob,adj){
 function precioPDF(pid){let h='';try{h=window.notaPrecio?window.notaPrecio.pdfHTML(limpio(d),pid):''}catch(e){console.error(e)}
   return h?`<div class="pb" style="padding:0 32px;background:#fff">${h}</div>`:''}
 async function descargarPDF(btn,extra,pid){
+  // aprobación del administrador (migración 0033): el presupuesto sale con precio solo cuando él lo aprueba
+  if(esPresu()&&window.notaPrecio&&window.notaPrecio.bloqueoPDF){
+    let bloq='';try{bloq=window.notaPrecio.bloqueoPDF(limpio(d),pid===undefined?opts.proyectoId:pid)}catch(e){console.error(e)}
+    if(bloq){toast(bloq);return;}
+  }
   const txt=btn.textContent;btn.textContent='Armando el PDF…';btn.disabled=true;
   try{
     const adj=await adjuntosPDF(extra||opts.adjuntos);

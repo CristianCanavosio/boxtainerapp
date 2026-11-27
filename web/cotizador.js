@@ -152,6 +152,9 @@ function cotBotonesHTML(){
   if(c.estado==='pendiente') return `<p class="crm-ayuda">⏳ Esperando que el líder de ventas autorice ${usd(c.precio_pedido)}. Te avisamos acá cuando responda.</p>${cotLiderHTML(c)}
     <button class="btn btn-sec" style="width:100%" onclick="cotPdf('${esc(c.id)}')">📄 Ver PDF (borrador)</button>`;
   if(c.estado==='rechazada') return `<p class="crm-ayuda">Cambiá el precio (o borralo para usar el de lista) y guardá de nuevo.</p>`;
+  // aprobación del administrador (aprobaciones.js, migración 0033)
+  if(typeof aprCotFrena==='function'&&aprCotFrena(c)) return `${aprCotAvisoHTML(c)}
+    <button class="btn btn-sec" style="width:100%" onclick="cotPdf('${esc(c.id)}')">📄 Ver PDF (borrador)</button>`;
   return `<button class="btn btn-nar" style="width:100%" onclick="cotEnviar('${esc(c.id)}')">📤 Enviar al cliente</button>
     <div class="crm-sec-btns"><button class="btn btn-sec btn-sm" onclick="cotPdf('${esc(c.id)}')">📄 Descargar PDF</button>
       <button class="btn btn-sec btn-sm" style="color:var(--rojo)" onclick="cotBorrar('${esc(c.id)}')">🗑️ Borrar</button></div>`;
@@ -264,6 +267,7 @@ async function cotPdfBlob(c){
   fila('Total con IVA','USD '+cotNum(Math.round(p*(1+iva))),true);
   if(tc){pdf.setFont('helvetica','normal');pdf.setFontSize(10);pdf.text('Equivalente en pesos: '+cotArs(p*(1+iva)*tc)+' (dólar '+crmNum(tc)+'). Se factura al tipo de cambio del día del pago.',M,y);y+=8;}
   if(c.estado!=='enviada'&&c.estado!=='lista'&&c.estado!=='autorizada'){pdf.setTextColor(201,138,0);pdf.setFontSize(12);pdf.text('BORRADOR: precio pendiente de autorización',M,y);pdf.setTextColor(30,35,48);y+=8;}
+  else if(typeof aprCotFrena==='function'&&aprCotFrena(c)&&rol()!=='admin'){pdf.setTextColor(201,138,0);pdf.setFontSize(12);pdf.text('BORRADOR: pendiente de aprobación',M,y);pdf.setTextColor(30,35,48);y+=8;}
   y+=6; linea('Para confirmar, respondé "Acepto" por WhatsApp o mail. Precio válido hasta el '+f(val)+'.',10);
   return pdf.output('blob');
 }
@@ -314,7 +318,7 @@ function cotSeccionOp(o){
     ${ab&&puedeCrear()?`<button class="btn btn-sec" style="width:100%;margin-top:6px" onclick="cotNotaDesdeOp('${esc(o.id)}')">📝 ${o.proyecto_id&&todos[o.proyecto_id]?'Abrir la nota de pedido':'Presupuesto a medida (nota de pedido)'}</button>`:''}</div>`;
 }
 function cotFila(c){
-  const e=COT_EST[c.estado]||COT_EST.lista, p=c.precio_final??c.precio_pedido??c.precio_lista;
+  const e=(typeof aprCotFrena==='function'&&aprCotFrena(c)&&APR_EST[aprCotEstado(c)])||COT_EST[c.estado]||COT_EST.lista, p=c.precio_final??c.precio_pedido??c.precio_lista;
   return `<div class="fila-click" onclick="cotAbrir('${esc(c.id)}')"><div style="min-width:0"><div class="fh-t">${c.origen==='nota'?'📝 ':''}N° ${esc(c.numero)} · ${esc(c.tipologia_nombre||'')}${c.unidades>1?' × '+c.unidades:''}</div>
     <div class="fh-s">${esc(c.cliente||'')}${veTodoCRM()?' · '+esc(nombreDe(c.vendedor_id)):''} · ${crmFecha(String(c.actualizado_en||c.creado_en).slice(0,10))}</div></div>
     <div style="text-align:right;flex:none"><b>${usd(p)}</b><div><span class="badge ${e[2]}">${e[0]} ${e[1]}</span></div></div></div>`;
@@ -335,7 +339,7 @@ renderCRM=function(){
   crm.tab=tab;
   const el=document.getElementById('crm-content'); if(!el||crm.falta||cot.falta) return;
   const tabs=el.querySelector('.crm-tabs'); if(!tabs) return;
-  const n=veTodoCRM()?cotPend().length:cot.lista.filter(c=>c.vendedor_id===myId&&['rechazada','autorizada'].includes(c.estado)).length;
+  const n=veTodoCRM()?cotPend().length:cot.lista.filter(c=>c.vendedor_id===myId&&(['rechazada','autorizada'].includes(c.estado)||(typeof aprCotEstado==='function'&&aprCotEstado(c)==='devuelta'))).length;
   (tabs.firstElementChild||tabs).insertAdjacentHTML(tabs.firstElementChild?'afterend':'beforeend',`<button class="chip${tab==='cotiz'?' active':''}" onclick="crmTab('cotiz')">🧮 Cotizaciones${n?` <span class="chip-n">${n}</span>`:''}</button>`);
   if(tab!=='cotiz') return;
   tabs.querySelectorAll('.chip').forEach(b=>b.classList.toggle('active',/Cotizaciones/.test(b.textContent)));
@@ -350,10 +354,11 @@ function cotTabHTML(){
     h+=p.length?`<div class="sec-title" style="font-size:15px">⏳ Para autorizar (${p.length})</div>${p.map(cotLiderHTML).join('')}`
       :`<div class="card hoy-ok">✅ No hay precios esperando tu autorización.</div>`;
   }else{
-    const r=l.filter(c=>['rechazada','autorizada'].includes(c.estado));
-    if(r.length) h+=`<div class="card hoy-bloque" style="border-left:5px solid var(--azul)"><div class="card-title" style="color:var(--azul)">📬 Respuestas del líder (${r.length})</div>${r.map(cotFila).join('')}</div>`;
+    const dev=c=>typeof aprCotEstado==='function'&&aprCotEstado(c)==='devuelta';
+    const r=l.filter(c=>['rechazada','autorizada'].includes(c.estado)||dev(c));
+    if(r.length) h+=`<div class="card hoy-bloque" style="border-left:5px solid var(--azul)"><div class="card-title" style="color:var(--azul)">📬 Respuestas del líder y del administrador (${r.length})</div>${r.map(cotFila).join('')}</div>`;
   }
-  const resto=l.filter(c=>veTodoCRM()?c.estado!=='pendiente':!['rechazada','autorizada'].includes(c.estado));
+  const resto=l.filter(c=>veTodoCRM()?c.estado!=='pendiente':!(['rechazada','autorizada'].includes(c.estado)||(typeof aprCotEstado==='function'&&aprCotEstado(c)==='devuelta')));
   if(resto.length) h+=`<div class="sec-title" style="font-size:15px">Últimas cotizaciones</div><div class="card">${resto.slice(0,60).map(cotFila).join('')}</div>`;
   else if(!l.length) h+='<div class="empty"><div class="em">🧮</div><h3>Todavía no hay cotizaciones</h3><p>Cotizá desde la ficha de cada contacto o con el botón de arriba.</p></div>';
   return h;
@@ -422,6 +427,14 @@ const notaPrecio={
         <div class="aviso" style="text-align:left;margin:6px 0">Precio total en USD sin IVA${dat.uni>1?' (las '+dat.uni+' unidades)':''}. Si es más bajo que el de lista, lo tiene que autorizar el líder de ventas${veTodoCRM()?' (vos lo autorizás al guardar)':''}.</div>
         <input type="number" inputmode="decimal" min="0" placeholder="USD" value="${esc(n.pedido)}" oninput="cot.nota.pedido=this.value;cotNotaPintarPrecio()">
         <div class="fila"><textarea rows="2" placeholder="¿Por qué? (lo lee el líder de ventas)" oninput="cot.nota.motivo=this.value">${esc(n.motivo)}</textarea></div></details></div>`;
+  },
+  // Aprobación del administrador (0033): '' si el PDF del presupuesto se puede bajar, o el motivo por el que no
+  bloqueoPDF(f,pid){
+    if(typeof aprBloqueoPDFNota!=='function'||!cotNotaVa(f,pid)) return '';
+    const c=cotDeProy(pid), enAsistente=document.getElementById('nota')?.classList.contains('on')&&cot.nota&&(cot.nota.pid||null)===(pid||null);
+    let precio=null;
+    if(enAsistente&&cot.nota.calc) precio=Number(cot.nota.pedido)||Number(cot.nota.calc.precio_total)||null;
+    return aprBloqueoPDFNota(c,precio);
   },
   // texto del precio para el PDF: solo si el precio está completo y no espera autorización
   pdfHTML(f,pid){
@@ -502,6 +515,7 @@ const notaPrecio={
       const crmTxt=nuevo?` · ${cli} quedó en el CRM en Presupuesto`:` · ${cli} está en el CRM en ${crmEt(o.data?.etapa||'presupuesto').t}`;
       if(c.sin_costo) return `⚠️ Presupuesto guardado, pero el precio no está completo (${c.sin_costo} ítem${c.sin_costo>1?'s':''} sin costo): avisale al administrador`+crmTxt;
       if(c.estado==='pendiente') return '⏳ Presupuesto guardado: el precio más bajo espera la autorización del líder de ventas'+crmTxt;
+      if(typeof aprCotFrena==='function'&&aprCotFrena(c)) return '🛂 Presupuesto guardado: espera la aprobación del administrador antes de mandarlo'+crmTxt;
       return `✅ Presupuesto guardado: ${usd(c.precio_final)} + IVA`+crmTxt;
     }catch(e){console.error(e);return '⚠️ La nota se guardó, pero no el precio: '+msgError(e).replace(/^⚠️ /,'');}
   },
@@ -521,8 +535,9 @@ const notaPrecio={
       ${cot.costos[c.id]?`<div class="crm-n">🔒 Costo ${usd(cot.costos[c.id].costo)} · ganancia ${usd((c.precio_final??c.precio_lista)-cot.costos[c.id].costo)}</div>`:''}
       ${c.estado==='rechazada'&&c.respuesta?`<div class="cst-aviso">❌ El líder de ventas no autorizó el precio: ${esc(c.respuesta)}. Editá la nota y cambiá el precio.</div>`:''}
       ${c.sin_costo?`<div class="cst-aviso">⚠️ Hay ${c.sin_costo} ítem${c.sin_costo>1?'s':''} sin costo cargado: el precio no está completo. Avisale al administrador.</div>`:''}
+      ${typeof aprCotAvisoHTML==='function'&&rol()!=='admin'?aprCotAvisoHTML(c):''}
       ${puede?`<button class="btn btn-verde" style="width:100%;margin-top:8px" onclick="cotPasarAOC('${id}')">✅ El cliente aceptó: pasar a orden de compra</button>`:''}
-    </div>${c.estado==='pendiente'?cotLiderHTML(c):''}`;
+    </div>${c.estado==='pendiente'?cotLiderHTML(c):''}${typeof aprCotAvisoHTML==='function'&&rol()==='admin'?aprCotAvisoHTML(c):''}`;
   },
 };
 window.notaPrecio=notaPrecio;   // nota.js y app.js lo buscan en window (un const no queda en window)
@@ -559,6 +574,7 @@ function cotNotaPrecioHTML(){
     ${u>1?`<div class="crm-n">${usd(fin/u)} cada una</div>`:''}
     <div class="crm-n">Con IVA (${maePct(iva)}%): <b>${usd(fin*(1+iva))}</b>${tc?` · ${cotArs(fin*(1+iva)*tc)}`:''}</div>
     ${k.costo_total!=null?`<div class="crm-n" style="margin-top:4px">🔒 Costo ${usd(k.costo_total)} · ganancia ${usd(fin-k.costo_total)} (${fin?Math.round((fin-k.costo_total)/fin*100):0}% del precio)</div>`:''}
+    ${typeof apr!=='undefined'&&apr.activa&&rol()!=='admin'?`<div class="crm-n" style="margin-top:4px">🛂 Al guardarlo le llega al administrador: lo mandás al cliente cuando lo apruebe.</div>`:''}
     ${k.sin_costo?`<div class="aviso" style="text-align:left;color:var(--err,#C62828)">⚠️ ${k.sin_costo} ítem${k.sin_costo>1?'s':''} sin costo cargado (${esc((k.sin_costo_nombres||[]).slice(0,4).join(', '))}${k.sin_costo>4?'…':''}): el precio no está completo. Avisale al administrador.</div>`:''}`;
 }
 function cotNotaPintarPrecio(){const el=document.getElementById('np-precio-n'); if(el) el.innerHTML=cotNotaPrecioHTML();}
@@ -566,7 +582,7 @@ function cotNotaPintarPrecio(){const el=document.getElementById('np-precio-n'); 
 const _cotAbrirSinNota=cotAbrir;
 cotAbrir=async function(id){
   const c=cotOp(id); if(!c||c.origen!=='nota') return _cotAbrirSinNota(id);
-  const m=crmModal('m-cot',240), e=COT_EST[c.estado]||COT_EST.lista, p=todos[c.proyecto_id];
+  const m=crmModal('m-cot',240), e=(typeof aprCotFrena==='function'&&aprCotFrena(c)&&APR_EST[aprCotEstado(c)])||COT_EST[c.estado]||COT_EST.lista, p=todos[c.proyecto_id];
   const pr=c.precio_final??c.precio_pedido??c.precio_lista, puede=p&&p.ficha?.sol==='Presupuesto'&&['lista','autorizada'].includes(c.estado)&&!c.sin_costo;
   cot.ver=null; cot.ed=null;
   m.querySelector('.crm-body').innerHTML=`<div class="crm-det-top"><div style="min-width:0"><div class="modal-title" style="margin-bottom:2px">📝 Presupuesto N° ${esc(c.numero)}</div>
@@ -577,7 +593,7 @@ cotAbrir=async function(id){
       ${c.precio_final!=null&&c.precio_final<c.precio_lista?`<div class="crm-n">Precio de lista: ${usd(c.precio_lista)}</div>`:''}
       ${cot.costos[c.id]?`<div class="crm-n">🔒 Costo ${usd(cot.costos[c.id].costo)} · ganancia ${usd((c.precio_final??c.precio_lista)-cot.costos[c.id].costo)}</div>`:''}
       ${c.estado==='rechazada'&&c.respuesta?`<div class="cst-aviso">❌ ${esc(c.respuesta)}</div>`:''}</div>
-    ${cotLiderHTML(c)}
+    ${cotLiderHTML(c)}${typeof aprCotAvisoHTML==='function'?aprCotAvisoHTML(c):''}
     ${puede?`<button class="btn btn-verde" style="width:100%;margin-bottom:8px" onclick="cotPasarAOC('${esc(c.proyecto_id)}')">✅ El cliente aceptó: pasar a orden de compra</button>`:''}
     <div class="flex-btns">${p?`<button class="btn btn-sec" onclick="pdfNota('${esc(p.id)}',this)">📄 PDF</button>
       <button class="btn btn-nar" onclick="cotCerrar();crmCerrar();verDetalle('${esc(p.id)}')">📋 Ver la nota</button>`:'<p class="crm-ayuda">La nota de pedido ya no está.</p>'}</div>`;

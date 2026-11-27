@@ -317,7 +317,7 @@ function maeParametrosHTML(){
   const P=[['tipo_cambio','Tipo de cambio','Pesos por dólar, para mostrar el precio en pesos',''],['margen_default','Margen por defecto','Para tipologías sin margen propio','%'],
     ['iva','IVA','Se suma al precio de lista','%'],['validez_dias','Validez de la cotización','Días','días'],
     ['mo_m2_referencia','m² del módulo de referencia de la mano de obra','La mano de obra de cada presupuesto = m² del módulo ÷ estos m² × el costo de "Mano de obra general" (Ítems de proyectos). 40 pies = 29,74 m²','m²']];
-  return `<div class="card">${P.map(([k,t,d,u])=>`<div class="fg"><label>${t} <small>${d}</small></label>
+  return `${typeof aprInterruptorHTML==='function'&&typeof apr!=='undefined'&&apr.listo?aprInterruptorHTML():''}<div class="card">${P.map(([k,t,d,u])=>`<div class="fg"><label>${t} <small>${d}</small></label>
     <div style="display:flex;gap:6px;align-items:center"><input type="text" inputmode="decimal" value="${u==='%'?maePct(mae.par[k]):mae.par[k]??''}" onchange="maePar('${k}',this.value,${u==='%'})"> ${u}</div></div>`).join('')}
     <div style="font-size:12px;color:var(--gris-m)">El vendedor ve solo el precio final. El margen y los costos los ven vos y el líder de ventas.</div></div>`;
 }

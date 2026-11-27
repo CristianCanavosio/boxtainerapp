@@ -10,7 +10,7 @@ const VISTAS={
   dashboard:{i:'🏠',t:'Hoy'}, proyectos:{i:'📋',t:'Proyectos'}, kanban:{i:'📊',t:'Kanban'}, alertas:{i:'🚨',t:'Avisos'},
   pedidos:{i:'🛠️',t:'Órdenes'}, stock:{i:'🗃️',t:'Stock'}, personal:{i:'👷',t:'Personal'}, contenedores:{i:'📦',t:'Contenedores'},
   materiales:{i:'🔧',t:'Materiales'}, usuarios:{i:'👤',t:'Usuarios'}, reportes:{i:'📈',t:'Reportes'},
-  sugerencias:{i:'💡',t:'Sugerencias'}, recursos:{i:'🎬',t:'Recursos'}, crm:{i:'🎯',t:'CRM'},
+  sugerencias:{i:'💡',t:'Sugerencias'}, recursos:{i:'🎬',t:'Recursos'}, crm:{i:'🎯',t:'CRM'}, aprobar:{i:'🛂',t:'Aprobar'},
 };
 // Lo de todos los días va en la barra; lo ocasional, en "Más"
 const BNAV={
@@ -19,7 +19,7 @@ const BNAV={
   lider_ventas:['crm','sugerencias','recursos'],
   arquitectura:['dashboard','proyectos','recursos'],
   lider:['dashboard','proyectos','alertas','materiales'],
-  admin:['dashboard','proyectos','alertas','materiales'],
+  admin:['dashboard','aprobar','proyectos','materiales'],
   lectura:['dashboard','proyectos','reportes'],
   carp_aluminio:['pedidos','stock','alertas'],
   carp_madera:['pedidos','stock','alertas'],
@@ -33,7 +33,7 @@ function pintarBnav(){
   const el=document.getElementById('bnav'); if(!el||!currentUser) return;
   const barra=barraDeRol(), resto=tabsPermitidas().filter(v=>!barra.includes(v));
   el.innerHTML=barra.map(v=>`<button class="bn-btn${v===vistaActual?' on':''}" onclick="showView('${v}')" data-bview="${v}">
-      <span class="bn-i"><i>${VISTAS[v]?.i||'•'}</i>${(()=>{const n=v==='dashboard'?badgeHoy:v==='crm'&&typeof crmPendHoy==='function'&&rol()!=='ventas'?crmPendHoy():v==='pedidos'&&typeof pcPendientes==='function'?pcPendientes():0;return n?`<b class="bn-badge">${n>9?'9+':n}</b>`:''})()}</span><span class="bn-t">${v==='pedidos'&&typeof miTaller==='function'&&miTaller()?'Órdenes':VISTAS[v]?.t||v}</span></button>`).join('')
+      <span class="bn-i"><i>${VISTAS[v]?.i||'•'}</i>${(()=>{const n=v==='dashboard'?badgeHoy:v==='crm'&&typeof crmPendHoy==='function'&&rol()!=='ventas'?crmPendHoy():v==='pedidos'&&typeof pcPendientes==='function'?pcPendientes():v==='aprobar'&&typeof aprPendientes==='function'?aprPendientes():0;return n?`<b class="bn-badge">${n>9?'9+':n}</b>`:''})()}</span><span class="bn-t">${v==='pedidos'&&typeof miTaller==='function'&&miTaller()?'Órdenes':VISTAS[v]?.t||v}</span></button>`).join('')
     +`<button class="bn-btn${resto.includes(vistaActual)?' on':''}" onclick="abrirMas()"><span class="bn-i"><i>☰</i></span><span class="bn-t">Más</span></button>`;
   document.body.classList.add('con-bnav');
 }
