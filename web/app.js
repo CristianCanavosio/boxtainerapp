@@ -1156,7 +1156,8 @@ function editarNota(id,ajuste){
       if(!q.entrega&&f.fecha) q.entrega=f.fecha;
       const cambio=confirmada?cambiosEntre(antes,q.ficha):[];
       // si no cambió nada que vea el cliente, la nota confirmada queda tal cual
-      if(confirmada&&!cambio.length) q.ficha=antes;
+      // (en ventas sí se guarda qué dibujo va en el PDF: no es un cambio que tenga que aprobar el cliente)
+      if(confirmada&&!cambio.length) q.ficha=enVentas&&f.pdfDibujo?{...antes,pdfDibujo:f.pdfDibujo}:antes;
       try{await guardarProyectoOError(q);}catch(e){return false;}
       if(cambio.length) await avisarCambioNota(id,cambio);
       for(const a of archivos||[]) await subirCroquis(id,a);
@@ -1170,7 +1171,8 @@ function editarNota(id,ajuste){
 }
 async function pdfNota(id,btn){
   const p=todos[id]; if(!p||!esNota(p)) return;
-  try{await NotaPedido.pdf(p.ficha,btn,()=>adjuntosPDF(id),id);}catch(e){toast('⚠️ No se pudo armar el PDF');}
+  const f=typeof correoFicha==='function'?correoFicha(p):p.ficha;   // qué dibujo va (plano del cliente, croquis o los dos)
+  try{await NotaPedido.pdf(f,btn,()=>adjuntosPDF(id),id);}catch(e){toast('⚠️ No se pudo armar el PDF');}
 }
 // Planos del proyecto para el PDF que firma el cliente: primero los de arquitectura, después los croquis del cliente.
 // Los archivos se bajan del depósito; los enlaces (Drive, etc.) van como link.
@@ -1620,9 +1622,12 @@ function seccionFicha(p){
       ${pend.length?`<div class="nota-pend">⚠️ A confirmar con el cliente: ${esc(pend.join(', '))}. No pasa a ejecución hasta completarlo.</div>`:''}
       <div class="nota-vars nota-res">${NotaPedido.resumen(f)}</div>
       <div class="nota-vars nota-dib">${NotaPedido.dibujos(f)}</div>
+      ${typeof correoDibujoHTML==='function'?correoDibujoHTML(p):''}
       <div class="flex-btns" style="margin-top:8px"><button class="btn btn-sec btn-sm" onclick="pdfNota('${id}',this)">📄 PDF para el cliente</button>
+        ${typeof correoBotonHTML==='function'&&puedeCorreo(p)?correoBotonHTML(p):''}
         ${puedeEditar(p)&&(etapaDe(p)==='ventas'||esOp())?`<button class="btn btn-nar btn-sm" onclick="closeOverlay('m-det');editarNota('${id}')">✏️ ${notaConfirmada(p)?'Corregir nota':'Editar nota'}</button>`:''}</div>
       ${window.notaPrecio?notaPrecio.seccion(p):''}
+      ${typeof correosHTML==='function'&&puedeCorreo(p)?correosHTML(p):''}
       ${seccionVersiones(p)}
       ${p.verifArq?`<div style="font-size:12px;color:var(--verde);margin-top:6px">✅ Plano verificado por ${esc(p.verifArq.autor)} (${esc(p.verifArq.fecha)})</div>`:''}
     </div>`;

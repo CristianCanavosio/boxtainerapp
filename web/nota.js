@@ -92,6 +92,13 @@ const MAX_CROQUIS=3; // archivos del cliente por nota (croquis, planos, fotos)
 const cupoCroquis=()=>Math.max(0,MAX_CROQUIS-(opts.croquisPrevios||0));
 // Hay un plano o croquis para seguir: el que se sube ahora, uno ya subido (del cliente o de arquitectura)
 const hayPlano=()=>!!(archivos.length||opts.croquisPrevios||opts.planosPrevios||d.segunPlano);
+// Correo del cliente obligatorio (pedido de ventas 27/11) en las notas nuevas y en las que siguen en ventas.
+// Las que ya pasaron de ventas no se frenan por esto (se cargaron cuando era opcional).
+const mailObligatorio=()=>!revisandoGuardada&&(!opts.proyectoId||opts.enviar!==false);
+// El cliente trajo su propio plano o croquis (archivos de la nota): en el PDF se elige qué dibujo va
+const PREF_CLI='Croquis del cliente: ';
+const hayPlanoCliente=()=>!!(archivos.length||opts.croquisPrevios);
+const PDF_DIB={plano:'El plano del cliente',croquis:'El croquis de la app',ambos:'Los dos'};
 // Con "seguir tal cual plano adjunto" las aberturas no son obligatorias: solo se revisan las que se empezaron a cargar
 const empezada=p=>!!(p.tipo||p.pared||p.mano||p.med);
 const puertasVal=()=>d.segunPlano?d.puertas.filter(empezada):d.puertas;
@@ -136,7 +143,7 @@ function dondeTxt(o){return o.pared?nomPared(o.pared)+(esLateral(o.pared)&&o.pos
 
 function errores(){
   const e=[];
-  if(paso===0){if(!d.empresa&&!revisandoGuardada)e.push('Elegí la empresa que vende');if(!d.sol)e.push('Elegí el tipo de solicitud');if(!d.cli.trim())e.push('Falta el cliente');if(!d.tel.trim())e.push('Falta el teléfono');if((d.mail||'').trim()&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.mail.trim()))e.push('Revisá el correo del cliente');if(!d.loc.trim())e.push('Falta la dirección de entrega');else if(!d.mapsOk)e.push('Verificá la dirección en el mapa y tildá la confirmación');if(!d.fecha)e.push('Falta la fecha de entrega');else if(!revisandoGuardada&&!d.prod&&!sinCambioFecha()&&d.fecha<fechaMin(PLAZO_COMPANY))e.push(`La entrega es como mínimo a ${PLAZO_COMPANY} días (productos Company) o ${PLAZO_RESTO} días (el resto)`);else{const ep=errPlazo();if(ep)e.push(ep)}}
+  if(paso===0){if(!d.empresa&&!revisandoGuardada)e.push('Elegí la empresa que vende');if(!d.sol)e.push('Elegí el tipo de solicitud');if(!d.cli.trim())e.push('Falta el cliente');if(!d.tel.trim())e.push('Falta el teléfono');if(!(d.mail||'').trim()){if(mailObligatorio())e.push('Falta el correo del cliente')}else if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.mail.trim()))e.push('Revisá el correo del cliente');if(!d.loc.trim())e.push('Falta la dirección de entrega');else if(!d.mapsOk)e.push('Verificá la dirección en el mapa y tildá la confirmación');if(!d.fecha)e.push('Falta la fecha de entrega');else if(!revisandoGuardada&&!d.prod&&!sinCambioFecha()&&d.fecha<fechaMin(PLAZO_COMPANY))e.push(`La entrega es como mínimo a ${PLAZO_COMPANY} días (productos Company) o ${PLAZO_RESTO} días (el resto)`);else{const ep=errPlazo();if(ep)e.push(ep)}}
   if(paso===1){if(!d.prod)e.push('Elegí el producto');{const ep=errPlazo();if(ep)e.push(ep)}if(!d.tam)e.push('Elegí el tamaño');
     if(d.prod==='Contenedor cortado'){const c=Number(d.corte);if(!c)e.push('Poné el largo final del corte');else if(c>=Number(d.largo))e.push(`El corte (${c} cm) tiene que ser menor que el largo del contenedor (${d.largo} cm)`);if(!d.lado)e.push('Elegí qué lado se conserva')}
     if(d.prod==='Reefer'&&!d.motor)e.push('Indicá si es con o sin motor');
@@ -176,7 +183,7 @@ function render(){
     <div class="card"><div class="lbl">Tipo de solicitud</div>${ops('sol',['Presupuesto','Orden de compra confirmada'],d.sol)}</div>
     <div class="card"><div class="lbl">Cliente</div><input type="text" data-i="cli" placeholder="Nombre o razón social *" value="${esc(d.cli)}">
       <div class="fila"><input type="tel" data-i="tel" placeholder="Teléfono *" value="${esc(d.tel)}"></div>
-      <div class="fila"><input type="email" data-i="mail" placeholder="Correo electrónico (para mandarle el PDF)" autocomplete="off" value="${esc(d.mail||'')}"></div>
+      <div class="fila"><input type="email" data-i="mail" placeholder="Correo electrónico (obligatorio: se le manda el PDF)" autocomplete="off" value="${esc(d.mail||'')}"></div>
       <div class="fila"><input type="text" data-i="cuit" placeholder="CUIT (opcional)" value="${esc(d.cuit)}"></div></div>
     <div class="card"><div class="lbl">Entrega</div><input type="text" data-i="loc" id="np-loc" placeholder="Calle, número, localidad, provincia *" value="${esc(d.loc)}">
       <a class="maps" id="np-maps-a" href="${mapsUrl()}" target="_blank" rel="noopener">📍 Ver en Google Maps</a>
@@ -281,7 +288,9 @@ function render(){
     <div id="np-precio"></div>
     <div class="card"><div class="lbl">Observaciones <small>opcional</small></div><textarea data-i="obs" placeholder="Algo que producción tenga que saber">${esc(d.obs)}</textarea></div>
     <div class="card"><div class="lbl">Enviar al cliente para que ${esPresu()?'lo vea':'apruebe'}</div>
+      ${hayPlanoCliente()?`<div class="lbl" style="margin-top:2px">¿Qué dibujo va en el PDF? <small>el cliente trajo su plano</small></div>${ops('pdfDibujo',Object.keys(PDF_DIB),d.pdfDibujo||'plano').replace(/>(plano|croquis|ambos)</g,(m,k)=>'>'+PDF_DIB[k]+'<')}`:''}
       <button class="add" id="np-b-pdf" style="border-style:solid">📄 Descargar PDF del ${esPresu()?'presupuesto':'resumen'}</button>
+      ${correoBtnHTML()}
       <div class="aviso" style="text-align:left">${esPresu()?'Incluye todo el pedido, los dibujos, los planos o croquis adjuntos y el precio. Mandalo por WhatsApp. Cuando el cliente acepte, desde la nota la pasás a orden de compra confirmada sin volver a cargar nada.':'Incluye todo el pedido, los dos dibujos y los planos o croquis adjuntos. Mandalo por WhatsApp y, cuando el cliente responda que está bien, tildá la confirmación de abajo.'}</div></div>
     ${esPresu()?'':`<div class="card"><label class="chk"><input type="checkbox" id="np-confirmado" ${d.confirmado?'checked':''}> El cliente revisó y confirmó este pedido</label></div>
     <div class="card"><div class="lbl">¿Necesita plano de arquitectura?</div>${ops('arq',['Sí','No'],d.arq||'Sí')}
@@ -506,21 +515,21 @@ function tocarCroquis(e){
 const COL={'--nar':'#E8650A','--nar-l':'#FDF0E6','--tx':'#1E2330','--tx2':'#5E6675','--azul':'#2563C9','--azul-l':'#E6EEFB','--warn':'#C98A00','--warn-l':'#FFF6DB','--borde':'#DDE1E7'};
 const sinVars=t=>t.replace(/var\((--[a-z0-9-]+)\)/g,(m,k)=>COL[k]||'#1E2330');
 function cargarJS(src){return new Promise((ok,mal)=>{if(document.querySelector(`script[src="${src}"]`)){ok();return}const sc=document.createElement('script');sc.src=src;sc.onload=ok;sc.onerror=()=>mal(new Error('no cargó '+src));document.head.appendChild(sc)})}
-async function generarPDF(adj=[],pid){
+async function generarPDF(adj=[],pid,sinDib=false){
   await cargarJS('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
   await cargarJS('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
   const hoy=new Date().toLocaleDateString('es-AR');const pend=pendientes();
   const box=document.createElement('div');
   box.style.cssText='position:fixed;left:-10000px;top:0;width:720px;background:#fff;color:#1E2330;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:14px;line-height:1.45';
   const blq=(html,css='')=>`<div class="pb" style="padding:0 32px;background:#fff;${css}">${html}</div>`;
-  const pl=d.espacios.length||esModulo(d.prod)?planoSVG():'';
+  const pl=!sinDib&&(d.espacios.length||esModulo(d.prod))?planoSVG():'';
   box.innerHTML=[
     blq(`<div style="background:#E8650A;color:#fff;padding:18px 20px;border-radius:0 0 10px 10px"><div style="font-size:20px;font-weight:800">Nota de pedido</div>${d.empresa?`<div style="font-size:14px;font-weight:700">${esc(d.empresa)}</div>`:''}<div style="font-size:13px;opacity:.9">${esc(d.sol||'Pedido')}${unidades()>1?' · '+unidades()+' unidades iguales':''} · emitida el ${esc(hoy)}</div></div>`,'padding-top:0'),
     ...sinVars(resumenCuerpo()).split('<h4>').filter(x=>x.trim()).map(x=>blq('<h4 style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#5E6675;margin:14px 0 4px">'+x.replace('</h4>','</h4><div>').replace(/<p>/g,'<p style="margin:0 0 6px">')+'</div>')),
     pend.length?blq(`<p style="margin-top:10px;color:#C98A00;font-weight:700">A confirmar: ${esc(pend.join(', '))}</p>`):'',
     d.obs.trim()?blq(`<h4 style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#5E6675;margin:14px 0 4px">Observaciones</h4><p>${esc(d.obs)}</p>`):'',
     pl?blq(`<div style="border:1px solid #DDE1E7;border-radius:10px;padding:12px;margin-top:14px">${sinVars(pl)}</div>`):'',
-    blq(`<div style="border:1px solid #DDE1E7;border-radius:10px;padding:12px;margin-top:14px">${sinVars(abertSVG())}</div>`),
+    sinDib?'':blq(`<div style="border:1px solid #DDE1E7;border-radius:10px;padding:12px;margin-top:14px">${sinVars(abertSVG())}</div>`),
     adj.length?blq(`<h4 style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#5E6675;margin:14px 0 4px">Planos adjuntos</h4><p style="margin:0 0 6px">${adj.some(a=>a.blob)?'Forman parte de este pedido y van en las páginas siguientes:':'Forman parte de este pedido:'}</p>${adj.map(a=>`<div>📐 ${esc(a.nombre)}${a.blob?'':a.url?` · <a href="${esc(a.url)}">${esc(a.url)}</a>`:' (no se pudo adjuntar)'}</div>`).join('')}`):'',
     precioPDF(pid),
     blq(`<div style="margin-top:28px;padding-top:14px;border-top:1px solid #DDE1E7;font-size:13px;color:#5E6675">Revisá que todo esté correcto. Si estás de acuerdo, respondé <b style="color:#1E2330">"Apruebo"</b> por WhatsApp o firmá abajo.</div>
@@ -600,22 +609,42 @@ async function sumarPlanos(blob,adj){
 // Precio del presupuesto en el PDF (lo arma el cotizador de la app; si no hay precio autorizado, no va)
 function precioPDF(pid){let h='';try{h=window.notaPrecio?window.notaPrecio.pdfHTML(limpio(d),pid):''}catch(e){console.error(e)}
   return h?`<div class="pb" style="padding:0 32px;background:#fff">${h}</div>`:''}
-async function descargarPDF(btn,extra,pid){
+// Qué dibujo va cuando el cliente trajo su plano (pedido de ventas 27/11): por defecto, el plano del cliente.
+// Los planos de arquitectura van siempre.
+function elegirDibujo(adj){
+  const cli=adj.filter(a=>String(a.nombre||'').startsWith(PREF_CLI));
+  const modo=cli.length?(PDF_DIB[d.pdfDibujo]?d.pdfDibujo:'plano'):'croquis';
+  return {adj:modo==='croquis'?adj.filter(a=>!cli.includes(a)):adj,sinDib:modo==='plano'};
+}
+// Arma el PDF que va al cliente: {blob,nombre}, o null si todavía no puede salir (aprobación del administrador)
+async function armarPDF(extra,pid){
   // aprobación del administrador (migración 0033): el presupuesto sale con precio solo cuando él lo aprueba
   if(esPresu()&&window.notaPrecio&&window.notaPrecio.bloqueoPDF){
     let bloq='';try{bloq=window.notaPrecio.bloqueoPDF(limpio(d),pid===undefined?opts.proyectoId:pid)}catch(e){console.error(e)}
-    if(bloq){toast(bloq);return;}
+    if(bloq){toast(bloq);return null;}
   }
+  const el=elegirDibujo(await adjuntosPDF(extra||opts.adjuntos));
+  let blob=await generarPDF(el.adj,pid===undefined?opts.proyectoId:pid,el.sinDib);
+  blob=await sumarPlanos(blob,el.adj);
+  return {blob,nombre:`${esPresu()?'Presupuesto':'Nota de pedido'} - ${(d.cli||'cliente').trim()}.pdf`,faltaron:faltaronPDF.slice()};
+}
+async function descargarPDF(btn,extra,pid){
   const txt=btn.textContent;btn.textContent='Armando el PDF…';btn.disabled=true;
   try{
-    const adj=await adjuntosPDF(extra||opts.adjuntos);
-    let blob=await generarPDF(adj,pid===undefined?opts.proyectoId:pid);
-    blob=await sumarPlanos(blob,adj);
-    const nombre=`${esPresu()?'Presupuesto':'Nota de pedido'} - ${(d.cli||'cliente').trim()}.pdf`;
-    const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=nombre;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
-    toast(faltaronPDF.length?'⚠️ PDF listo, pero no se pudo sumar: '+faltaronPDF.join(', ')+'. Mandalo aparte.':'PDF listo: mandalo por WhatsApp al cliente');
+    const r=await armarPDF(extra,pid);if(!r)return;
+    const url=URL.createObjectURL(r.blob),a=document.createElement('a');a.href=url;a.download=r.nombre;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
+    toast(r.faltaron.length?'⚠️ PDF listo, pero no se pudo sumar: '+r.faltaron.join(', ')+'. Mandalo aparte.':'PDF listo: mandalo al cliente por WhatsApp o por correo');
   }catch(e){toast('No se pudo armar el PDF: '+e.message)}
   finally{btn.textContent=txt;btn.disabled=false}
+}
+// Mandar por correo desde el último paso: solo con la nota guardada y sin cambios pendientes,
+// así el cliente recibe lo mismo que quedó en la app (lo manda app.js con window.correoNota).
+const sinCambios=()=>JSON.stringify(d)===inicial&&!archivos.length;
+function correoBtnHTML(){
+  if(typeof window.correoNota!=='function')return '';
+  if(!opts.proyectoId)return `<div class="aviso" style="text-align:left">✉️ Para mandarlo por correo, guardá la nota: después lo mandás desde el proyecto.</div>`;
+  if(!sinCambios())return `<div class="aviso" style="text-align:left">✉️ Guardá los cambios para poder mandarlo por correo.</div>`;
+  return `<button class="add" id="np-b-mail" style="border-style:solid;margin-top:6px">✉️ Mandar por correo${d.mail?' a '+esc(d.mail):''}</button>`;
 }
 function mapsUrl(){return 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(d.loc||'')}
 function modelo(m){
@@ -636,6 +665,7 @@ function toast(t){let el=document.getElementById('np-tt');if(!el){el=document.cr
 function conectar(R0){
 R0.addEventListener('click',e=>{
   const bp=e.target.closest('#np-b-pdf');if(bp){descargarPDF(bp);return}
+  if(e.target.closest('#np-b-mail')){window.correoNota(opts.proyectoId);return}
   if(tocarCroquis(e))return;
   const t=e.target.closest('[data-k],[data-m],[data-mas],[data-menos],[data-em],[data-ep],[data-quitar],[data-quitarp],[data-quitaf],[data-modelo],[data-up],[data-um],#np-add-v,#np-add-p');if(!t)return;
   if(t.dataset.modelo){modelo(t.dataset.modelo);return}
@@ -816,5 +846,7 @@ window.NotaPedido={abrir,cerrar,
   tipologia:f=>conD(f,()=>({prod:d.prod,tam:d.tam,unidades:unidades()})),
   // adj: función que devuelve los planos del proyecto [{nombre,blob}] o [{nombre,url}] para sumarlos al PDF
   // pid: el proyecto, para sumar el precio del presupuesto
+  armar:(f,adj,pid)=>{const pd=d,pa=archivos;d=normProd(Object.assign(nuevo(),limpio(f)));archivos=[];return armarPDF(adj||(()=>[]),pid||null).finally(()=>{d=pd;archivos=pa})},
+  PDF_DIB,
   pdf:(f,btn,adj,pid)=>{const pd=d,pa=archivos;d=normProd(Object.assign(nuevo(),limpio(f)));archivos=[];return descargarPDF(btn||{textContent:'',disabled:false},adj||(()=>[]),pid||null).finally(()=>{d=pd;archivos=pa})}};
 })();
