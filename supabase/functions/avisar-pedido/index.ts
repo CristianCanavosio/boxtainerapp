@@ -4,6 +4,9 @@
 //   - pedido nuevo, corregido o cancelado  → la gente del taller (rol carp_aluminio, carp_madera o tecnico_aires)
 //   - el taller acepta, rechaza, empieza, termina o corre la fecha → quien lo pidió y el supervisor del proyecto
 // Nunca se avisa a quien hizo el cambio. Los equipos dados de baja se borran solos.
+// Desde la migración 0033 también avisa de la aprobación del administrador ({tipo: "aprobacion"}):
+//   - presupuesto u orden de compra esperando → a los administradores
+//   - aprobado o devuelto → al vendedor
 //
 // Secretos de la función (Edge Functions → Secrets): VAPID_PUBLIC, VAPID_PRIVATE, VAPID_SUBJECT, PUSH_SECRETO.
 // Al publicarla, apagar "Verify JWT" (la protege PUSH_SECRETO).
@@ -25,6 +28,8 @@ Deno.serve(async (req) => {
   const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   webpush.setVapidDetails(Deno.env.get("VAPID_SUBJECT") || "https://boxtainerapp.vercel.app",
     Deno.env.get("VAPID_PUBLIC")!, Deno.env.get("VAPID_PRIVATE")!);
+
+  if (ev.tipo === "aprobacion") return await avisarAprobacion(sb, ev);
 
   const { data: x } = await sb.from("pedidos_carpinteria").select("*").eq("id", ev.id).single();
   if (!x) return new Response("sin pedido");
@@ -63,12 +68,21 @@ Deno.serve(async (req) => {
       .eq("taller", x.taller).eq("estado", "enviado");
     pendientes = count ?? undefined;
   }
+  const aviso = { titulo, cuerpo, tag: "pedido-" + x.id, url: "./?vista=pedidos&proy=" + (alTaller ? "" : x.proyecto_id), pendientes };
+  const { equipos, enviados } = await mandar(sb, destinos, aviso);
+  return new Response(JSON.stringify({ destinos: destinos.length, equipos, enviados }), { headers: { "Content-Type": "application/json" } });
+});
+
+// Manda el aviso a todos los equipos anotados de esas personas
+// deno-lint-ignore no-explicit-any
+async function mandar(sb: any, destinos: string[], aviso: Record<string, unknown>) {
   const { data: subs } = await sb.from("push_suscripciones").select("*").in("usuario_id", destinos);
-  const aviso = JSON.stringify({ titulo, cuerpo, tag: "pedido-" + x.id, url: "./?vista=pedidos&proy=" + (alTaller ? "" : x.proyecto_id), pendientes });
+  const cuerpo = JSON.stringify(aviso);
   let enviados = 0;
-  await Promise.all((subs || []).map(async (s) => {
+  // deno-lint-ignore no-explicit-any
+  await Promise.all((subs || []).map(async (s: any) => {
     try {
-      await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, aviso, { TTL: 86400 });
+      await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, cuerpo, { TTL: 86400 });
       enviados++;
     } catch (e) {
       const code = (e as { statusCode?: number }).statusCode;
@@ -76,5 +90,51 @@ Deno.serve(async (req) => {
       else console.error("Error al avisar", code, (e as Error).message);
     }
   }));
-  return new Response(JSON.stringify({ destinos: destinos.length, equipos: subs?.length || 0, enviados }), { headers: { "Content-Type": "application/json" } });
-});
+  return { equipos: subs?.length || 0, enviados };
+}
+
+// Aprobación del administrador (migración 0033). ev: {que: "presupuesto" | "oc", id, estado, por}
+// deno-lint-ignore no-explicit-any
+async function avisarAprobacion(sb: any, ev: any) {
+  const oc = ev.que === "oc";
+  const quien = async (id: string | null) =>
+    id ? ((await sb.from("perfiles").select("nombre").eq("id", id).single()).data?.nombre || "") : "";
+  const usd = (n: unknown) => (n == null ? "" : "USD " + Math.round(Number(n)).toLocaleString("es-AR"));
+  let cliente = "", vendedor: string | null = null, precio: unknown = null, nombre = "", comentario = "", pid = "";
+  if (oc) {
+    const { data: p } = await sb.from("proyectos").select("*").eq("id", ev.id).single();
+    if (!p) return new Response("sin proyecto");
+    cliente = p.cliente || ""; nombre = p.nombre || ""; vendedor = p.vendedor_id || p.creado_por;
+    precio = p.valor_venta; comentario = p.aprob_oc_comentario || ""; pid = p.id;
+  } else {
+    const { data: c } = await sb.from("cotizaciones").select("*").eq("id", ev.id).single();
+    if (!c) return new Response("sin presupuesto");
+    cliente = c.cliente || ""; nombre = (c.tipologia_nombre || "") + " · N° " + c.numero; vendedor = c.vendedor_id;
+    precio = c.precio_final; comentario = c.aprob_comentario || ""; pid = c.proyecto_id || "";
+  }
+  const cosa = oc ? "Orden de compra" : "Presupuesto";
+  let destinos: string[] = [], titulo = "", cuerpo = "", url = "./?vista=aprobar";
+  if (ev.estado === "pendiente") {
+    const { data } = await sb.from("perfiles").select("id").eq("rol", "admin");
+    destinos = (data || []).map((r: { id: string }) => r.id);
+    titulo = `🛂 ${cosa} para aprobar`;
+    // el aviso va solo a los administradores: puede llevar el precio
+    cuerpo = `${cliente} · ${nombre}${precio != null ? " · " + usd(precio) + " + IVA" : ""}. Lo cargó ${await quien(vendedor)}.`;
+  } else if (ev.estado === "aprobada" || ev.estado === "devuelta") {
+    destinos = vendedor ? [vendedor] : [];
+    const ok = ev.estado === "aprobada";
+    titulo = `${ok ? "✅" : "↩️"} ${cosa} ${ok ? "aprobad" : "devuelt"}${oc ? "a" : "o"}: ${cliente}`;
+    cuerpo = ok ? (oc ? "Ya pasó a la siguiente etapa." : "Ya lo podés mandar al cliente.") : "Qué corregir: " + (comentario || "—");
+    url = pid ? "./?vista=proyectos&proy=" + pid : "./?vista=crm";
+  }
+  destinos = [...new Set(destinos)].filter((id) => id && id !== ev.por);
+  if (!destinos.length) return new Response("nadie a quien avisar");
+  let pendientes: number | undefined;
+  if (ev.estado === "pendiente") {
+    const a = await sb.from("cotizaciones").select("id", { count: "exact", head: true }).eq("aprobacion", "pendiente").in("estado", ["lista", "autorizada"]);
+    const b = await sb.from("proyectos").select("id", { count: "exact", head: true }).eq("aprob_oc", "pendiente").eq("etapa", "ventas");
+    pendientes = (a.count ?? 0) + (b.count ?? 0);
+  }
+  const r = await mandar(sb, destinos, { titulo, cuerpo, tag: "aprob-" + ev.id, url, pendientes });
+  return new Response(JSON.stringify({ destinos: destinos.length, ...r }), { headers: { "Content-Type": "application/json" } });
+}

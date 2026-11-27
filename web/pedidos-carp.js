@@ -470,7 +470,9 @@ function pcAbrirDesdeAviso(url){
   try{const u=new URL(url,location.href), v=u.searchParams.get('vista'), pid=u.searchParams.get('proy');
     if(!v) return;
     history.replaceState(null,'',location.pathname);
-    if(pid&&todos[pid]) verDetalle(pid); else if(tabsPermitidas().includes('pedidos')) showView('pedidos');
+    if(pid&&todos[pid]) verDetalle(pid);
+    else if(['aprobar','crm'].includes(v)&&tabsPermitidas().includes(v)) showView(v);   // avisos de la aprobación del administrador (0033)
+    else if(tabsPermitidas().includes('pedidos')) showView('pedidos');
   }catch(e){}
 }
 if('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message',e=>{if(e.data&&e.data.abrir) pcAbrirDesdeAviso(e.data.abrir);});

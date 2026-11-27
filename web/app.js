@@ -39,7 +39,7 @@ const esSupCompany=uid=>!!(perfiles[uid]&&perfiles[uid].rol==='supervisor'&&perf
 // producto Company (Módulo habitable Company, Oficina Company): producción estándar
 function esCompany(p){return !!(p&&esNota(p)&&/Company$/.test(NotaPedido.tipologia(p.ficha).prod||''));}
 const TABS={
-  admin:['dashboard','proyectos','kanban','alertas','pedidos','personal','contenedores','materiales','crm','usuarios','reportes','sugerencias','recursos'],
+  admin:['dashboard','aprobar','proyectos','kanban','alertas','pedidos','personal','contenedores','materiales','crm','usuarios','reportes','sugerencias','recursos'],
   lider:['dashboard','proyectos','kanban','alertas','pedidos','personal','contenedores','materiales','reportes','sugerencias','recursos'],
   supervisor:['dashboard','proyectos','kanban','alertas','pedidos','materiales','sugerencias','recursos'],
   ventas:['dashboard','crm','proyectos','reportes','sugerencias','recursos'],
@@ -131,6 +131,8 @@ function aApp(r){
     inicio:r.inicio||'',entrega:r.entrega||'',pers:r.personas||0,dep:r.deposito||'',pri:r.prioridad||'normal',obs:r.observaciones||'',
     ficha:r.ficha&&Object.keys(r.ficha).length?r.ficha:null,notaArq:r.nota_arquitectura||'',pos:r.posicion||'',
     verifArq:verif(r.plano_verificado_por,r.plano_verificado_en),stockVerif:verif(r.stock_verificado_por,r.stock_verificado_en),
+    // aprobación del administrador (migración 0033): solo se leen, la app nunca las escribe
+    aprob:r.aprob_oc||null,aprobDest:r.aprob_oc_destino||null,aprobCom:r.aprob_oc_comentario||'',aprobEn:ts(r.aprob_oc_pedida_en),
     historial:[],costos:[],planos:[],flujo:[],consultas:[],incidencias:[],faltantes:[]};
 }
 async function cargarTodo(){
@@ -172,6 +174,7 @@ async function cargarTodo(){
   if(typeof cargarMaestro==='function') await cargarMaestro();
   await cargarMetas();
   await cargarPosiciones();
+  if(typeof cargarAprobaciones==='function') await cargarAprobaciones();
   if(typeof cargarCRM==='function') await cargarCRM();
   personal=pe.map(r=>({id:r.id,nom:r.nombre,rol:r.rol||'',tel:r.telefono||''}));
   contenedores=ct.map(r=>({id:r.id,cod:r.codigo,tipo:r.tipo||'',estado:r.estado||'',proyId:r.proyecto_id,obs:r.observaciones||''}));
@@ -774,7 +777,7 @@ async function iniciarNube(){
 const RENDERS={
   dashboard:()=>renderDash(), proyectos:()=>renderProyectos(), kanban:()=>renderKanban(),
   alertas:()=>renderAlertas(), personal:()=>renderPersonal(), contenedores:()=>{updContSel();renderContenedores()},
-  materiales:()=>renderMaterialesTab(), pedidos:()=>{pintarBurbujaPC();renderPedidosCarp()}, stock:()=>renderStockTaller(), usuarios:()=>renderUsuarios(), reportes:()=>renderReportes(), sugerencias:()=>renderSugerencias(), recursos:()=>renderRecursos(), crm:()=>renderCRM()
+  materiales:()=>renderMaterialesTab(), pedidos:()=>{pintarBurbujaPC();renderPedidosCarp()}, stock:()=>renderStockTaller(), usuarios:()=>renderUsuarios(), reportes:()=>renderReportes(), sugerencias:()=>renderSugerencias(), recursos:()=>renderRecursos(), crm:()=>renderCRM(), aprobar:()=>renderAprobar()
 };
 function showView(name){
   const t=tabsPermitidas();
@@ -800,7 +803,7 @@ const EC={
 const PC={'normal':'','alta':'🔴 Alta','urgente':'🚨 Urgente','baja':'🟢 Baja'};
 function badgeEstado(p){
   const e=etapaDe(p);
-  if(e!=='ejecucion'){const x=ETAPA[e];return `<span class="badge ${x.cls}">${x.label}</span>`;}
+  if(e!=='ejecucion'){const x=ETAPA[e];return `<span class="badge ${x.cls}">${x.label}</span>`+(e==='ventas'&&typeof aprBadge==='function'?aprBadge(p):'');}
   const ec=EC[p.estado]||EC['presupuesto'];return `<span class="badge ${ec.cls}">${ec.label}</span>`;
 }
 function diasRestantes(entrega){
@@ -950,6 +953,7 @@ function renderDash(){
   const cp=consultasPendientesParaMi();
   bloques.push(bloqueLista('amarillo','❓ Consultas para responder',cp.map(({p,c})=>{const h=horasDesde(c.ts);
     return filaHoy(p.id,(c.incidencia?'⚠️ ':'')+esc(c.texto.slice(0,60)),esc(p.nombre.slice(0,30))+' · de '+esc(c.deNombre),`<span class="sla ${claseSla(h)}">${fmtHoras(h)}</span>`);})));
+  if(typeof aprBloqueHoy==='function') bloques.push(aprBloqueHoy());   // aprobación del administrador (0033)
   if(r==='ventas'){
     const cam=proyectos.filter(p=>esNota(p)&&notaPendiente(p)&&(p.creadoPorId===myId||p.vendId===myId));
     bloques.push(bloqueLista('rojo','✋ Cambios que el cliente tiene que aprobar',cam.map(p=>filaHoy(p.id,esc(p.nombre.slice(0,34)),'Cliente: '+esc(p.cli)+' · mandale la nota nueva y marcá que la aprobó','<span class="badge b-rojo">Abrir</span>'))));
@@ -1093,8 +1097,12 @@ async function crearDesdeNota(f,{enviar,archivos},extra){
     ficha:NotaPedido.compat(f)};
   if(extra){const {oportunidad,...resto}=extra;Object.assign(p,resto);}
   p.etapa=rol()==='ventas'||f.sol==='Presupuesto'?'ventas':'asignacion';   // un presupuesto queda en ventas hasta que el cliente lo acepta
+  // con la aprobación del administrador prendida, la orden de compra que carga el líder también espera (0033)
+  const esperaAprob=p.etapa!=='ventas'&&typeof aprOCNecesita==='function'&&aprOCNecesita(p)?p.etapa:null;
+  if(esperaAprob) p.etapa='ventas';
   p.flujo.push({fecha:hoyISO(),a:p.etapa,autor:currentUser.nombre});
   try{await guardarProyectoOError(p);}catch(e){return false;}
+  if(esperaAprob&&await aprOCPedir(p.id,esperaAprob)===false) await moverEtapa(p.id,esperaAprob);
   for(const a of archivos||[]) await subirCroquis(p.id,a);
   // presupuesto: guarda el precio y deja al cliente en el CRM (cotizador.js)
   const msg=window.notaPrecio?await notaPrecio.guardado(p.id,f,extra&&extra.oportunidad):'';
@@ -1223,11 +1231,16 @@ function verDetalle(id){
   let acciones='';
   const pie={principal:null,segunda:null,menu:[]};
   { // una acción por etapa
-    if(e==='ventas'&&(esOp()||(r==='ventas'&&p.creadoPorId===myId))&&esPresupuesto(p)){
+    if(e==='ventas'&&typeof aprOCEsperando==='function'&&aprOCEsperando(p)){
+      // aprobación del administrador (0033): la orden de compra espera; el admin la aprueba o la devuelve desde acá
+      acciones+=aprOCAccionHTML(p);
+      if(r==='admin') pie.principal={t:'✅ Aprobar',f:`aprOCResponder('${esc(id)}',true)`};
+    }else if(e==='ventas'&&(esOp()||(r==='ventas'&&p.creadoPorId===myId))&&esPresupuesto(p)){
       // un presupuesto no va a arquitectura: primero el cliente lo acepta y pasa a orden de compra
       acciones+=`<div class="accion"><p>Es un <b>presupuesto</b>. Cuando el cliente lo acepte, pasalo a orden de compra confirmada: se abre la nota ya cargada, la revisás y la enviás.</p></div>`;
       pie.principal={t:'✅ El cliente aceptó',f:`pasarAOC('${esc(id)}')`};
     }else if(e==='ventas'&&(esOp()||(r==='ventas'&&p.creadoPorId===myId))){
+      if(typeof aprOCAccionHTML==='function') acciones+=aprOCAccionHTML(p);   // devuelta por el administrador: su comentario
       acciones+=`<div class="accion"><p>Cuando el pedido del cliente esté completo, envialo a arquitectura para que agregue el plano.</p>
         ${sinPlano(p)?`<button class="btn btn-sec" onclick="moverEtapa('${esc(id)}','arquitectura')">📐 Mejor mandarlo a Arquitectura</button>
           <div style="font-size:12px;color:var(--gris-m);margin-top:6px">La nota dice que no necesita plano: con el botón de abajo va directo al líder de operaciones.</div>`
@@ -1386,6 +1399,11 @@ async function moverEtapa(id,a){
     if(falta.length){
       if(esNota(p)){toast('⚠️ Completá la nota de pedido: '+falta[0]);closeOverlay('m-det');editarNota(id);return;}
       toast('⚠️ Completá la ficha técnica: '+falta.join(', '));closeOverlay('m-det');editarProy(id);return;}
+    // aprobación del administrador (0033): la orden de compra queda esperando y él la manda a la etapa siguiente
+    if(typeof aprOCNecesita==='function'&&aprOCNecesita(p)){
+      if(aprOCEsperando(p)){toast('🛂 Ya está esperando la aprobación del administrador');return;}
+      const r=await aprOCPedir(id,a); if(r!==false) return;
+    }
   }
   if(a==='asignacion'&&desde==='arquitectura'){
     const nota=document.getElementById('det-notaarq'); if(nota) p.notaArq=nota.value.trim();
