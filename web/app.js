@@ -129,7 +129,7 @@ function aApp(r){
     vendId:r.vendedor_id,vend:r.vendedor||(r.vendedor_id?nombreDe(r.vendedor_id):''),
     supId:r.supervisor_id,sup:r.supervisor_id?nombreDe(r.supervisor_id):'',
     inicio:r.inicio||'',entrega:r.entrega||'',pers:r.personas||0,dep:r.deposito||'',pri:r.prioridad||'normal',obs:r.observaciones||'',
-    ficha:r.ficha&&Object.keys(r.ficha).length?r.ficha:null,notaArq:r.nota_arquitectura||'',pos:r.posicion||'',
+    ficha:r.ficha&&Object.keys(r.ficha).length?r.ficha:null,notaArq:r.nota_arquitectura||'',pos:r.posicion||'',num:r.numero_proyecto||'',
     verifArq:verif(r.plano_verificado_por,r.plano_verificado_en),stockVerif:verif(r.stock_verificado_por,r.stock_verificado_en),
     // aprobación del administrador (migración 0033): solo se leen, la app nunca las escribe
     aprob:r.aprob_oc||null,aprobDest:r.aprob_oc_destino||null,aprobCom:r.aprob_oc_comentario||'',aprobEn:ts(r.aprob_oc_pedida_en),
@@ -882,6 +882,7 @@ function proyCard(p){
       <div class="prog-bar"><div class="prog-fill ${progColor(av,esperado)}" style="width:${av}%"></div></div>
     </div>`:''}
     <div class="proy-meta">
+      ${p.num?`<span class="badge b-morado">#️⃣ ${esc(p.num)}</span>`:''}
       <span class="badge b-azul">📦 ${esc(p.tipo)}${unidadesDe(p)>1?' × '+unidadesDe(p):''}</span>
       ${ocupaPosicion(p)?`<span class="badge b-verde">📍 ${esc(p.pos)}</span>`:''}
       ${sup?`<span class="badge b-gris">👷 ${esc(sup)}</span>`:''}
@@ -1043,7 +1044,7 @@ function renderProyectos(){
   const fe=document.getElementById('filtro-emp'); if(fe) fe.style.display=emps.size>1||filtroEmpresa?'':'none';
   if(!(FILTROS_ROL[rol()]||Object.keys(FILTROS)).includes(filtroEstado)) filtroEstado='todos';
   const q=(document.getElementById('search-p')?.value||'').toLowerCase();
-  const base=proyectos.filter(p=>(!q||(p.nombre||'').toLowerCase().includes(q)||(p.cli||'').toLowerCase().includes(q))&&(!filtroEmpresa||(filtroEmpresa==='-'?!p.emp:p.emp===filtroEmpresa)));
+  const base=proyectos.filter(p=>(!q||(p.nombre||'').toLowerCase().includes(q)||(p.cli||'').toLowerCase().includes(q)||(p.num||'').toLowerCase().includes(q))&&(!filtroEmpresa||(filtroEmpresa==='-'?!p.emp:p.emp===filtroEmpresa)));
   pintarChips(base);
   const filtered=base.filter(pasaFiltroEstado);
   document.getElementById('lista-proyectos').innerHTML=filtered.length?filtered.map(proyCard).join('')
@@ -1063,6 +1064,32 @@ function supSugerido(p){
   if(!esCompany(p)) return '';
   const cs=Object.keys(roles).filter(esSupCompany);
   return cs.length===1?cs[0]:'';
+}
+// ── Número de proyecto (migración 0035): texto libre que carga el Supervisor Company en sus proyectos ──
+// El líder y el admin también lo pueden corregir. Se guarda aparte (no va en aFila) para no tocar el resto del proyecto.
+function puedeEditarNumero(p){return esOp()||(rol()==='supervisor'&&p.supId===myId&&esSupCompany(myId)&&etapaDe(p)==='ejecucion');}
+function numeroProyectoHTML(p){
+  if(!puedeEditarNumero(p)) return '';
+  return `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#f3eefc;border-radius:10px;padding:8px 10px;margin-bottom:12px">
+    <label for="det-num" style="font-size:13px;font-weight:700">#️⃣ N° de proyecto</label>
+    <input id="det-num" type="text" maxlength="60" value="${esc(p.num)}" placeholder="Ej: C-1234" style="flex:1;min-width:110px;width:auto;padding:8px 10px"
+      onkeydown="if(event.key==='Enter'){event.preventDefault();guardarNumeroProyecto('${esc(p.id)}')}">
+    <button class="btn btn-nar btn-sm" onclick="guardarNumeroProyecto('${esc(p.id)}')">Guardar</button></div>`;
+}
+async function guardarNumeroProyecto(id){
+  const p=todos[id], el=document.getElementById('det-num'); if(!p||!el) return;
+  const v=el.value.trim().slice(0,60);
+  if(v===(p.num||'')){el.blur();toast('Sin cambios');return;}
+  guardando++;
+  try{
+    const {data}=chk(await sb.from('proyectos').update({numero_proyecto:v||null}).eq('id',id).select('id'));
+    if(!data||!data.length) throw {code:'42501',message:'permission'};
+    p.num=v; if(ORIG[id]) ORIG[id].num=v;
+    el.blur(); recalcular(); verDetalle(id);
+    toast(v?'✅ Número de proyecto guardado':'✅ Número de proyecto borrado');
+  }catch(e){
+    toast(/numero_proyecto/.test(e&&e.message||'')?'⚠️ Para guardar el número falta correr la migración 0035 en Supabase':msgError(e));
+  }finally{guardando--;}
 }
 function prepararModalProy(){
   const op=esOp();
@@ -1300,10 +1327,11 @@ function verDetalle(id){
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
       <div style="flex:1;margin-right:8px">
         <div style="font-size:19px;font-weight:800">${esc(p.nombre)}</div>
-        <div style="font-size:13px;color:var(--gris-m);margin-top:2px">👤 ${esc(p.cli)}</div>
+        <div style="font-size:13px;color:var(--gris-m);margin-top:2px">👤 ${esc(p.cli)}${p.num&&!puedeEditarNumero(p)?` · #️⃣ <b>${esc(p.num)}</b>`:''}</div>
       </div>
       ${badgeEstado(p)}
     </div>
+    ${numeroProyectoHTML(p)}
     ${flujoHTML}
     ${acciones}
     ${desv?`<div style="background:#fdf0ef;border-radius:10px;padding:10px;margin-bottom:12px;border-left:4px solid var(--rojo)">
