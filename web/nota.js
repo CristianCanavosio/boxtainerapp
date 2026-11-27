@@ -58,6 +58,8 @@ function normAbert(x){(x.puertas||[]).forEach(p=>{if(p&&PUERTA_VIEJA[p.tipo])p.t
 const LINEAS=['Módena','A30','A40'], VIDRIOS=['Simple','DVH (3+3 / Cam 9)'];
 const esDVH=()=>/^DVH/.test(d.vidrio||'')||d.linea==='DVH';
 const VENT_M2='Aberturas: ventanas por m² (MO+MAT)', DVH_M2='Aberturas: adicional vidrio DVH por m²';
+// toda la melamina (paredes, techo de baño/cocina y revestimiento interior) es un solo concepto, en m² (pedido de Cristian 27/11)
+const MELAMINA='Revestimiento melamina 5.5';
 const PUERTA_MAT={'Puerta ingreso':'De abrir','Puerta ventana corrediza':'Corrediza'};
 const mmTxt=mm=>Number(mm).toLocaleString('es-AR')+' mm';
 function limTxt(t){const L=LIM.find(x=>x.tipologia===t);if(!L)return '';const a=[];if(L.ancho_max_mm)a.push('ancho hasta '+mmTxt(L.ancho_max_mm));if(L.alto_max_mm)a.push('alto hasta '+mmTxt(L.alto_max_mm));return a.join(' y ')}
@@ -751,8 +753,9 @@ function lineasCosteo(){
   if(humedos.length)add('Instalación sanitaria por ambiente','mo','c/u',humedos.length);
   const enZona=u=>Math.max(1,esp.filter(x=>x.ubi===u).length);
   let humedo=0;
-  humedos.forEach(x=>{const m=2*(L/3+A)*H/enZona(x.ubi);humedo+=m;if(x.rev)add('Revestimiento '+x.rev.toLowerCase()+' (baño/cocina)','mat','m²',m,etiqueta(x));
-    if(x.revT)add('Revestimiento de techo '+x.revT.toLowerCase()+' (baño/cocina)','mat','m²',L/3*A/enZona(x.ubi),etiqueta(x))});
+  humedos.forEach(x=>{const m=2*(L/3+A)*H/enZona(x.ubi);humedo+=m;if(x.rev)x.rev==='Melamina'?add(MELAMINA,'mat','m²',m):add('Revestimiento '+x.rev.toLowerCase()+' (baño/cocina)','mat','m²',m,etiqueta(x));
+    const mT=L/3*A/enZona(x.ubi);
+    if(x.revT)x.revT==='Melamina'?add(MELAMINA,'mat','m²',mT):add('Revestimiento de techo '+x.revT.toLowerCase()+' (baño/cocina)','mat','m²',mT,etiqueta(x))});
   // terminaciones
   // pintura: un solo ítem (exterior + interior), en tachos de 20 l. Se redondea para arriba al final.
   const m2Pint=(paredes+techo)*((d.pExt===SIN_PINT?0:1)+((d.pInt&&d.pInt!=='Sin pintura')?1:0));
@@ -764,7 +767,7 @@ function lineasCosteo(){
   const resto=Math.max(0,paredes-humedo), dest=revDestinos();
   (d.rev||[]).filter(v=>v!=='Sin revestimiento'&&v!=='Solo pintura').forEach(v=>{
     const n=d.rev.length>1?dest.filter(x=>d.revAsig[x.k]===v).length:dest.length;
-    if(n&&dest.length)add('Revestimiento interior · '+v,'mat','m²',resto*n/dest.length)});
+    if(n&&dest.length)add(v==='Melamina'?MELAMINA:'Revestimiento interior · '+v,'mat','m²',resto*n/dest.length)});
   if(esp.length>1&&d.pInterior)add('Puerta interior · '+d.pInterior,'mat','c/u',esp.length-1);
   // aberturas
   if(d.puertaP)add('Puerta exterior (a confirmar)','mat','c/u',d.puertas.length||1,'',true);
