@@ -153,7 +153,7 @@ async function cargarTodo(){
   co.forEach(r=>en(r.proyecto_id,p=>p.costos.push({id:r.id,rubro:r.rubro,importe:Number(r.importe)||0,desc:r.descripcion,
     fecha:r.fecha,autor:nombreDe(r.autor_id),ts:ts(r.creado_en)})));
   ac.forEach(r=>en(r.proyecto_id,p=>p.historial.push({id:r.id,ts:ts(r.creado_en),fecha:fechaDe(r.creado_en),avance:r.avance,
-    texto:r.texto,est:r.estado,autor:nombreDe(r.autor_id),autorId:r.autor_id,pers:r.personas??null,hs:r.horas==null?null:Number(r.horas),fotos:r.fotos||[]})));
+    texto:r.texto,est:r.estado,autor:nombreDe(r.autor_id),autorId:r.autor_id,pers:r.personas??null,hs:r.horas==null?null:Number(r.horas),hsx:r.horas_extras==null?null:Number(r.horas_extras),fotos:r.fotos||[]})));
   cs.forEach(r=>en(r.proyecto_id,p=>p.consultas.push({id:r.id,texto:r.texto,para:r.para,ts:ts(r.creado_en),deId:r.de_id,
     deNombre:nombreDe(r.de_id),incidencia:!!r.es_error,respuesta:r.respuesta||'',respTs:ts(r.respondida_en),
     respId:r.respondida_por,respNombre:r.respondida_por?nombreDe(r.respondida_por):''})));
@@ -233,7 +233,7 @@ async function guardarProyectoOError(p){
       importe:Number(x.importe)||0,descripcion:x.desc||'',fecha:x.fecha||hoyISO(),creado_en:isoTs(x.ts)})));
     await ins('actualizaciones',nuevos(p.historial,o&&o.historial).map(x=>({id:x.id,proyecto_id:pid,avance:parseInt(x.avance)||0,
       estado:x.est||p.estado||'en-curso',texto:x.texto||'',creado_en:isoTs(x.ts),
-      ...(x.pers!=null?{personas:x.pers}:{}),...(x.hs!=null?{horas:x.hs}:{}),...((x.fotos||[]).length?{fotos:x.fotos}:{})})));
+      ...(x.pers!=null?{personas:x.pers}:{}),...(x.hs!=null?{horas:x.hs}:{}),...(x.hsx?{horas_extras:x.hsx}:{}),...((x.fotos||[]).length?{fotos:x.fotos}:{})})));
     await ins('consultas',nuevos(p.consultas,o&&o.consultas).map(x=>({id:x.id,proyecto_id:pid,para:x.para,texto:x.texto,
       es_error:!!x.incidencia,creado_en:isoTs(x.ts),respuesta:x.respuesta||null,respondida_en:x.respuesta?isoTs(x.respTs||Date.now()):null,
       respondida_por:x.respuesta&&perfiles[x.respId]?x.respId:null})));
@@ -1392,10 +1392,11 @@ function verDetalle(id){
         <div class="mat-info"><div class="mat-nom">${esc(m.nom)}</div><div class="mat-det">Cant: ${esc(m.cant)||'—'} · ${esc(m.est)}</div></div></div>`).join('')}</div>`:''}
     ${e==='ejecucion'?`<div class="dsec"><h3>📝 Historial de actualizaciones</h3>
       ${horasHombre(p)?`<div class="drow"><span class="lbl">👷 Horas-hombre acumuladas</span><span class="val">${horasHombre(p).toLocaleString('es-AR')} h</span></div>`:''}
+      ${horasExtrasHombre(p)?`<div class="drow"><span class="lbl">⏱️ De esas, horas extras</span><span class="val">${horasExtrasHombre(p).toLocaleString('es-AR')} h</span></div>`:''}
       ${upds.length?upds.slice(0,5).map(u=>`<div class="update-item">
         <div class="update-fecha">📅 ${esc(u.fecha)} · Por: ${esc(u.autor)}</div>
         <div class="update-texto">${esc(u.texto)}</div>
-        <div class="update-autor">Avance registrado: ${esc(u.avance)}%${u.pers!=null?` · 👷 ${esc(u.pers)} persona${u.pers==1?'':'s'}`:''}${u.hs!=null?` · ${esc(u.hs)} h`:''}</div>
+        <div class="update-autor">Avance registrado: ${esc(u.avance)}%${u.pers!=null?` · 👷 ${esc(u.pers)} persona${u.pers==1?'':'s'}`:''}${u.hs!=null?` · ${esc(u.hs)} h`:''}${u.hsx?` · ⏱️ ${esc(u.hsx)} h extras`:''}</div>
         ${(u.fotos||[]).length?`<div class="upd-fotos-ver">${u.fotos.map((ruta,i)=>`<a href="#" onclick="abrirPlano(event,'${esc(ruta)}')">📷 Foto ${i+1}</a>`).join('')}</div>`:''}</div>`).join('')
         :'<div style="font-size:13px;color:var(--gris-m)">Sin actualizaciones aún</div>'}</div>`:''}
     ${(p.flujo||[]).length?`<div class="dsec"><h3>🔁 Recorrido</h3>
@@ -1549,12 +1550,15 @@ function abrirUpdate(id){
   const ult=(p.historial||[]).slice().sort((a,b)=>(b.ts||0)-(a.ts||0))[0];
   document.getElementById('upd-pers').value=ult&&ult.pers!=null?ult.pers:(p.pers||'');
   document.getElementById('upd-hs').value=ult&&ult.hs!=null?ult.hs:'';
+  document.getElementById('upd-hsx').value=''; // las horas extras no se repiten: se cargan solo si hubo
   document.getElementById('upd-est').value=['en-curso','finalizado','pausado'].includes(p.estado)?p.estado:'en-curso';
   limpiarFotosUpd();
   closeOverlay('m-det'); openOverlay('m-update');
 }
-// Horas-hombre: personas × horas de cada parte diario
-function horasHombre(p){return Math.round((p.historial||[]).reduce((s,u)=>s+(u.pers!=null&&u.hs!=null?u.pers*u.hs:0),0)*10)/10}
+// Horas-hombre: personas × (horas + horas extras) de cada parte diario
+function horasParte(u){return u.pers!=null&&u.hs!=null?u.pers*(u.hs+(u.hsx||0)):0}
+function horasHombre(p){return Math.round((p.historial||[]).reduce((s,u)=>s+horasParte(u),0)*10)/10}
+function horasExtrasHombre(p){return Math.round((p.historial||[]).reduce((s,u)=>s+(u.pers!=null&&u.hsx?u.pers*u.hsx:0),0)*10)/10}
 async function guardarUpdate(){
   const id=document.getElementById('upd-proy-id').value;
   const av=Math.min(100,Math.max(0,parseInt(document.getElementById('upd-av').value)||0));
@@ -1564,14 +1568,17 @@ async function guardarUpdate(){
   const pers=parseInt(pv), hs=Number(hv);
   if(pv===''||!(pers>=0)||pers>200){toast('⚠️ Poné cuántas personas trabajaron hoy');return;}
   if(hv===''||!(hs>=0)||hs>24){toast('⚠️ Poné las horas de trabajo del día (0 a 24)');return;}
+  const xv=document.getElementById('upd-hsx').value.trim().replace(',','.'), hsx=xv===''?0:Number(xv);
+  if(!(hsx>=0)||hs+hsx>24){toast('⚠️ Las horas extras van de 0 a '+(24-hs)+' (entre horas y extras no pueden pasar de 24)');return;}
   if(!texto){toast('⚠️ Ingresá un comentario');return;}
   const p=limpiar(todos[id]); if(!p) return;
   p.avance=av; p.estado=est;
   let fotos=[];
   try{fotos=await subirFotosUpd(id);}catch(e){toast(msgError(e));return;}
-  p.historial=(p.historial||[]); p.historial.push({id:nuevoId(),ts:Date.now(),avance:av,texto,est,pers,hs,fotos,fecha:hoyISO(),autor:currentUser?.nombre||'Sistema',autorId:myId});
+  p.historial=(p.historial||[]); p.historial.push({id:nuevoId(),ts:Date.now(),avance:av,texto,est,pers,hs,hsx,fotos,fecha:hoyISO(),autor:currentUser?.nombre||'Sistema',autorId:myId});
   try{await guardarProyectoOError(p);}catch(e){
     if(fotos.length&&/fotos/i.test(e.message||'')) toast('⚠️ Para guardar fotos hay que correr la migración 0016 en Supabase');
+    else if(hsx&&/horas_extras/i.test(e.message||'')) toast('⚠️ Para guardar horas extras hay que correr la migración 0036 en Supabase');
     return;}
   closeOverlay('m-update'); refrescar(); toast('✅ Parte del día guardado');
 }
