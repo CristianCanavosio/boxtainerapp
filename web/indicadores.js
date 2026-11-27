@@ -136,7 +136,7 @@ function calcularIndicadores(){
     const fin=ps.filter(p=>enRango(fechaFin(p),R));
     const porT={}; let hhT=0, uT=0;
     fin.forEach(p=>{
-      const hh=(p.historial||[]).reduce((s,h)=>s+(h.pers!=null&&h.hs!=null?h.pers*h.hs:0),0);
+      const hh=(p.historial||[]).reduce((s,h)=>s+horasParte(h),0);
       if(!hh) return;
       const u=unidadesDe(p), t=p.tipo||'Sin tipo';
       porT[t]=porT[t]||{hh:0,u:0,n:0}; porT[t].hh+=hh; porT[t].u+=u; porT[t].n++; hhT+=hh; uT+=u;
@@ -144,7 +144,7 @@ function calcularIndicadores(){
     out.prod_hh_unidad={area:'produccion',t:'Horas-hombre por unidad',dir:'max',unidad:'h',valor:uT?hhT/uT:null,
       detalle:fila('Proyectos terminados con partes diarios',Object.values(porT).reduce((s,x)=>s+x.n,0)+' de '+fin.length)
         +tabla(['Tipología','Proy.','HH / unidad'],Object.entries(porT).sort((a,b)=>b[1].u-a[1].u).map(([t,x])=>[esc(t),x.n,Math.round(x.hh/x.u)])),
-      ayuda:'Suma de personas × horas de los partes diarios, dividida por las unidades, de los proyectos terminados en el período.'};
+      ayuda:'Suma de personas × (horas + horas extras) de los partes diarios, dividida por las unidades, de los proyectos terminados en el período.'};
   }
 
   // ═══ COMPRAS ═══

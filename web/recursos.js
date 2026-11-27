@@ -47,7 +47,7 @@ En Avisos y Kanban seguí los proyectos atrasados o desviados. Cuando un supervi
 En Materiales cargás la receta de cada tipología: los materiales que se suman solos a cada proyecto de ese tipo.`},
   {clave:'supervisor',orden:40,roles:['supervisor'],titulo:'Supervisor: parte diario y materiales',
     descripcion:'Cargar el avance del día, los materiales usados, faltantes y errores de la obra.',
-    pasos:`En Hoy ves tus obras. Todos los días tocá "Cargar parte de hoy": avance (con los botones +5 y +10), personas y horas (vienen las del día anterior), un comentario y, si querés, fotos del avance.
+    pasos:`En Hoy ves tus obras. Todos los días tocá "Cargar parte de hoy": avance (con los botones +5 y +10), personas y horas (vienen las del día anterior), horas extras si hubo, un comentario y, si querés, fotos del avance.
 En Proyectos ves solo los proyectos que te asignaron.
 En "Materiales: planificado vs usado" cargá cuánto se usó de cada material (el total acumulado). Si te pasás de lo planificado, se marca el desvío.
 Si usaste algo que no estaba previsto, agregalo con "Agregar material no previsto".
