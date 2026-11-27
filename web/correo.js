@@ -3,7 +3,7 @@
 // Presupuesto u orden de compra confirmada: se arma el mismo PDF que se descarga, se sube al depósito
 // "correos" y la base lo manda con Resend (como el buzón de sugerencias). Queda registrado en el
 // proyecto y como seguimiento hecho en el CRM del cliente.
-// Respeta la aprobación del administrador (0033): lo que espera su aprobación o él devolvió no sale.
+// Respeta la aprobación del administrador (0033): mientras está prendida, no sale nada que él no haya aprobado.
 // También el dibujo del PDF: si el cliente trajo su plano, se elige plano, croquis o los dos.
 // ════════════════════════════════════════════════
 const correo={dib:{},lista:{},cargado:{},id:null,enviando:false};
@@ -32,6 +32,7 @@ function correoBloqueo(p){
   if(p.ficha.sol!=='Presupuesto'&&typeof aprOCEsperando==='function'&&rol()!=='admin'){
     if(aprOCEsperando(p)) return '🛂 Esta orden de compra espera la aprobación del administrador: el correo sale cuando la apruebe';
     if(aprOCDevuelta(p)) return '↩️ El administrador devolvió esta orden de compra: corregila antes de mandarla';
+    if(aprOCNecesita(p)) return '🛂 Primero enviá la orden de compra: el correo sale cuando el administrador la apruebe';
   }
   return '';
 }

@@ -3,8 +3,8 @@
 -- por correo al cliente con el PDF adjunto. El correo lo envía la propia base con Resend (la misma clave que
 -- el buzón de sugerencias, 0014) y queda registrado en el proyecto y en el seguimiento del CRM del cliente.
 --
--- Respeta la aprobación del administrador (0033): no sale nada que esté esperando su aprobación ni nada que
--- él haya devuelto. Tampoco sale un presupuesto cuyo precio espera al líder de ventas o tiene ítems sin costo.
+-- Respeta la aprobación del administrador (0033): mientras está prendida, no sale nada que él no haya aprobado
+-- (ni presupuestos ni órdenes de compra). Tampoco sale un presupuesto cuyo precio espera al líder de ventas o tiene ítems sin costo.
 --
 -- CONFIGURACIÓN (una sola vez, en el editor SQL de Supabase):
 --   La clave de Resend ya está si se configuró el buzón de sugerencias ('resend_api_key' en Vault).
@@ -106,10 +106,12 @@ begin
 
   -- ── aprobación del administrador y precio ──
   if es_oc then
-    if activa and not adm and p.aprob_oc in ('pendiente','devuelta') then
-      raise exception '%', case when p.aprob_oc = 'pendiente'
-        then 'Esta orden de compra espera la aprobación del administrador: el correo sale cuando la apruebe'
-        else 'El administrador devolvió esta orden de compra: corregila antes de mandarla' end using errcode = 'P0001';
+    -- nada sale sin la aprobación del administrador (Cristian 27/11), tampoco una OC que todavía no le mandaron
+    if activa and not adm and coalesce(p.aprob_oc, '') <> 'aprobada' then
+      raise exception '%', case p.aprob_oc
+        when 'pendiente' then 'Esta orden de compra espera la aprobación del administrador: el correo sale cuando la apruebe'
+        when 'devuelta' then 'El administrador devolvió esta orden de compra: corregila antes de mandarla'
+        else 'Primero enviá la orden de compra: el correo sale cuando el administrador la apruebe' end using errcode = 'P0001';
     end if;
   else
     if c.id is not null and c.estado <> 'enviada' then
