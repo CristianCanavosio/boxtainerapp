@@ -24,7 +24,7 @@ async function cargarCotizaciones(){
   if(typeof puedeCRM!=='function'||!puedeCRM()) return;
   try{
     cot.lista=await traer('cotizaciones');
-    if(veTodoCRM()) (await traerSinOrden('cotizaciones_costo')).forEach(r=>cot.costos[r.cotizacion_id]={costo:Number(r.costo_total),margen:Number(r.margen)});
+    if(veTodoCRM()) (await traerSinOrden('cotizaciones_costo')).forEach(r=>cot.costos[r.cotizacion_id]={costo:Number(r.costo_total),margen:Number(r.margen),det:Array.isArray(r.detalle)?r.detalle:[]});
   }catch(e){if(/relation|does not exist|schema cache|Could not find/i.test(e.message||'')) cot.falta=true; else console.error(e);}
   if(cot.ver&&document.getElementById('m-cot')?.classList.contains('active')&&!cotEscribiendo()) cotPintar();
 }
