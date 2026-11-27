@@ -198,3 +198,13 @@
 .rt-hs select,.rt-pr select{padding:6px;border:1.5px solid var(--borde);border-radius:8px;font-size:12px;max-width:100%}
 .rt-pr{display:flex;gap:8px;justify-content:space-between;align-items:center;padding:6px 0;border-top:1px solid var(--borde);font-size:12px}
 .rt-pr span{flex:1}.rt-pr small{display:block;color:var(--gris-m)}
+/* Maestro de insumos: columnas unidad · USD · pesos (pedido de Cristian 27/11) */
+.mae-cols{display:flex;gap:6px;align-items:center;flex:none}
+.cst-li .mae-cols input{width:84px}
+.cst-li .mae-cols input.mae-uni{width:80px;text-transform:uppercase}
+.mae-enc .mae-cols span.mae-uni{width:80px}
+.cst-li input[type=checkbox]{width:auto;padding:0}
+.cst-li .mae-cols input.mae-ars,.mae-enc .mae-cols span.mae-ars{width:112px}
+.mae-enc{font-size:11px;font-weight:700;color:var(--gris-m);padding:4px 0}
+.mae-enc .mae-cols span{width:84px;display:inline-block}
+@media (max-width:600px){.cst-li:has(.mae-cols){flex-wrap:wrap}.cst-li:has(.mae-cols)>div:first-child{flex:1 1 100%}.mae-enc>div:first-child{display:none}}

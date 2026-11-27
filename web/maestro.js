@@ -102,24 +102,32 @@ function maeInsumosHTML(){
     .sort((a,b)=>((a.costo==null?0:1)-(b.costo==null?0:1))||String(a.rubro).localeCompare(b.rubro)||a.nombre.localeCompare(b.nombre));
   const sin=l.filter(x=>x.costo==null&&x.activo).length;
   const ult=l.map(x=>x.costo_actualizado_en).filter(Boolean).sort().pop();
+  const tc=Number(mae.par.tipo_cambio)>0?Number(mae.par.tipo_cambio):0;
+  const unidades=[...new Set(['UN','M2','ML','KG','LT','PLACA','GL',...l.map(x=>x.unidad).filter(Boolean)])].sort();
   return `<div class="card" style="font-size:13px">
-      <b>Maestro de insumos</b>: el costo de cada insumo en USD. De acá salen el precio del cotizador de ventas y el costeo de los proyectos. <b>Solo vos ves los costos.</b>
-      <div style="margin-top:6px;color:var(--gris-m);font-size:12px">${l.length} insumos${ult?` · última actualización ${crmFecha(ult.slice(0,10))}`:''}${sin?` · <b style="color:var(--rojo)">${sin} sin costo</b>`:''}</div>
+      <b>Maestro de insumos</b>: el costo de cada insumo en USD (el precio en pesos sale del tipo de cambio de Parámetros). De acá salen el precio del cotizador de ventas y el costeo de los proyectos. <b>Solo vos ves los costos.</b>
+      <div style="margin-top:6px;color:var(--gris-m);font-size:12px">${l.length} insumos${ult?` · última actualización ${crmFecha(ult.slice(0,10))}`:''}${sin?` · <b style="color:var(--rojo)">${sin} sin costo</b>`:''}${tc?` · dólar a $ ${crmNum(tc)}`:''}</div>
       <div class="flex-btns" style="margin-top:8px;flex-wrap:wrap">
         <label class="btn btn-nar btn-sm" style="cursor:pointer">📥 Importar planilla del cotizador<input type="file" accept=".xlsx,.xls,.ods" style="display:none" onchange="maeLeerPlanilla(this)"></label>
         <button class="btn btn-sec btn-sm" onclick="maeBajarPlanilla()">⬇️ Bajar el maestro en Excel</button></div>
       <div style="margin-top:6px;font-size:12px;color:var(--gris)">Se importa apenas la elegís y te muestra el resultado. La planilla lleva las hojas Insumos_Maestra, Tipologias_DB, Receta_Tipologias y Parametros (como "Cotizador Boxtainer.xlsx"). Cuando conectemos Flexxus, los costos van a llegar solos y esta importación queda como respaldo.</div></div>
     ${mae.imp?maeImpHTML():''}
     <div class="fg"><input type="search" id="mae-busca" placeholder="🔍 Buscar insumo, código o rubro…" value="${esc(mae.busca)}" oninput="mae.busca=this.value;renderMaestro();maeFoco('#mae-busca')"></div>
-    <div class="card cst-lista">${vis.map(x=>`<div class="cst-li ${x.costo==null?'sinp':''}" style="${x.activo?'':'opacity:.5'}">
-      <div><b>${esc(x.nombre)}</b><small>${esc(x.codigo)} · ${esc(x.rubro||'Sin rubro')} · por ${esc(x.unidad||'u')}${x.fuente&&x.fuente!=='planilla'?' · '+esc(x.fuente==='flexxus'?'Flexxus':'a mano'):''}</small>
+    ${tc?'':`<div class="card" style="font-size:12px;color:var(--gris-m)">Para ver el precio en pesos, cargá el tipo de cambio en <a href="#" onclick="mae.sub='parametros';renderMaterialesTab();return false">⚙️ Parámetros</a>.</div>`}
+    <datalist id="mi-unidades">${unidades.map(u=>`<option value="${esc(u)}">`).join('')}</datalist>
+    <div class="card cst-lista"><div class="cst-li mae-enc"><div>Insumo</div><div class="mae-cols"><span class="mae-uni">Unidad</span><span>USD</span><span class="mae-ars">Pesos</span></div></div>${vis.map(x=>`<div class="cst-li ${x.costo==null?'sinp':''}" style="${x.activo?'':'opacity:.5'}">
+      <div style="min-width:0"><b>${esc(x.nombre)}</b><small>${esc(x.codigo)} · ${esc(x.rubro||'Sin rubro')}${x.fuente&&x.fuente!=='planilla'?' · '+esc(x.fuente==='flexxus'?'Flexxus':'a mano'):''}</small>
         <label style="font-size:12px;color:var(--gris-m);display:flex;gap:6px;align-items:center;margin-top:4px"><input type="checkbox" ${x.para_vendedor?'checked':''} onchange="maeSetIns('${esc(x.codigo)}',{para_vendedor:this.checked})"> el vendedor lo puede agregar como adicional</label></div>
-      <input type="number" step="0.01" min="0" placeholder="USD" value="${x.costo??''}" onchange="maeCosto('${esc(x.codigo)}',this.value)" aria-label="Costo USD de ${esc(x.nombre)}">
+      <div class="mae-cols">
+        <input class="mae-uni" list="mi-unidades" placeholder="UN" value="${esc(x.unidad||'')}" onchange="maeUnidad('${esc(x.codigo)}',this.value)" aria-label="Unidad de medida de ${esc(x.nombre)}">
+        <input type="number" step="0.01" min="0" placeholder="USD" value="${x.costo??''}" onchange="maeCosto('${esc(x.codigo)}',this.value)" aria-label="Costo USD de ${esc(x.nombre)}">
+        <input class="mae-ars" type="text" inputmode="decimal" placeholder="${tc?'$':'falta dólar'}" ${tc?'':'disabled'} value="${tc&&x.costo!=null?maeArs(x.costo*tc):''}" onchange="maeCostoArs('${esc(x.codigo)}',this.value)" aria-label="Costo en pesos de ${esc(x.nombre)}">
+      </div>
     </div>`).join('')||'<div style="font-size:13px;color:var(--gris-m)">No hay insumos. Importá la planilla del cotizador.</div>'}</div>
     <details class="card" style="font-size:13px"><summary style="cursor:pointer;font-weight:700">➕ Agregar un insumo</summary>
       <div class="form-2" style="margin-top:8px"><div class="fg"><label>Código</label><input id="mi-cod" placeholder="INS-094"></div><div class="fg"><label>Nombre</label><input id="mi-nom"></div></div>
       <div class="form-2"><div class="fg"><label>Rubro</label><input id="mi-rub" list="mi-rubros"><datalist id="mi-rubros">${[...new Set(l.map(x=>x.rubro).filter(Boolean))].sort().map(r=>`<option value="${esc(r)}">`).join('')}</datalist></div>
-        <div class="fg"><label>Unidad</label><input id="mi-uni" placeholder="UN, M2, ML…"></div></div>
+        <div class="fg"><label>Unidad</label><input id="mi-uni" list="mi-unidades" placeholder="UN, M2, ML…"></div></div>
       <div class="fg"><label>Costo USD</label><input id="mi-cos" type="number" step="0.01" min="0"></div>
       <div class="fg"><label>¿Se suma a un ítem de la nota de pedido? (opcional)</label><input id="mi-item" list="mi-items" placeholder="Ej: Sanitario · Inodoro">
         <datalist id="mi-items">${maeClavesProyectos().map(x=>`<option value="${esc(x.clave)}">`).join('')}</datalist>
@@ -137,6 +145,22 @@ async function maeCosto(cod,v){
   // si no se pudo guardar, la pantalla vuelve al costo que hay en la base
   if(!await maeSetIns(cod,{costo_usd:c,fuente:'manual',costo_actualizado_en:new Date().toISOString()})) return;
   mae.ins[cod].costo=c; renderMaestro();
+}
+// Pedido de Cristian 27/11: columna de unidad de medida y de precio en pesos.
+// El precio en pesos no se guarda: es el costo USD × el tipo de cambio de Parámetros. Si se escribe en pesos,
+// se guarda el equivalente en USD (así el cotizador y el costeo siguen en una sola moneda).
+const maeArs=n=>(Math.round(n*100)/100).toLocaleString('es-AR',{maximumFractionDigits:2});
+async function maeUnidad(cod,v){
+  const u=String(v||'').trim().toUpperCase()||null;
+  if(await maeSetIns(cod,{unidad:u})) renderMaestro();
+}
+async function maeCostoArs(cod,v){
+  const tc=Number(mae.par.tipo_cambio)||0;
+  if(!tc){toast('⚠️ Cargá el tipo de cambio en Parámetros');renderMaestro();return;}
+  if(String(v).trim()===''){await maeCosto(cod,'');return;}
+  const n=maeNum(v);
+  if(isNaN(n)||n<0){toast('⚠️ Precio inválido');renderMaestro();return;}
+  await maeCosto(cod,Math.round(n/tc*10000)/10000);
 }
 async function maeNuevoIns(){
   const g=id=>document.getElementById(id).value.trim();
@@ -242,8 +266,9 @@ async function maeBajarPlanilla(){
     await cargarLib(LIB_XLSX);
     const wb=XLSX.utils.book_new();
     const add=(n,a,w)=>{const s=XLSX.utils.aoa_to_sheet(a);s['!cols']=w.map(x=>({wch:x}));XLSX.utils.book_append_sheet(wb,s,n);};
-    add('Insumos_Maestra',[['ID_Insumo','Nombre_Insumo','Rubro','Unidad_Medida','Costo_Unitario_USD','Codigo_Flexxus'],
-      ...Object.values(mae.ins).sort((a,b)=>a.codigo.localeCompare(b.codigo)).map(x=>[x.codigo,x.nombre,x.rubro||'',x.unidad||'',x.costo??'',x.codigo_externo||''])],[11,60,16,12,12,14]);
+    add('Insumos_Maestra',[['ID_Insumo','Nombre_Insumo','Rubro','Unidad_Medida','Costo_Unitario_USD','Codigo_Flexxus','Pesos_informativo'],
+      ...Object.values(mae.ins).sort((a,b)=>a.codigo.localeCompare(b.codigo)).map(x=>[x.codigo,x.nombre,x.rubro||'',x.unidad||'',x.costo??'',x.codigo_externo||'',
+        Number(mae.par.tipo_cambio)>0&&x.costo!=null?Math.round(x.costo*Number(mae.par.tipo_cambio)*100)/100:''])],[11,60,16,12,12,14,14]);
     add('Tipologias_DB',[['ID_Tipologia','Nombre_Tipologia','Pies','M2','Margen_Objetivo_%'],...mae.tip.map(t=>[t.codigo,t.nombre,t.pies??'',t.m2??'',t.margen??''])],[16,44,6,6,14]);
     add('Receta_Tipologias',[['ID_Receta','ID_Tipologia','ID_Insumo','Cantidad_Estandar','Nombre_Insumo'],
       ...mae.rec.map((r,i)=>['REC-'+String(i+1).padStart(3,'0'),r.tipologia,r.insumo,r.cant,maeNombre(r.insumo)])],[10,16,10,12,50]);
