@@ -93,6 +93,47 @@ function aprGanancia(precio,costo){
   return `<div class="drow"><span class="lbl">🔒 Costo</span><span class="val">${usd(costo)}</span></div>
     <div class="drow"><span class="lbl">Ganancia</span><span class="val" style="color:${g<0?'var(--rojo)':'var(--verde)'}"><b>${usd(g)}</b> (${Math.round(g/Number(precio)*100)}% del precio)</span></div>`;
 }
+// ── Qué lleva: cada ítem con su cantidad y su costo, para revisar antes de aprobar ──
+// filas: [{nombre, cant, unidad, costo (null = sin costo, 0 = incluido en otro ítem), sub, de}]
+const aprNum=n=>(Math.round((Number(n)||0)*100)/100).toLocaleString('es-AR');
+function aprNomIns(cod){const i=typeof mae!=='undefined'&&mae.ins?mae.ins[cod]:null;return i?(typeof cotLindo==='function'?cotLindo(i.nombre):i.nombre):cod;}
+function aprDetalleHTML(filas,titulo){
+  if(!filas||!filas.length) return `<div class="crm-n" style="margin-top:6px">No hay detalle guardado: abrilo y guardalo de nuevo para verlo.</div>`;
+  const sin=filas.filter(x=>x.costo==null), tot=filas.reduce((t,x)=>t+(x.costo?Number(x.cant)*Number(x.costo):0),0);
+  const orden=[...filas].sort((a,b)=>(a.costo==null?0:1)-(b.costo==null?0:1)||(b.cant*(b.costo||0))-(a.cant*(a.costo||0)));
+  return `<details style="margin-top:8px"${sin.length?' open':''}><summary style="cursor:pointer;font-weight:800">📋 ${titulo||'Qué lleva'} (${filas.length} ítems${sin.length?`, <span style="color:var(--rojo)">${sin.length} sin costo</span>`:''})</summary>
+    ${sin.length?`<div class="cst-aviso" style="margin-top:6px">⚠️ Sin costo cargado: ${esc(sin.map(x=>x.nombre).join(', '))}. El costo (y el precio) no los incluye.</div>`:''}
+    <div style="font-size:12px;margin-top:6px">
+      <div style="display:grid;grid-template-columns:1fr auto auto auto;gap:2px 10px;font-weight:700;color:var(--gris-m);border-bottom:1px solid var(--borde);padding-bottom:3px">
+        <span>Ítem</span><span style="text-align:right">Cant.</span><span style="text-align:right">Costo u.</span><span style="text-align:right">Subtotal</span></div>
+      ${orden.map(x=>`<div style="display:grid;grid-template-columns:1fr auto auto auto;gap:2px 10px;padding:3px 0;border-bottom:1px solid var(--borde);${x.costo==null?'background:#FDECEA;color:var(--rojo);font-weight:700':''}">
+        <span>${esc(x.nombre)}${x.de?`<small style="display:block;color:var(--gris-m);font-weight:400">${esc(x.de)}</small>`:''}</span>
+        <span style="text-align:right">${aprNum(x.cant)}${x.unidad?' '+esc(String(x.unidad).toLowerCase()):''}</span>
+        <span style="text-align:right">${x.costo==null?'⚠️ falta':x.costo===0?'incluido':usd(x.costo)}</span>
+        <span style="text-align:right">${x.costo?usd(Number(x.cant)*Number(x.costo)):'—'}</span></div>`).join('')}
+      <div style="display:flex;justify-content:space-between;font-weight:800;padding-top:4px"><span>Costo total</span><span>${usd(tot)}</span></div>
+    </div></details>`;
+}
+// Lo que lleva un presupuesto (sale de lo que calculó la base al guardarlo)
+function aprFilasCot(c){
+  const k=typeof cot!=='undefined'?cot.costos[c.id]:null; if(!k||!k.det) return [];
+  if(c.origen==='nota') return k.det.map(x=>{
+    const comp=typeof mae!=='undefined'&&mae.eq?mae.eq[x.clave]:null;
+    const de=comp&&comp.length?'= '+comp.map(e=>(e.factor!==1?aprNum(e.factor)+' × ':'')+aprNomIns(e.insumo)).join(' + '):'';
+    return {nombre:x.clave,cant:Number(x.cant)||0,costo:x.costo==null?null:Number(x.costo),de};
+  });
+  const nom={}; (c.detalle||[]).forEach(d=>nom[d.codigo]=d);
+  return k.det.map(x=>({nombre:nom[x.codigo]?.nombre?(typeof cotLindo==='function'?cotLindo(nom[x.codigo].nombre):nom[x.codigo].nombre):aprNomIns(x.codigo),
+    cant:Number(x.cant)||0,unidad:nom[x.codigo]?.unidad||'',costo:x.costo==null?null:Number(x.costo)}));
+}
+// Lo que lleva una orden de compra (costeo del pedido)
+function aprFilasOC(p){
+  if(typeof costoNota!=='function') return [];
+  const c=costoNota(p); if(!c) return [];
+  return [...c.lineas.map(x=>({nombre:x.clave+(x.det?' · '+x.det:''),cant:x.cant,unidad:x.unidad||'',
+      costo:x.fuente==='incluido'?0:(x.costo==null||x.costo===0?null:Number(x.costo))})),
+    ...(c.extras||[]).map(x=>({nombre:x.desc||x.nombre||'Línea a mano',cant:Number(x.cant)||0,costo:Number(x.costo)||null}))];
+}
 function aprHace(iso){const t=iso?ts(iso):null;return t?' · hace '+fmtHoras(horasDesde(t)):'';}
 function aprCotCardHTML(c,dentro){
   const k=typeof cot!=='undefined'?cot.costos[c.id]:null, p=Number(c.precio_final);
@@ -102,7 +143,8 @@ function aprCotCardHTML(c,dentro){
     <div class="drow"><span class="lbl">Precio al cliente</span><span class="val"><b>${usd(p)}</b> + IVA</span></div>
     ${Number(c.precio_lista)!==p?`<div class="drow"><span class="lbl">Precio de lista</span><span class="val">${usd(c.precio_lista)}${p<Number(c.precio_lista)?' · descuento autorizado por el líder de ventas':''}</span></div>`:''}
     ${k?aprGanancia(p,k.costo):''}
-    ${c.sin_costo?`<div class="cst-aviso">⚠️ ${c.sin_costo} ítem${c.sin_costo>1?'s':''} sin costo cargado: el precio no está completo.</div>`:''}
+    ${c.sin_costo&&!aprFilasCot(c).length?`<div class="cst-aviso">⚠️ ${c.sin_costo} ítem${c.sin_costo>1?'s':''} sin costo cargado: el precio no está completo.</div>`:''}
+    ${aprDetalleHTML(aprFilasCot(c))}
     ${c.aprob_comentario?`<div class="crm-n" style="margin-top:6px">↩️ La última vez lo devolviste: ${esc(c.aprob_comentario)}</div>`:''}
     ${aprComInput('c'+c.id)}
     <div class="flex-btns">${dentro?'':`<button class="btn btn-sec" onclick="aprVerCot('${esc(c.id)}')">👁️ Ver</button>`}
@@ -120,6 +162,7 @@ function aprOCCardHTML(p,dentro){
     <div class="crm-n">Cliente: ${esc(p.cli)} · ${esc(p.vend||nombreDe(p.vendId)||p.creadoPor||'')} · va a ${aprDestino(p.aprobDest)}${p.aprobEn?' · hace '+fmtHoras(horasDesde(p.aprobEn)):''}</div>
     <div class="drow"><span class="lbl">Valor de venta</span><span class="val">${precio!=null?'<b>'+usd(precio)+'</b> + IVA':'<span style="color:var(--rojo)">sin cargar</span>'}</span></div>
     ${ci&&ci.presTot>0?aprGanancia(precio,ci.presTot):'<div class="crm-n">🔒 El costeo todavía no tiene costo para esta nota.</div>'}
+    ${aprDetalleHTML(aprFilasOC(p))}
     ${p.aprobCom?`<div class="crm-n" style="margin-top:6px">↩️ La última vez la devolviste: ${esc(p.aprobCom)}</div>`:''}
     ${aprComInput('p'+p.id)}
     <div class="flex-btns">${dentro?`<button class="btn btn-sec" onclick="pdfNota('${esc(p.id)}',this)">📄 PDF</button>`:`<button class="btn btn-sec" onclick="verDetalle('${esc(p.id)}')">📋 Ver la nota</button>`}
