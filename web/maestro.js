@@ -372,7 +372,7 @@ function maeEquivHTML(){
     .sort((a,b)=>((a.eq.length||a.p?.fuente==='nombre'?1:0)-(b.eq.length||b.p?.fuente==='nombre'?1:0))||(b.usos-a.usos)||a.clave.localeCompare(b.clave));
   const sinEq=l.filter(x=>!x.eq.length&&x.usos&&x.p?.fuente!=='nombre').length;
   return `<div class="card" style="font-size:13px">Cada ítem que sale de la nota de pedido (o de la receta de obra) toma su costo del maestro: uno o más insumos, cada uno con un factor.
-      Ej.: Lavamatic = lavamanos + monocomando; Aislación (m²) = Isover ÷ 9,4 → factor 0,1064; Pintura (tacho 20 l) = litro × 20.
+      Ej.: Lavamatic = ducha higiénica; Aislación (m²) = Isover ÷ 9,4 → factor 0,1064; Pintura (tacho 20 l) = litro × 20.
       <div style="margin-top:6px">Si un ítem se llama igual que un insumo, lo toma solo: no hace falta emparejarlo. Cualquier cambio acá o en Insumos recalcula al instante los presupuestos abiertos; los que el cliente ya aceptó conservan su precio.</div>
       ${sinEq?`<div style="margin-top:6px;color:var(--rojo);font-weight:700">${sinEq} ítem${sinEq>1?'s':''} usado${sinEq>1?'s':''} en pedidos sin emparejar: usan el precio viejo de la lista de costos.</div>`:''}</div>
     <div class="fg"><input type="search" id="mae-busca" placeholder="🔍 Buscar ítem…" value="${esc(mae.busca)}" oninput="mae.busca=this.value;renderMaestro();maeFoco('#mae-busca')"></div>

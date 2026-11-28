@@ -87,7 +87,7 @@ const ITEMS={bano:['Inodoro','Mingitorio','Bidet','Lavamatic','Bacha','Ducha','M
 // Baño: inodoro, lavamatic y vanitory (bacha con grifería + mueble), más un ventiluz, tabique y puerta interior.
 // Si lleva bidet no va el lavamatic. Cocina: bacha con grifería, bajo mesada y alacena (por metro). Habitación: ventana, tabique y puerta.
 const DEF_ITEMS={bano:['Inodoro','Lavamatic','Bacha','Mueble'],cocina:['Bacha monocomando','Bajo mesada','Alacena']};
-const ITEM_TXT={'Bacha':'Bacha con grifería','Mueble':'Mueble de vanitory','Bacha monocomando':'Bacha con grifería'};
+const ITEM_TXT={'Lavamatic':'Lavamatic (ducha higiénica)','Bacha':'Bacha con grifería','Mueble':'Mueble de vanitory','Bacha monocomando':'Bacha con grifería'};
 const itemTxt=o=>ITEM_TXT[o]||o;
 const ML_COCINA=1.4;   // metros de mesada por defecto (bajo mesada 1,40 × 0,60 y alacena 1,40 × 0,40 de la planilla)
 const mlDe=x=>Number(x&&x.ml)>0?Number(x.ml):ML_COCINA;
@@ -355,7 +355,7 @@ function icono(n,t,sz){const h=sz,a=sz*.5;switch(n){ // íconos con la pared en 
     default:return `<rect x="${-a}" y="1" width="${sz}" height="${h*.5}" rx="1"/>`}}
 // Referencias de los íconos que aparecen en el dibujo (solo los usados)
 function leyendaAmb(){const usados=[];d.espacios.forEach(x=>{const it=x.items||[];
-    if(x.tipo==='bano'){['Ducha','Inodoro','Bidet','Mingitorio'].forEach(k=>it.includes(k)&&usados.push(k));if(it.includes('Bacha'))usados.push(it.includes('Mueble')?'Vanitory':'Bacha');else if(it.includes('Mueble'))usados.push('Mueble');if(it.includes('Lavamatic'))usados.push('Lavamatic');if(it.includes('Espejo'))usados.push('Espejo')}
+    if(x.tipo==='bano'){['Ducha','Inodoro','Bidet','Mingitorio'].forEach(k=>it.includes(k)&&usados.push(k));if(it.includes('Bacha'))usados.push(it.includes('Mueble')?'Vanitory':'Bacha');else if(it.includes('Mueble'))usados.push('Mueble');if(it.includes('Espejo'))usados.push('Espejo')}
     if(x.tipo==='cocina'){['Bacha monocomando','Cocina eléctrica'].forEach(k=>it.includes(k)&&usados.push(k));if(it.includes('Bajo mesada')||it.some(k=>k!=='Alacena'))usados.push('Mesada');if(it.includes('Alacena'))usados.push('Alacena')}});
   const u=[...new Set(usados)];if(!u.length)return '';
   const nom={'Bacha monocomando':'bacha cocina','Cocina eléctrica':'anafe','Vanitory':'vanitory (bacha con mueble)'};
@@ -432,7 +432,7 @@ function puertaOps(x){const g=geoEsp(x);if(!g)return '';const ps=paredesPuerta(g
 const artKey=k=>k==='Bacha'||k==='Vanitory'||k==='Mueble'?'Lavatorio':k;
 const artDe=(x,k)=>x.art&&x.art[artKey(k)];
 function piezasBano(x){const it=x.items||[],hay=k=>it.includes(k);const p=['Ducha','Inodoro','Bidet','Mingitorio'].filter(hay);
-  if(hay('Bacha'))p.push(hay('Mueble')?'Vanitory':'Bacha');else if(hay('Mueble'))p.push('Mueble');if(hay('Lavamatic'))p.push('Lavamatic');return p}
+  if(hay('Bacha'))p.push(hay('Mueble')?'Vanitory':'Bacha');else if(hay('Mueble'))p.push('Mueble');return p}   // el Lavamatic es la ducha higiénica del inodoro: no se dibuja aparte
 function artTf(a,x0,x1,y0,y1,sz){const m=sz*.6+2,cl=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
   if(a.pared==='arr'||a.pared==='abj'){const cx=cl(x0+a.f*(x1-x0),x0+m,x1-m);return a.pared==='arr'?`translate(${cx} ${y0})`:`translate(${cx} ${y1}) rotate(180)`}
   const cy=cl(y0+a.f*(y1-y0),y0+m,y1-m);return a.pared==='izq'?`translate(${x0} ${cy}) rotate(-90)`:`translate(${x1} ${cy}) rotate(90)`}
