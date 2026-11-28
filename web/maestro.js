@@ -341,7 +341,11 @@ async function maeAgregarRec(tip){
 function maeParametrosHTML(){
   const P=[['tipo_cambio','Tipo de cambio','Pesos por dólar, para mostrar el precio en pesos',''],['margen_default','Margen por defecto','Para tipologías sin margen propio','%'],
     ['iva','IVA','Se suma al precio de lista','%'],['validez_dias','Validez de la cotización','Días','días'],
-    ['mo_m2_referencia','m² del módulo de referencia de la mano de obra','La mano de obra de cada presupuesto = m² del módulo ÷ estos m² × el costo de "Mano de obra general" (Ítems de proyectos). 40 pies = 29,74 m²','m²']];
+    ['mo_m2_referencia','m² del módulo de referencia de la mano de obra','La mano de obra de cada presupuesto = m² del módulo ÷ estos m² × el costo de "Mano de obra general" (Ítems de proyectos). 40 pies = 29,74 m²','m²'],
+    // precio de venta por m² habitual (pedido de Cristian 27/11): el presupuesto que se aleja más que la tolerancia muestra un aviso
+    ['ref_m2_20_sin','Precio por m² · 20 pies sin baño','Referencia de venta (USD por m² de piso, sin IVA)','USD'],['ref_m2_20_con','Precio por m² · 20 pies con baño o cocina','Referencia de venta','USD'],
+    ['ref_m2_40_sin','Precio por m² · 40 pies sin baño','Referencia de venta','USD'],['ref_m2_40_con','Precio por m² · 40 pies con baño o cocina','Referencia de venta','USD'],
+    ['ref_m2_tolerancia','Tolerancia del precio por m²','Si el precio se aleja más que esto de la referencia, el vendedor y vos ven un aviso','%']];
   return `${typeof aprInterruptorHTML==='function'&&typeof apr!=='undefined'&&apr.listo?aprInterruptorHTML():''}<div class="card">${P.map(([k,t,d,u])=>`<div class="fg"><label>${t} <small>${d}</small></label>
     <div style="display:flex;gap:6px;align-items:center"><input type="text" inputmode="decimal" value="${u==='%'?maePct(mae.par[k]):mae.par[k]??''}" onchange="maePar('${k}',this.value,${u==='%'})"> ${u}</div></div>`).join('')}
     <div style="font-size:12px;color:var(--gris-m)">El vendedor ve solo el precio final. El margen y los costos los ven vos y el líder de ventas.</div></div>`;
