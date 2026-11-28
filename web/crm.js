@@ -617,7 +617,7 @@ function crmCargarNota(id){
   const ficha={v:2,sol:'Orden de compra confirmada',cli:o.cliente||'',tel:o.telefono||'',mail:o.mail||'',empresa,unidades:o.unidades||1,...(prod?{prod}:{}),
     obs:o.notas||''};
   crmCerrar();
-  NotaPedido.abrir({titulo:'Nota de pedido · '+o.cliente,ficha,cliente:o.cliente,empresa,enviar:rol()==='ventas',
+  NotaPedido.abrir({titulo:'Nota de pedido · '+o.cliente,ficha,cliente:o.cliente,empresa,enviar:rol()==='ventas',pideValor:veoPrecio(),valor:o.precio_cliente??'',
     onGuardar:async(f,opt)=>{
       const pid=await crearDesdeNota(f,opt,{vendId:o.vendedor_id,vend:nombreDe(o.vendedor_id),val:o.precio_cliente??'',oportunidad:id});
       if(!pid) return false;

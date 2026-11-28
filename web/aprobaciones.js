@@ -134,13 +134,43 @@ function aprFilasOC(p){
       costo:x.fuente==='incluido'?0:(x.costo==null||x.costo===0?null:Number(x.costo))})),
     ...(c.extras||[]).map(x=>({nombre:x.desc||x.nombre||'Línea a mano',cant:Number(x.cant)||0,costo:Number(x.costo)||null}))];
 }
+// ── Qué se pidió: breve descripción + dibujo, para entrar en contexto sin leer ítem por ítem (pedido de Cristian 27/11) ──
+function aprResumenHTML(ficha,pid){
+  if(!ficha||ficha.v!==2||typeof NotaPedido==='undefined'||!NotaPedido.breve) return '';
+  let lineas=[],dib='';
+  try{lineas=NotaPedido.breve(ficha);}catch(e){console.error(e);}
+  try{dib=NotaPedido.dibujos(ficha);}catch(e){console.error(e);}
+  const pl=pid&&todos[pid]?(todos[pid].planos||[]).length:0;
+  return `<div style="background:var(--gris-l,#F4F5F7);border-radius:10px;padding:8px 10px;margin:8px 0;font-size:13px;line-height:1.45">
+    <div style="font-weight:800;margin-bottom:2px">🧾 Qué se pidió</div>${lineas.map(l=>`<div>${esc(l)}</div>`).join('')}
+    ${pl?`<div class="crm-n" style="margin-top:4px">📎 ${pl} plano${pl>1?'s':''} o croquis adjunto${pl>1?'s':''}: están en la nota y en el PDF.</div>`:''}</div>
+    ${dib?`<details open style="margin-bottom:6px"><summary style="cursor:pointer;font-weight:700;font-size:13px">📐 Dibujo</summary><div class="nota-vars nota-dib" style="max-width:520px">${dib}</div></details>`:''}`;
+}
+// ── Precio por m² contra los valores de referencia (Parámetros). Fuera de la tolerancia, avisa ──
+const REF_M2_DEF={ref_m2_20_sin:620,ref_m2_20_con:690,ref_m2_40_sin:630,ref_m2_40_con:680,ref_m2_tolerancia:0.15};
+function refM2(k){const v=typeof mae!=='undefined'&&mae.par?Number(mae.par[k]):NaN;return v>0?v:REF_M2_DEF[k];}
+function precioM2Info(ficha,precio){
+  if(!ficha||ficha.v!==2||!(Number(precio)>0)||typeof NotaPedido==='undefined'||!NotaPedido.datosM2) return null;
+  let x=null; try{x=NotaPedido.datosM2(ficha);}catch(e){return null;}
+  if(!x||!x.aplica) return null;
+  const pm=Number(precio)/x.unidades/x.m2, ref=refM2(`ref_m2_${x.pies}_${x.conBano?'con':'sin'}`), dif=pm/ref-1;
+  return {pm,ref,dif,fuera:Math.abs(dif)>refM2('ref_m2_tolerancia'),txt:`${x.pies} pies ${x.conBano?'con baño o cocina':'sin baño'}`};
+}
+function aprM2HTML(ficha,precio){
+  const i=precioM2Info(ficha,precio); if(!i) return '';
+  const pct=Math.round(Math.abs(i.dif)*100);
+  return `<div class="drow"><span class="lbl">Precio por m²</span><span class="val"><b>${usd(i.pm)}</b> · referencia ${usd(i.ref)} (${esc(i.txt)})</span></div>
+    ${i.fuera?`<div class="cst-aviso">⚠️ El precio por m² está ${pct}% ${i.dif<0?'por debajo':'por encima'} de la referencia. Revisá que no falte o sobre algo.</div>`:''}`;
+}
 function aprHace(iso){const t=iso?ts(iso):null;return t?' · hace '+fmtHoras(horasDesde(t)):'';}
 function aprCotCardHTML(c,dentro){
   const k=typeof cot!=='undefined'?cot.costos[c.id]:null, p=Number(c.precio_final);
   return `<div class="card" style="border-left:5px solid var(--amarillo)${dentro?';margin-top:8px':''}">
     <div class="card-title">🛂 Presupuesto N° ${esc(c.numero)} · ${esc(c.cliente||'')}</div>
     <div class="crm-n">${esc(c.tipologia_nombre||'Nota de pedido')}${c.unidades>1?' × '+c.unidades:''} · ${c.origen==='nota'?'nota de pedido':'cotizador'} · ${esc(nombreDe(c.vendedor_id))}${aprHace(c.aprob_pedida_en)}</div>
+    ${c.origen==='nota'&&c.proyecto_id&&todos[c.proyecto_id]?aprResumenHTML(todos[c.proyecto_id].ficha,c.proyecto_id):''}
     <div class="drow"><span class="lbl">Precio al cliente</span><span class="val"><b>${usd(p)}</b> + IVA</span></div>
+    ${c.origen==='nota'&&c.proyecto_id&&todos[c.proyecto_id]?aprM2HTML(todos[c.proyecto_id].ficha,p):''}
     ${Number(c.precio_lista)!==p?`<div class="drow"><span class="lbl">Precio de lista</span><span class="val">${usd(c.precio_lista)}${p<Number(c.precio_lista)?' · descuento autorizado por el líder de ventas':''}</span></div>`:''}
     ${k?aprGanancia(p,k.costo):''}
     ${c.sin_costo&&!aprFilasCot(c).length?`<div class="cst-aviso">⚠️ ${c.sin_costo} ítem${c.sin_costo>1?'s':''} sin costo cargado: el precio no está completo.</div>`:''}
@@ -160,7 +190,9 @@ function aprOCCardHTML(p,dentro){
   return `<div class="card" style="border-left:5px solid var(--amarillo)${dentro?';margin-bottom:8px':''}">
     <div class="card-title">🛂 Orden de compra · ${esc(p.nombre)}</div>
     <div class="crm-n">Cliente: ${esc(p.cli)} · ${esc(p.vend||nombreDe(p.vendId)||p.creadoPor||'')} · va a ${aprDestino(p.aprobDest)}${p.aprobEn?' · hace '+fmtHoras(horasDesde(p.aprobEn)):''}</div>
+    ${aprResumenHTML(p.ficha,p.id)}
     <div class="drow"><span class="lbl">Valor de venta</span><span class="val">${precio!=null?'<b>'+usd(precio)+'</b> + IVA':'<span style="color:var(--rojo)">sin cargar</span>'}</span></div>
+    ${aprM2HTML(p.ficha,precio)}
     ${ci&&ci.presTot>0?aprGanancia(precio,ci.presTot):'<div class="crm-n">🔒 El costeo todavía no tiene costo para esta nota.</div>'}
     ${aprDetalleHTML(aprFilasOC(p))}
     ${p.aprobCom?`<div class="crm-n" style="margin-top:6px">↩️ La última vez la devolviste: ${esc(p.aprobCom)}</div>`:''}

@@ -408,6 +408,7 @@ const notaPrecio={
     const c=cotDeProy(n.pid);
     if(c&&c.estado==='enviada'){el.innerHTML=`<div class="card"><div class="lbl">💲 Precio al cliente</div>
       <div class="cot-grande">${usd(c.precio_final)} <small>+ IVA</small></div><div class="aviso" style="text-align:left">✅ El cliente aceptó este presupuesto: el precio ya no cambia.</div></div>`;return;}
+    n.f=f;   // para comparar el precio por m² con la referencia
     const dat=cotNotaDatos(f), firma=JSON.stringify(dat);
     if(firma!==n.firma){
       n.firma=firma; n.calc=null; n.err='';
@@ -572,6 +573,8 @@ function cotNotaPrecioHTML(){
   return `<div class="cot-grande">${usd(fin)} <small>+ IVA</small></div>
     ${ped&&ped!==lista?`<div class="crm-n">Precio de lista: ${usd(lista)}${ped<lista?(veTodoCRM()?' · lo autorizás vos al guardar':cotNotaAutorizado(c,ped,lista)?' · <b style="color:var(--verde)">autorizado por el líder de ventas</b>':c&&c.estado==='pendiente'&&Number(c.precio_pedido)===ped?' · <b style="color:var(--amarillo)">esperando al líder de ventas</b>':' · <b style="color:var(--amarillo)">más bajo: al guardar se lo pedimos al líder de ventas</b>'):''}</div>`:''}
     ${u>1?`<div class="crm-n">${usd(fin/u)} cada una</div>`:''}
+    ${(()=>{const i=typeof precioM2Info==='function'&&n.f?precioM2Info(n.f,fin):null;if(!i) return '';const pct=Math.round(Math.abs(i.dif)*100);
+      return `<div class="crm-n">Precio por m²: <b>${usd(i.pm)}</b> (lo habitual: ${usd(i.ref)})</div>${i.fuera?`<div class="aviso" style="text-align:left;color:var(--warn,#C98A00)">⚠️ Está ${pct}% ${i.dif<0?'por debajo':'por encima'} de lo habitual: revisá que no falte o sobre nada.</div>`:''}`;})()}
     <div class="crm-n">Con IVA (${maePct(iva)}%): <b>${usd(fin*(1+iva))}</b>${tc?` · ${cotArs(fin*(1+iva)*tc)}`:''}</div>
     ${k.costo_total!=null?`<div class="crm-n" style="margin-top:4px">🔒 Costo ${usd(k.costo_total)} · ganancia ${usd(fin-k.costo_total)} (${fin?Math.round((fin-k.costo_total)/fin*100):0}% del precio)</div>`:''}
     ${typeof apr!=='undefined'&&apr.activa&&rol()!=='admin'?`<div class="crm-n" style="margin-top:4px">🛂 Al guardarlo le llega al administrador: lo mandás al cliente cuando lo apruebe.</div>`:''}

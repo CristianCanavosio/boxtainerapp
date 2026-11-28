@@ -1103,7 +1103,7 @@ function prepararModalProy(){
 function abrirNuevoProy(){
   if(!puedeCrear()) return;
   const v=rol()==='ventas';
-  NotaPedido.abrir({titulo:'Nueva nota de pedido',enviar:v,empresa:perfiles[myId]?.empresa||'',
+  NotaPedido.abrir({titulo:'Nueva nota de pedido',enviar:v,empresa:perfiles[myId]?.empresa||'',pideValor:veoPrecio(),
     onGuardar:(f,o)=>crearDesdeNota(f,o)});
 }
 const esNota=p=>!!(p&&p.ficha&&p.ficha.v===2);
@@ -1116,13 +1116,14 @@ function pasarAOC(id){if(typeof cotPasarAOC==='function'&&puedeCRM()) cotPasarAO
 const pasoPorArq=p=>(p.flujo||[]).some(x=>x.a==='arquitectura');
 // Crea el proyecto con lo que cargó ventas en la nota de pedido
 // extra: datos que vienen del CRM (vendedor de la oportunidad y precio del cliente como valor de venta)
-async function crearDesdeNota(f,{enviar,archivos},extra){
+async function crearDesdeNota(f,{enviar,archivos,valor},extra){
   const p={id:nuevoId(),creadoTs:Date.now(),creadoPor:currentUser?.nombre||'',creadoPorId:myId,creadoEn:hoyISO(),
     historial:[],costos:[],planos:[],flujo:[],consultas:[],incidencias:[],faltantes:[],estado:'presupuesto',avance:0,
     vendId:rol()==='ventas'?myId:null,nombre:NotaPedido.nombreSugerido(f),cli:(f.cli||'').trim()||'Sin nombre',emp:f.empresa||'',
     tipo:NotaPedido.tipoTrabajo(f),entrega:f.fecha||'',val:'',vend:currentUser?.nombre||'',dep:'',pri:'normal',obs:'',
     ficha:NotaPedido.compat(f)};
   if(extra){const {oportunidad,...resto}=extra;Object.assign(p,resto);}
+  if(valor!=null&&f.sol!=='Presupuesto') p.val=valor;   // valor de venta de la orden de compra (obligatorio en la nota)
   p.etapa=rol()==='ventas'||f.sol==='Presupuesto'?'ventas':'asignacion';   // un presupuesto queda en ventas hasta que el cliente lo acepta
   // con la aprobación del administrador prendida, la orden de compra que carga el líder también espera (0033)
   const esperaAprob=p.etapa!=='ventas'&&typeof aprOCNecesita==='function'&&aprOCNecesita(p)?p.etapa:null;
@@ -1146,9 +1147,11 @@ function editarNota(id,ajuste){
   const confirmada=notaConfirmada(p);
   const ficha=esNota(p)?(ajuste&&ajuste.sol?{...p.ficha,sol:ajuste.sol}:p.ficha):null;
   NotaPedido.abrir({ficha,proyectoId:id,paso:ajuste&&ajuste.paso,cliente:p.cli,empresa:p.emp||perfiles[p.vendId]?.empresa||perfiles[p.creadoPorId]?.empresa||'',croquisPrevios:croquisDe(p),planosPrevios:(p.planos||[]).length,adjuntos:()=>adjuntosPDF(id),titulo:'Nota de pedido · '+p.nombre,enviar:enVentas,
+    pideValor:veoPrecio()&&!(typeof cotDeProy==='function'&&cotDeProy(id)),valor:p.val,
     aviso:confirmada?'⚠️ <b>Esta nota ya la confirmó el cliente.</b> Si la cambiás, queda registrado quién y qué cambió, le avisamos a ventas para que se la mande al cliente, y el proyecto no pasa a ejecución hasta que el cliente apruebe el cambio.':'',
-    onGuardar:async(f,{enviar:env,archivos})=>{
+    onGuardar:async(f,{enviar:env,archivos,valor})=>{
       const q=limpiar(todos[id]); if(!q) return false;
+      if(valor!=null&&f.sol!=='Presupuesto') q.val=valor;
       const antes=q.ficha;
       q.ficha=NotaPedido.compat(f);
       if((!q.cli||q.cli==='Sin nombre')&&f.cli) q.cli=f.cli.trim();
@@ -1430,6 +1433,9 @@ async function moverEtapa(id,a){
     if(falta.length){
       if(esNota(p)){toast('⚠️ Completá la nota de pedido: '+falta[0]);closeOverlay('m-det');editarNota(id);return;}
       toast('⚠️ Completá la ficha técnica: '+falta.join(', '));closeOverlay('m-det');editarProy(id);return;}
+    // sin valor de venta no sale (pedido de Cristian 27/11): el que aprueba tiene que poder ver si el precio está bien
+    if(esNota(p)&&veoPrecio()&&rol()!=='admin'&&!(Number(p.val)>0)&&!(typeof cotDeProy==='function'&&cotDeProy(id))){
+      toast('⚠️ Poné el valor de venta de la orden de compra (último paso de la nota)');closeOverlay('m-det');editarNota(id,{paso:6});return;}
     // aprobación del administrador (0033): la orden de compra queda esperando y él la manda a la etapa siguiente
     if(typeof aprOCNecesita==='function'&&aprOCNecesita(p)){
       if(aprOCEsperando(p)){toast('🛂 Ya está esperando la aprobación del administrador');return;}
