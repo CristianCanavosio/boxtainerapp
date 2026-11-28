@@ -19,9 +19,11 @@ async function cargarAprobaciones(){
 // ── presupuestos ──
 // null: no hace falta (apagado, o todavía espera al líder de ventas, o ya salió) · pendiente · devuelta · aprobada
 function aprCotEstado(c){
-  if(!apr.activa||!c||!['lista','autorizada'].includes(c.estado)) return null;
+  if(!apr.activa||!c||!['lista','autorizada'].includes(c.estado)||aprCotDeOC(c)) return null;
   return c.aprobacion||'pendiente';
 }
+// El precio de una orden de compra lo aprueba el administrador junto con la orden de compra (0039), no como presupuesto
+function aprCotDeOC(c){const p=c.origen==='nota'&&c.proyecto_id?todos[c.proyecto_id]:null;return !!(p&&esNota(p)&&p.ficha.sol!=='Presupuesto');}
 const aprCotFrena=c=>['pendiente','devuelta'].includes(aprCotEstado(c));
 const APR_EST={pendiente:['🛂','Esperando aprobación','b-amar'],devuelta:['↩️','Devuelto por el administrador','b-rojo']};
 function aprCotsPend(){return (typeof cot!=='undefined'?cot.lista:[]).filter(c=>aprCotEstado(c)==='pendiente')
@@ -66,6 +68,15 @@ async function aprOCPedir(id,destino){
   closeOverlay('m-det'); refrescar();
   toast('🛂 Orden de compra enviada al administrador: cuando la apruebe pasa sola a '+(destino==='asignacion'?'el líder de operaciones':'arquitectura'));
   return true;
+}
+// Después de guardar una nota que el administrador ya había aprobado: si ventas la cambió, la base la deja
+// esperando de nuevo (0039). Se relee para que la app no la mueva como aprobada.
+async function aprReleerOC(p){
+  if(!p||p.aprob!=='aprobada'||etapaDe(p)!=='ventas') return;
+  const r=await sb.from('proyectos').select('aprob_oc,aprob_oc_destino,aprob_oc_comentario').eq('id',p.id).maybeSingle();
+  if(r.error||!r.data) return;
+  const x={aprob:r.data.aprob_oc||null,aprobDest:r.data.aprob_oc_destino||null,aprobCom:r.data.aprob_oc_comentario||''};
+  Object.assign(p,x); if(todos[p.id]&&todos[p.id]!==p) Object.assign(todos[p.id],x); if(ORIG[p.id]) Object.assign(ORIG[p.id],x);
 }
 const aprDestino=d=>d==='asignacion'?'🧭 Líder de operaciones':'📐 Arquitectura';
 // En el detalle del proyecto (etapa ventas)

@@ -139,7 +139,6 @@ function ops(key,lista,val,extra=''){return `<div class="ops">${lista.map(o=>`<d
 function multi(key,lista,vals,lab){return `<div class="ops">${lista.map(o=>`<div class="op ${vals.includes(o)?'sel':''}" data-m="${key}" data-v="${esc(o)}">${esc(lab?lab(o):o)}</div>`).join('')}</div>`}
 function confBox(key,val){return `<label class="conf"><input type="checkbox" data-c="${key}" ${val?'checked':''}> A confirmar</label>`}
 function setPath(path,v){const ks=path.split('.');let o=d;ks.slice(0,-1).forEach(k=>o=o[k]);o[ks.at(-1)]=v}
-function getPath(path){return path.split('.').reduce((o,k)=>o?.[k],d)}
 const total=()=>d.espacios.length;
 const MAX_U=200;
 const unidades=()=>Math.max(1,Math.floor(Number(d.unidades))||1);
