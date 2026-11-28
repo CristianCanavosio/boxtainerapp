@@ -34,6 +34,7 @@ from (values
   ('0036', exists(select 1 from information_schema.columns where table_schema='public' and table_name='actualizaciones' and column_name='horas_extras'), 'Horas extras en el parte diario'),
   ('0037', to_regclass('public.correos_clientes') is not null, 'Mandar presupuesto u orden de compra por correo'),
   ('0038', exists(select 1 from cot_insumos where codigo='INS-BAST-M2'), 'Cotizador: lo mínimo por ambiente, bastidor, precio por m² de referencia'),
-  ('0039', coalesce((select pg_get_functiondef(f) like '%se reabre%' from to_regprocedure('public.oc_aprobar_admin(uuid,boolean,text)') f where f is not null), false), 'Revisión 4: arreglos de la aprobación del administrador')
+  ('0039', coalesce((select pg_get_functiondef(f) like '%se reabre%' from to_regprocedure('public.oc_aprobar_admin(uuid,boolean,text)') f where f is not null), false), 'Revisión 4: arreglos de la aprobación del administrador'),
+  ('0040', exists(select 1 from cot_insumos where codigo='INS-LAVAM'), 'Lavamatic = ducha higiénica (no se cobra el lavamanos dos veces)')
 ) as m(migracion, ok, para_que)
 order by 1;
