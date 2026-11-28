@@ -10,7 +10,9 @@
 -- Necesita la 0032. Se puede correr más de una vez.
 
 -- ══════════ DATOS A REVISAR ANTES DE CORRER ══════════
-create temp table _mel_param as select
+-- (tabla común y no "temp": el editor SQL de Supabase puede correr cada sentencia en otra conexión y la temporal se pierde)
+drop table if exists public._mel_param;
+create table public._mel_param as select
   null::numeric as precio_placa,   -- USD por placa. Vacío = toma el del insumo que hoy se llama Faplac
   1.83 * 2.60  as m2_placa;        -- m² de una placa (1,83 × 2,60 = 4,758 m²)
 
@@ -183,7 +185,7 @@ begin
 end $$;
 revoke all on function _cot_calc_nota(jsonb, text, text, int) from public, anon, authenticated;
 
-drop table _mel_param;
+drop table if exists public._mel_param;
 
 -- Los presupuestos abiertos quedan al día (los aceptados no cambian)
 select _cot_recalcular_abiertas() as presupuestos_actualizados;
