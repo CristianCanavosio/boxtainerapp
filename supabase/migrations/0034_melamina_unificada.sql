@@ -10,11 +10,7 @@
 -- Necesita la 0032. Se puede correr más de una vez.
 
 -- ══════════ DATOS A REVISAR ANTES DE CORRER ══════════
--- (tabla común y no "temp": el editor SQL de Supabase puede correr cada sentencia en otra conexión y la temporal se pierde)
-drop table if exists public._mel_param;
-create table public._mel_param as select
-  null::numeric as precio_placa,   -- USD por placa. Vacío = toma el del insumo que hoy se llama Faplac
-  1.83 * 2.60  as m2_placa;        -- m² de una placa (1,83 × 2,60 = 4,758 m²)
+-- (los datos ahora están dentro del bloque de abajo, en 'select ... into par')
 
 -- ¿Es un concepto/insumo de revestimiento de melamina? (no muebles de cocina en melamina, por ejemplo)
 create or replace function _cot_es_melamina(p text) returns boolean
@@ -32,14 +28,16 @@ do $$
 declare
   par record; nuevo constant text := 'INS-091'; precio numeric; fap record; n int;
 begin
-  select * into par from _mel_param;
+  select null::numeric as precio_placa,  -- USD por placa. Vacío = toma el del insumo Faplac
+         1.83 * 2.60  as m2_placa       -- m² de una placa
+    into par;
 
   -- 1) precio: el que se cargó arriba o el del insumo Faplac
   precio := par.precio_placa;
   if precio is null then
     select count(*) into n from cot_insumos where nombre ~* 'faplac' and codigo <> nuevo and activo and costo_usd is not null;
     if n > 1 then
-      raise exception 'Hay % insumos con "Faplac" en el nombre. Escribí el precio por placa arriba (precio_placa) y volvé a correr.', n;
+      raise exception 'Hay % insumos con "Faplac" en el nombre. Escribí el precio por placa en precio_placa (al principio del bloque "do") y volvé a correr.', n;
     end if;
     select * into fap from cot_insumos where nombre ~* 'faplac' and codigo <> nuevo and activo and costo_usd is not null;
     if found then
@@ -49,7 +47,7 @@ begin
     end if;
   end if;
   if precio is null and not exists (select 1 from cot_insumos where codigo = nuevo and costo_usd is not null) then
-    raise exception 'No encontré el insumo Faplac. Escribí el precio por placa arriba (precio_placa) y volvé a correr.';
+    raise exception 'No encontré el insumo Faplac. Escribí el precio por placa en precio_placa (al principio del bloque "do") y volvé a correr.';
   end if;
 
   -- 2) el insumo genérico
@@ -185,7 +183,6 @@ begin
 end $$;
 revoke all on function _cot_calc_nota(jsonb, text, text, int) from public, anon, authenticated;
 
-drop table if exists public._mel_param;
 
 -- Los presupuestos abiertos quedan al día (los aceptados no cambian)
 select _cot_recalcular_abiertas() as presupuestos_actualizados;
