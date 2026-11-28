@@ -1021,10 +1021,6 @@ function pintarChips(base){
 }
 let filtroEmpresa='';
 function setFiltroEmpresa(v){filtroEmpresa=v;renderProyectos();}
-function pasaFiltro(p){
-  if(filtroEmpresa&&(filtroEmpresa==='-'?!!p.emp:p.emp!==filtroEmpresa)) return false;
-  return pasaFiltroEstado(p);
-}
 function pasaFiltroEstado(p){
   const f=filtroEstado, e=etapaDe(p);
   if(f==='todos') return true;
@@ -1165,6 +1161,7 @@ function editarNota(id,ajuste){
       if(cambio.length) await avisarCambioNota(id,cambio);
       for(const a of archivos||[]) await subirCroquis(id,a);
       const msg=window.notaPrecio?await notaPrecio.guardado(id,f):'';
+      if(typeof aprReleerOC==='function') await aprReleerOC(todos[id]);   // si la cambió después de aprobada, vuelve a esperar (0039)
       if(env) await moverEtapa(id,destinoNota(f));
       else if(msg&&!cambio.length) toast(msg);
       else toast(cambio.length?'✏️ Nota cambiada: le avisamos a ventas para que la apruebe el cliente':'✅ Nota de pedido guardada');
@@ -1594,7 +1591,6 @@ async function guardarUpdate(){
 // ════════════════════════════════════════════════
 // FICHA TÉCNICA
 // ════════════════════════════════════════════════
-const FICHA_IDS=['fx-largo','fx-ancho','fx-alto','fx-puerta','fx-puertas','fx-ventanas','fx-ventmed','fx-elec','fx-sani','fx-term','fx-extra'];
 function leerFicha(){
   const g=k=>document.getElementById(k).value.trim();
   return {largo:g('fx-largo'),ancho:g('fx-ancho'),alto:g('fx-alto'),puerta:g('fx-puerta'),puertas:g('fx-puertas'),

@@ -22,6 +22,18 @@ from (values
   ('0024', to_regclass('public.oportunidades') is not null, 'CRM de ventas y rol Líder de ventas'),
   ('0025', to_regclass('public.cotizaciones') is not null and to_regclass('public.cot_equivalencias') is not null, 'Cotizador de ventas y maestro de insumos'),
   ('0026', coalesce((select pg_get_functiondef(f) like '%es de otro contacto%' from to_regprocedure('public.cot_guardar(uuid,uuid,text,jsonb,integer,text,numeric,text)') f where f is not null), false), 'Revisión del cotizador (contacto de la cotización y costos negativos)'),
-  ('0027', to_regprocedure('public.cot_guardar_nota(uuid,uuid,jsonb,text,text,integer,text,numeric,text)') is not null, 'Precio en la nota de pedido (presupuesto → CRM → orden de compra)')
+  ('0027', to_regprocedure('public.cot_guardar_nota(uuid,uuid,jsonb,text,text,integer,text,numeric,text)') is not null, 'Precio en la nota de pedido (presupuesto → CRM → orden de compra)'),
+  ('0028', exists(select 1 from information_schema.columns where table_schema='public' and table_name='cotizaciones' and column_name='entrada'), 'Insumos al instante en los presupuestos abiertos'),
+  ('0029', exists(select 1 from cot_parametros where clave='mo_m2_referencia'), 'Mano de obra por m²'),
+  ('0030', exists(select 1 from cot_insumos where codigo='INS-ELEC-M2'), 'Instalación eléctrica por m²'),
+  ('0031', exists(select 1 from cot_insumos where codigo='INS-VENT-M2'), 'Ventanas por m² y vidrio DVH'),
+  ('0032', coalesce((select pg_get_functiondef(f) like '%armado de%' from to_regprocedure('public._cot_calc_nota(jsonb,text,text,integer)') f where f is not null), false), 'Sin costos de armado'),
+  ('0033', to_regclass('public.ajustes_app') is not null, 'Aprobación del administrador (presupuestos y órdenes de compra)'),
+  ('0034', exists(select 1 from cot_equivalencias where clave='Revestimiento melamina 5.5'), 'Melamina unificada'),
+  ('0035', exists(select 1 from information_schema.columns where table_schema='public' and table_name='proyectos' and column_name='numero_proyecto'), 'Número de proyecto del Supervisor Company'),
+  ('0036', exists(select 1 from information_schema.columns where table_schema='public' and table_name='actualizaciones' and column_name='horas_extras'), 'Horas extras en el parte diario'),
+  ('0037', to_regclass('public.correos_clientes') is not null, 'Mandar presupuesto u orden de compra por correo'),
+  ('0038', exists(select 1 from cot_insumos where codigo='INS-BAST-M2'), 'Cotizador: lo mínimo por ambiente, bastidor, precio por m² de referencia'),
+  ('0039', coalesce((select pg_get_functiondef(f) like '%se reabre%' from to_regprocedure('public.oc_aprobar_admin(uuid,boolean,text)') f where f is not null), false), 'Revisión 4: arreglos de la aprobación del administrador')
 ) as m(migracion, ok, para_que)
 order by 1;
